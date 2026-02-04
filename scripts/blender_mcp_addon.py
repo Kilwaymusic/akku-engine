@@ -25,7 +25,10 @@ BASE_PRESETS = {
         "limb_thickness": 0.12,
         "head_scale": 1.5,
         "torso_width": 0.35,
-        "leg_length": 0.3
+        "leg_length": 0.3,
+        "sphere_segments": 12,
+        "sphere_rings": 8,
+        "cylinder_vertices": 8
     },
     "stylized": {  # Stylized proportions (5-6 heads)
         "head_ratio": 0.18,
@@ -33,7 +36,10 @@ BASE_PRESETS = {
         "limb_thickness": 0.08,
         "head_scale": 1.0,
         "torso_width": 0.28,
-        "leg_length": 0.5
+        "leg_length": 0.5,
+        "sphere_segments": 16,
+        "sphere_rings": 10,
+        "cylinder_vertices": 12
     },
     "realistic": {  # 8-head proportions
         "head_ratio": 0.125,
@@ -41,7 +47,10 @@ BASE_PRESETS = {
         "limb_thickness": 0.06,
         "head_scale": 0.9,
         "torso_width": 0.25,
-        "leg_length": 0.55
+        "leg_length": 0.55,
+        "sphere_segments": 20,
+        "sphere_rings": 12,
+        "cylinder_vertices": 16
     },
     "chibi": {  # Chibi style (1.5-2 heads)
         "head_ratio": 0.5,
@@ -49,8 +58,52 @@ BASE_PRESETS = {
         "limb_thickness": 0.15,
         "head_scale": 1.8,
         "torso_width": 0.4,
-        "leg_length": 0.2
+        "leg_length": 0.2,
+        "sphere_segments": 10,
+        "sphere_rings": 6,
+        "cylinder_vertices": 6
+    },
+    "mobile": {  # Ultra-low-poly for mobile games (~300 tris)
+        "head_ratio": 0.35,
+        "body_height": 1.2,
+        "limb_thickness": 0.1,
+        "head_scale": 1.3,
+        "torso_width": 0.3,
+        "leg_length": 0.35,
+        "sphere_segments": 8,
+        "sphere_rings": 4,
+        "cylinder_vertices": 6
+    },
+    "minifig": {  # LEGO-like minifigure proportions
+        "head_ratio": 0.45,
+        "body_height": 0.9,
+        "limb_thickness": 0.09,
+        "head_scale": 1.4,
+        "torso_width": 0.32,
+        "leg_length": 0.25,
+        "sphere_segments": 8,
+        "sphere_rings": 6,
+        "cylinder_vertices": 6
+    },
+    "cartoon": {  # Cartoon style (4-5 heads, exaggerated features)
+        "head_ratio": 0.25,
+        "body_height": 1.4,
+        "limb_thickness": 0.1,
+        "head_scale": 1.2,
+        "torso_width": 0.32,
+        "leg_length": 0.4,
+        "sphere_segments": 14,
+        "sphere_rings": 8,
+        "cylinder_vertices": 10
     }
+}
+
+# Polygon count targets for different quality levels
+POLY_LEVELS = {
+    "ultra_low": {"target_tris": 300, "decimate_ratio": 0.3},
+    "low": {"target_tris": 800, "decimate_ratio": 0.5},
+    "medium": {"target_tris": 1500, "decimate_ratio": 0.7},
+    "high": {"target_tris": 3000, "decimate_ratio": 0.9}
 }
 
 # Armor plate presets for kitbashing
@@ -185,8 +238,10 @@ class BlenderMCPServer:
         self.current_armature = None  # Track armature for rigging
 
     def start(self):
+        import sys
+        
         if self.running:
-            print("MCP Server is already running")
+            print("MCP Server is already running", flush=True)
             return
 
         self.running = True
@@ -202,9 +257,10 @@ class BlenderMCPServer:
             self.server_thread.daemon = True
             self.server_thread.start()
 
-            print(f"Akku MCP server started on {self.host}:{self.port}")
+            print(f"Akku MCP server started on {self.host}:{self.port}", flush=True)
+            sys.stdout.flush()
         except Exception as e:
-            print(f"Failed to start MCP server: {str(e)}")
+            print(f"Failed to start MCP server: {str(e)}", flush=True)
             self.stop()
 
     def stop(self):
@@ -218,21 +274,21 @@ class BlenderMCPServer:
         print("MCP Server stopped")
 
     def _server_loop(self):
-        print("MCP Server thread started")
+        print("MCP Server thread started", flush=True)
 
         while self.running:
             try:
                 try:
                     client, address = self.socket.accept()
-                    print(f"MCP Client connected: {address}")
+                    print(f"MCP Client connected: {address}", flush=True)
                     self._handle_client(client)
                 except socket.timeout:
                     continue
                 except Exception as e:
                     if self.running:
-                        print(f"Error accepting connection: {str(e)}")
+                        print(f"Error accepting connection: {str(e)}", flush=True)
             except Exception as e:
-                print(f"Error in server loop: {str(e)}")
+                print(f"Error in server loop: {str(e)}", flush=True)
                 if not self.running:
                     break
 
@@ -453,14 +509,16 @@ class BlenderMCPServer:
     # AKKU SDK CATEGORY 1: BASE GENERATION
     # ============================================================
 
-    def spawn_humanoid_base(self, proportion_type="stylized"):
+    def spawn_humanoid_base(self, proportion_type="stylized", poly_level="medium"):
         """
-        Spawn a clean topology humanoid base with optimized UV and proportions.
-        proportion_type: 'sd', 'stylized', 'realistic', 'chibi'
+        Spawn a clean topology low-poly humanoid base with optimized UV and proportions.
+        proportion_type: 'sd', 'stylized', 'realistic', 'chibi', 'mobile', 'minifig', 'cartoon'
+        poly_level: 'ultra_low', 'low', 'medium', 'high' - controls polygon density
         """
         self.clear_scene()
         
         preset = BASE_PRESETS.get(proportion_type, BASE_PRESETS["stylized"])
+        poly_config = POLY_LEVELS.get(poly_level, POLY_LEVELS["medium"])
         
         body_height = preset["body_height"]
         head_scale = preset["head_scale"]
@@ -468,20 +526,41 @@ class BlenderMCPServer:
         limb_thickness = preset["limb_thickness"]
         leg_length = preset["leg_length"]
         
+        # Low-poly mesh settings from preset
+        sphere_segments = preset.get("sphere_segments", 12)
+        sphere_rings = preset.get("sphere_rings", 8)
+        cylinder_verts = preset.get("cylinder_vertices", 8)
+        
+        # Adjust for poly_level
+        if poly_level == "ultra_low":
+            sphere_segments = max(6, sphere_segments // 2)
+            sphere_rings = max(4, sphere_rings // 2)
+            cylinder_verts = max(4, cylinder_verts // 2)
+        elif poly_level == "low":
+            sphere_segments = max(8, int(sphere_segments * 0.7))
+            sphere_rings = max(5, int(sphere_rings * 0.7))
+            cylinder_verts = max(6, int(cylinder_verts * 0.7))
+        elif poly_level == "high":
+            sphere_segments = int(sphere_segments * 1.3)
+            sphere_rings = int(sphere_rings * 1.3)
+            cylinder_verts = int(cylinder_verts * 1.3)
+        
         # Calculate positions based on body height
         head_pos = body_height * 0.9
         torso_pos = body_height * 0.6
         hip_pos = body_height * 0.4
         
-        # Head - sphere for organic look
+        # Head - optimized low-poly sphere
         bpy.ops.mesh.primitive_uv_sphere_add(
             radius=0.22 * head_scale,
-            segments=16,
-            ring_count=12,
+            segments=sphere_segments,
+            ring_count=sphere_rings,
             location=(0, 0, head_pos)
         )
         head = bpy.context.active_object
         head.name = "AkkuBase_Head"
+        # Smooth shading for heads
+        bpy.ops.object.shade_smooth()
         
         # Torso - rounded box style
         bpy.ops.mesh.primitive_cube_add(
@@ -493,10 +572,11 @@ class BlenderMCPServer:
         torso.scale = (torso_width, torso_width * 0.6, body_height * 0.25)
         bpy.ops.object.transform_apply(scale=True)
         
-        # Add bevel to torso for rounded edges
+        # Add bevel to torso for rounded edges (fewer segments for low-poly)
         bevel = torso.modifiers.new(name="Bevel", type='BEVEL')
         bevel.width = 0.05
-        bevel.segments = 3
+        bevel.segments = 2 if poly_level in ["ultra_low", "low"] else 3
+        bpy.ops.object.modifier_apply(modifier="Bevel")
         
         # Hips
         bpy.ops.mesh.primitive_cube_add(
@@ -516,8 +596,9 @@ class BlenderMCPServer:
         for i, pos in enumerate(arm_positions):
             side = "L" if i == 0 else "R"
             
-            # Upper arm
+            # Upper arm - low-poly cylinder
             bpy.ops.mesh.primitive_cylinder_add(
+                vertices=cylinder_verts,
                 radius=limb_thickness,
                 depth=body_height * 0.2,
                 location=(pos[0] + (0.1 if i == 0 else -0.1), pos[1], pos[2] - 0.05),
@@ -525,9 +606,11 @@ class BlenderMCPServer:
             )
             upper_arm = bpy.context.active_object
             upper_arm.name = f"AkkuBase_UpperArm_{side}"
+            bpy.ops.object.shade_smooth()
             
             # Forearm
             bpy.ops.mesh.primitive_cylinder_add(
+                vertices=cylinder_verts,
                 radius=limb_thickness * 0.85,
                 depth=body_height * 0.18,
                 location=(pos[0] + (0.25 if i == 0 else -0.25), pos[1], pos[2] - 0.05),
@@ -535,6 +618,7 @@ class BlenderMCPServer:
             )
             forearm = bpy.context.active_object
             forearm.name = f"AkkuBase_Forearm_{side}"
+            bpy.ops.object.shade_smooth()
             
             # Hand
             bpy.ops.mesh.primitive_cube_add(
@@ -551,23 +635,27 @@ class BlenderMCPServer:
         for i, pos in enumerate(leg_positions):
             side = "L" if i == 0 else "R"
             
-            # Upper leg
+            # Upper leg - low-poly cylinder
             bpy.ops.mesh.primitive_cylinder_add(
+                vertices=cylinder_verts,
                 radius=limb_thickness * 1.3,
                 depth=leg_length,
                 location=(pos[0], pos[1], pos[2] - leg_length * 0.5)
             )
             upper_leg = bpy.context.active_object
             upper_leg.name = f"AkkuBase_UpperLeg_{side}"
+            bpy.ops.object.shade_smooth()
             
             # Lower leg
             bpy.ops.mesh.primitive_cylinder_add(
+                vertices=cylinder_verts,
                 radius=limb_thickness * 1.1,
                 depth=leg_length * 0.9,
                 location=(pos[0], pos[1], pos[2] - leg_length * 1.3)
             )
             lower_leg = bpy.context.active_object
             lower_leg.name = f"AkkuBase_LowerLeg_{side}"
+            bpy.ops.object.shade_smooth()
             
             # Foot
             bpy.ops.mesh.primitive_cube_add(
@@ -587,15 +675,21 @@ class BlenderMCPServer:
             bsdf.inputs["Base Color"].default_value = (0.6, 0.6, 0.6, 1.0)
             bsdf.inputs["Roughness"].default_value = 0.5
         
+        # Count total triangles
+        total_tris = 0
         for obj in bpy.context.scene.objects:
             if obj.type == 'MESH' and obj.name.startswith("AkkuBase_"):
                 obj.data.materials.clear()
                 obj.data.materials.append(default_mat)
+                # Calculate triangle count
+                total_tris += sum(len(p.vertices) - 2 for p in obj.data.polygons)
 
         return {
-            "message": f"Spawned {proportion_type} humanoid base",
+            "message": f"Spawned {proportion_type} humanoid base ({poly_level} poly)",
             "proportion_type": proportion_type,
+            "poly_level": poly_level,
             "body_height": body_height,
+            "triangle_count": total_tris,
             "objects": [obj.name for obj in bpy.context.scene.objects if obj.name.startswith("AkkuBase_")]
         }
 
@@ -1093,10 +1187,14 @@ class BlenderMCPServer:
 
 
 def run_headless_server(port=9876):
+    import sys
+    
+    print(f"Initializing Akku MCP server...", flush=True)
     server = BlenderMCPServer(host='localhost', port=port)
     server.start()
     
-    print(f"MCP Server running on port {port}. Waiting for commands...")
+    print(f"MCP server started on port {port}. Waiting for commands...", flush=True)
+    sys.stdout.flush()
     
     try:
         while True:
@@ -1117,5 +1215,6 @@ if __name__ == "__main__":
     except (ValueError, IndexError):
         pass
     
-    print(f"Starting Blender MCP with port {port}")
+    print(f"Starting Blender MCP with port {port}", flush=True)
+    sys.stdout.flush()
     run_headless_server(port)

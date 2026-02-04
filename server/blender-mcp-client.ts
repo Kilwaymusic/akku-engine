@@ -143,13 +143,14 @@ export class BlenderMCPClient {
   // ============================================================
 
   /**
-   * Spawn a clean topology humanoid base with optimized UV and proportions.
-   * @param proportionType 'sd' | 'stylized' | 'realistic' | 'chibi'
+   * Spawn a clean topology low-poly humanoid base with optimized UV and proportions.
+   * @param proportionType 'sd' | 'stylized' | 'realistic' | 'chibi' | 'mobile' | 'minifig' | 'cartoon'
+   * @param polyLevel 'ultra_low' | 'low' | 'medium' | 'high' - controls polygon density
    */
-  async spawnHumanoidBase(proportionType: string = 'stylized'): Promise<MCPResponse> {
+  async spawnHumanoidBase(proportionType: string = 'stylized', polyLevel: string = 'medium'): Promise<MCPResponse> {
     return this.sendCommand({
       type: 'spawn_humanoid_base',
-      params: { proportion_type: proportionType }
+      params: { proportion_type: proportionType, poly_level: polyLevel }
     });
   }
 
@@ -329,7 +330,10 @@ export async function executeAkkuPlan(
       switch (step.action) {
         // Category 1: Base Generation
         case 'spawn_humanoid_base':
-          response = await client.spawnHumanoidBase(step.params.proportion_type);
+          response = await client.spawnHumanoidBase(
+            step.params.proportion_type,
+            step.params.poly_level || 'medium'
+          );
           break;
         
         case 'deform_body':

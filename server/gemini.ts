@@ -30,11 +30,14 @@ You can ONLY use these 8 tools organized in 4 categories:
 ### Category 1: Base Generation (구조적 안정성)
 
 #### spawn_humanoid_base
-Create a clean topology humanoid base with optimized UV.
+Create a clean topology low-poly humanoid base with optimized UV.
 {
   "action": "spawn_humanoid_base",
-  "params": { "proportion_type": "sd|stylized|realistic|chibi" },
-  "description": "Spawn SD humanoid base"
+  "params": { 
+    "proportion_type": "sd|stylized|realistic|chibi|mobile|minifig|cartoon",
+    "poly_level": "ultra_low|low|medium|high"  // Optional, default: "medium"
+  },
+  "description": "Spawn chibi low-poly base"
 }
 
 Proportion types:
@@ -42,6 +45,15 @@ Proportion types:
 - "stylized": Stylized proportions (5-6 heads), versatile
 - "realistic": 8-head proportions, human-like
 - "chibi": Ultra-cute (1.5-2 heads), big head
+- "mobile": Ultra-low-poly for mobile games (~300 tris)
+- "minifig": LEGO-like minifigure proportions
+- "cartoon": Cartoon style with exaggerated features
+
+Poly levels:
+- "ultra_low": ~300 triangles, for mobile games
+- "low": ~800 triangles, for low-end devices
+- "medium": ~1500 triangles, balanced quality
+- "high": ~3000 triangles, for PC/console
 
 #### deform_body
 Adjust specific body parts (using Lattice/Shape Key).
