@@ -189,6 +189,11 @@ Style presets adjust shader parameters automatically (stylized, chibi, heroic, c
   - SDK_PARAMETER_SCHEMA for strict JSON validation
   - Comprehensive mapping tables for archetypes, materials, colors
   - Korean language support (강력한 전사 → muscular:0.8, armorStyle:plate)
+- 2026-02-04: **Added Strict TypeScript Types** - Union literals for all SDK parameters
+  - BodyPreset, ProportionType, PolyLevel, Gender, StylePreset, ArmorStyle, Archetype
+  - Equipment types: HelmetType, ShoulderType, ChestType, etc.
+  - VALID_* arrays for runtime enum validation
+  - validateEnum<T>() and validateEquipment<T>() helpers
 - 2026-02-04: **Added Auto Weight Transfer System** - rigging.py module (324 lines)
   - Uses Data Transfer modifier to copy vertex weights from base mesh to parts
   - Enables equipment to deform with animations without manual weight painting
