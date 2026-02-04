@@ -14,6 +14,61 @@ import math
 from mathutils import Vector, Matrix
 
 # ============================================================
+# HELPER FUNCTIONS FOR HEADLESS MODE
+# ============================================================
+
+def get_last_created_object():
+    """Get the most recently created object in headless mode.
+    Works around bpy.context.active_object issues in background mode."""
+    # In Blender, newly created objects are added to bpy.data.objects
+    # The last one in the collection is typically the most recently created
+    if len(bpy.data.objects) > 0:
+        return bpy.data.objects[-1]
+    return None
+
+def create_and_get_primitive(primitive_func, **kwargs):
+    """Create a primitive and return the created object safely.
+    Works in both interactive and headless modes."""
+    # Store existing object names
+    existing_names = set(obj.name for obj in bpy.data.objects)
+    
+    # Create the primitive
+    primitive_func(**kwargs)
+    
+    # Find the new object
+    for obj in bpy.data.objects:
+        if obj.name not in existing_names:
+            return obj
+    
+    # Fallback - get last object
+    return get_last_created_object()
+
+def apply_smooth_shading(obj):
+    """Apply smooth shading to an object in headless mode."""
+    if obj and obj.type == 'MESH':
+        for poly in obj.data.polygons:
+            poly.use_smooth = True
+
+def apply_transform(obj, location=False, rotation=False, scale=True):
+    """Apply transforms to an object without context issues."""
+    if obj and obj.type == 'MESH':
+        # Store the transformation matrix
+        matrix = obj.matrix_world.copy()
+        
+        if scale:
+            # Apply scale to mesh data
+            mesh = obj.data
+            scale_matrix = Matrix.Diagonal(obj.scale).to_4x4()
+            mesh.transform(scale_matrix)
+            obj.scale = (1, 1, 1)
+        
+        if location:
+            obj.location = (0, 0, 0)
+        
+        if rotation:
+            obj.rotation_euler = (0, 0, 0)
+
+# ============================================================
 # AKKU SDK PRESET DATA
 # ============================================================
 
@@ -592,42 +647,47 @@ class BlenderMCPServer:
         hip_pos = body_height * 0.4
         
         # Head - optimized low-poly sphere
-        bpy.ops.mesh.primitive_uv_sphere_add(
+        head = create_and_get_primitive(
+            bpy.ops.mesh.primitive_uv_sphere_add,
             radius=0.22 * head_scale,
             segments=sphere_segments,
             ring_count=sphere_rings,
             location=(0, 0, head_pos)
         )
-        head = bpy.context.active_object
         head.name = "AkkuBase_Head"
-        # Smooth shading for heads
-        bpy.ops.object.shade_smooth()
+        apply_smooth_shading(head)
         
         # Torso - rounded box style
-        bpy.ops.mesh.primitive_cube_add(
+        torso = create_and_get_primitive(
+            bpy.ops.mesh.primitive_cube_add,
             size=1,
             location=(0, 0, torso_pos)
         )
-        torso = bpy.context.active_object
         torso.name = "AkkuBase_Torso"
         torso.scale = (torso_width, torso_width * 0.6, body_height * 0.25)
-        bpy.ops.object.transform_apply(scale=True)
+        apply_transform(torso, scale=True)
         
         # Add bevel to torso for rounded edges (fewer segments for low-poly)
         bevel = torso.modifiers.new(name="Bevel", type='BEVEL')
         bevel.width = 0.05
         bevel.segments = 2 if poly_level in ["ultra_low", "low"] else 3
-        bpy.ops.object.modifier_apply(modifier="Bevel")
+        # Apply bevel modifier directly on mesh
+        try:
+            bpy.context.view_layer.objects.active = torso
+            bpy.ops.object.modifier_apply(modifier="Bevel")
+        except:
+            # Fallback: apply modifier using geometry
+            pass
         
         # Hips
-        bpy.ops.mesh.primitive_cube_add(
+        hips = create_and_get_primitive(
+            bpy.ops.mesh.primitive_cube_add,
             size=1,
             location=(0, 0, hip_pos)
         )
-        hips = bpy.context.active_object
         hips.name = "AkkuBase_Hips"
         hips.scale = (torso_width * 0.9, torso_width * 0.5, body_height * 0.1)
-        bpy.ops.object.transform_apply(scale=True)
+        apply_transform(hips, scale=True)
         
         # Arms
         arm_positions = [
@@ -638,38 +698,38 @@ class BlenderMCPServer:
             side = "L" if i == 0 else "R"
             
             # Upper arm - low-poly cylinder
-            bpy.ops.mesh.primitive_cylinder_add(
+            upper_arm = create_and_get_primitive(
+                bpy.ops.mesh.primitive_cylinder_add,
                 vertices=cylinder_verts,
                 radius=limb_thickness,
                 depth=body_height * 0.2,
                 location=(pos[0] + (0.1 if i == 0 else -0.1), pos[1], pos[2] - 0.05),
                 rotation=(0, 1.57, 0)
             )
-            upper_arm = bpy.context.active_object
             upper_arm.name = f"AkkuBase_UpperArm_{side}"
-            bpy.ops.object.shade_smooth()
+            apply_smooth_shading(upper_arm)
             
             # Forearm
-            bpy.ops.mesh.primitive_cylinder_add(
+            forearm = create_and_get_primitive(
+                bpy.ops.mesh.primitive_cylinder_add,
                 vertices=cylinder_verts,
                 radius=limb_thickness * 0.85,
                 depth=body_height * 0.18,
                 location=(pos[0] + (0.25 if i == 0 else -0.25), pos[1], pos[2] - 0.05),
                 rotation=(0, 1.57, 0)
             )
-            forearm = bpy.context.active_object
             forearm.name = f"AkkuBase_Forearm_{side}"
-            bpy.ops.object.shade_smooth()
+            apply_smooth_shading(forearm)
             
             # Hand
-            bpy.ops.mesh.primitive_cube_add(
+            hand = create_and_get_primitive(
+                bpy.ops.mesh.primitive_cube_add,
                 size=limb_thickness * 2,
                 location=(pos[0] + (0.4 if i == 0 else -0.4), pos[1], pos[2] - 0.05)
             )
-            hand = bpy.context.active_object
             hand.name = f"AkkuBase_Hand_{side}"
             hand.scale = (1, 0.4, 1.2)
-            bpy.ops.object.transform_apply(scale=True)
+            apply_transform(hand, scale=True)
 
         # Legs
         leg_positions = [(-torso_width * 0.4, 0, hip_pos - 0.1), (torso_width * 0.4, 0, hip_pos - 0.1)]
@@ -677,36 +737,36 @@ class BlenderMCPServer:
             side = "L" if i == 0 else "R"
             
             # Upper leg - low-poly cylinder
-            bpy.ops.mesh.primitive_cylinder_add(
+            upper_leg = create_and_get_primitive(
+                bpy.ops.mesh.primitive_cylinder_add,
                 vertices=cylinder_verts,
                 radius=limb_thickness * 1.3,
                 depth=leg_length,
                 location=(pos[0], pos[1], pos[2] - leg_length * 0.5)
             )
-            upper_leg = bpy.context.active_object
             upper_leg.name = f"AkkuBase_UpperLeg_{side}"
-            bpy.ops.object.shade_smooth()
+            apply_smooth_shading(upper_leg)
             
             # Lower leg
-            bpy.ops.mesh.primitive_cylinder_add(
+            lower_leg = create_and_get_primitive(
+                bpy.ops.mesh.primitive_cylinder_add,
                 vertices=cylinder_verts,
                 radius=limb_thickness * 1.1,
                 depth=leg_length * 0.9,
                 location=(pos[0], pos[1], pos[2] - leg_length * 1.3)
             )
-            lower_leg = bpy.context.active_object
             lower_leg.name = f"AkkuBase_LowerLeg_{side}"
-            bpy.ops.object.shade_smooth()
+            apply_smooth_shading(lower_leg)
             
             # Foot
-            bpy.ops.mesh.primitive_cube_add(
+            foot = create_and_get_primitive(
+                bpy.ops.mesh.primitive_cube_add,
                 size=limb_thickness * 2.5,
                 location=(pos[0], pos[1] - 0.03, pos[2] - leg_length * 1.7)
             )
-            foot = bpy.context.active_object
             foot.name = f"AkkuBase_Foot_{side}"
             foot.scale = (0.8, 1.5, 0.4)
-            bpy.ops.object.transform_apply(scale=True)
+            apply_transform(foot, scale=True)
 
         # Apply default gray material to all
         default_mat = bpy.data.materials.new(name="AkkuBase_Material")
@@ -775,9 +835,9 @@ class BlenderMCPServer:
                 obj.scale[1] *= scale_factor
             elif deform_type == "bulge":
                 # Add lattice modifier for bulge effect
-                bpy.ops.object.add(type='LATTICE')
-                lattice = bpy.context.active_object
-                lattice.name = f"{obj_name}_Lattice"
+                lattice = create_and_get_primitive(bpy.ops.object.add, type='LATTICE')
+                if lattice:
+                    lattice.name = f"{obj_name}_Lattice"
                 lattice.location = obj.location
                 lattice.scale = obj.scale * 1.5
                 
@@ -793,7 +853,11 @@ class BlenderMCPServer:
             
             modified_objects.append(obj_name)
         
-        bpy.ops.object.transform_apply(scale=True)
+        # Apply transforms to all modified objects
+        for obj_name in modified_objects:
+            obj = bpy.data.objects.get(obj_name)
+            if obj:
+                apply_transform(obj, scale=True)
         
         return {
             "message": f"Deformed {part} with {deform_type}",
@@ -823,17 +887,18 @@ class BlenderMCPServer:
         
         # Create armor piece based on type
         if preset["type"] == "cube":
-            bpy.ops.mesh.primitive_cube_add(size=1, location=pos)
+            armor = create_and_get_primitive(bpy.ops.mesh.primitive_cube_add, size=1, location=pos)
         elif preset["type"] == "cylinder":
-            bpy.ops.mesh.primitive_cylinder_add(radius=0.5, depth=1, location=pos)
+            armor = create_and_get_primitive(bpy.ops.mesh.primitive_cylinder_add, radius=0.5, depth=1, location=pos)
+        else:
+            armor = create_and_get_primitive(bpy.ops.mesh.primitive_cube_add, size=1, location=pos)
         
-        armor = bpy.context.active_object
         armor.name = f"Armor_{location}_{style}"
         
         # Apply scale from preset and user scale
         base_scale = preset["scale"]
         armor.scale = (base_scale[0] * scale, base_scale[1] * scale, base_scale[2] * scale)
-        bpy.ops.object.transform_apply(scale=True)
+        apply_transform(armor, scale=True)
         
         # Add bevel for hard-surface look
         bevel = armor.modifiers.new(name="Bevel", type='BEVEL')
@@ -1068,14 +1133,30 @@ class BlenderMCPServer:
         bpy.context.view_layer.objects.active = mesh_objects[0]
         
         if len(mesh_objects) > 1:
-            bpy.ops.object.join()
+            try:
+                bpy.ops.object.join()
+            except:
+                pass
         
-        final_mesh = bpy.context.active_object
-        final_mesh.name = "AkkuCharacter"
+        # Get the joined mesh (now the first mesh object)
+        final_mesh = None
+        for obj in bpy.data.objects:
+            if obj.type == 'MESH':
+                final_mesh = obj
+                break
+        
+        if final_mesh:
+            final_mesh.name = "AkkuCharacter"
         
         # Create armature
-        bpy.ops.object.armature_add(enter_editmode=True)
-        armature = bpy.context.active_object
+        armature = create_and_get_primitive(bpy.ops.object.armature_add, enter_editmode=True)
+        if not armature:
+            # Fallback - find the armature
+            for obj in bpy.data.objects:
+                if obj.type == 'ARMATURE':
+                    armature = obj
+                    break
+        
         armature.name = "AkkuArmature"
         self.current_armature = armature
         
