@@ -1556,3 +1556,739 @@ def cut_edge_loop(
     result = cutter.cut_loop(edge_index, cuts, slide, inherit_weights)
     cutter.finish()
     return result
+
+
+# =============================================================================
+# SYMMETRY MIRRORING - Real-time Mirror with Auto-Weld
+# =============================================================================
+
+@dataclass
+class SymmetryResult:
+    """Result of symmetry mirroring operation"""
+    mirrored_vert_count: int = 0
+    welded_vert_count: int = 0
+    center_verts_merged: int = 0
+    axis: str = 'X'
+
+
+class SymmetryMirror:
+    """
+    Symmetry mirroring with automatic center vertex welding.
+    
+    Work on one half of the model, mirror to the other side,
+    and automatically weld vertices at the center seam.
+    """
+    
+    WELD_THRESHOLD = 0.0001
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def mirror_geometry(
+        self,
+        axis: str = 'X',
+        merge_center: bool = True,
+        merge_threshold: float = 0.001,
+        flip_normals: bool = True,
+        source_side: str = 'positive'
+    ) -> SymmetryResult:
+        """
+        Mirror geometry across specified axis with center weld.
+        
+        Args:
+            axis: 'X', 'Y', or 'Z' - mirror axis
+            merge_center: If True, weld vertices at center (axis=0)
+            merge_threshold: Distance for merging center vertices
+            flip_normals: If True, flip normals on mirrored faces
+            source_side: 'positive' or 'negative' - which side to keep and mirror
+            
+        Returns:
+            SymmetryResult with operation statistics
+        """
+        result = SymmetryResult(axis=axis)
+        
+        bm = self._ensure_bmesh()
+        
+        axis_idx = {'X': 0, 'Y': 1, 'Z': 2}.get(axis.upper(), 0)
+        
+        original_verts = list(bm.verts)
+        original_faces = list(bm.faces)
+        
+        if source_side.lower() == 'positive':
+            source_verts = [v for v in original_verts if v.co[axis_idx] > self.WELD_THRESHOLD]
+        else:
+            source_verts = [v for v in original_verts if v.co[axis_idx] < -self.WELD_THRESHOLD]
+        
+        vert_map = {}
+        for vert in source_verts:
+            new_co = vert.co.copy()
+            new_co[axis_idx] = -new_co[axis_idx]
+            new_vert = bm.verts.new(new_co)
+            vert_map[vert] = new_vert
+            result.mirrored_vert_count += 1
+        
+        center_verts = [v for v in original_verts if abs(v.co[axis_idx]) <= self.WELD_THRESHOLD]
+        for vert in center_verts:
+            vert_map[vert] = vert
+        
+        for face in original_faces:
+            if all(v in vert_map for v in face.verts):
+                new_face_verts = [vert_map[v] for v in face.verts]
+                
+                if flip_normals:
+                    new_face_verts = list(reversed(new_face_verts))
+                
+                try:
+                    bm.faces.new(new_face_verts)
+                except ValueError:
+                    pass
+        
+        if merge_center:
+            bm.verts.ensure_lookup_table()
+            
+            center_pairs = []
+            for orig_vert, new_vert in vert_map.items():
+                if orig_vert != new_vert:
+                    if abs(orig_vert.co[axis_idx]) <= merge_threshold:
+                        if abs(new_vert.co[axis_idx]) <= merge_threshold:
+                            center_pairs.append((orig_vert, new_vert))
+            
+            for v1, v2 in center_pairs:
+                if v1.is_valid and v2.is_valid:
+                    try:
+                        bmesh.ops.pointmerge(bm, verts=[v1, v2], merge_co=v1.co)
+                        result.center_verts_merged += 1
+                    except:
+                        pass
+            
+            bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=merge_threshold)
+        
+        bm.verts.ensure_lookup_table()
+        result.welded_vert_count = len(bm.verts)
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def delete_half(self, axis: str = 'X', keep_positive: bool = True):
+        """
+        Delete half of the mesh for symmetry editing.
+        
+        Args:
+            axis: 'X', 'Y', or 'Z'
+            keep_positive: Keep positive side if True, negative if False
+        """
+        bm = self._ensure_bmesh()
+        
+        axis_idx = {'X': 0, 'Y': 1, 'Z': 2}.get(axis.upper(), 0)
+        
+        verts_to_delete = []
+        for vert in bm.verts:
+            coord = vert.co[axis_idx]
+            if keep_positive and coord < -self.WELD_THRESHOLD:
+                verts_to_delete.append(vert)
+            elif not keep_positive and coord > self.WELD_THRESHOLD:
+                verts_to_delete.append(vert)
+        
+        bmesh.ops.delete(bm, geom=verts_to_delete, context='VERTS')
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# FACE NORMAL ORIENT - Force Outward-Facing Normals
+# =============================================================================
+
+@dataclass
+class NormalOrientResult:
+    """Result of normal orientation operation"""
+    faces_processed: int = 0
+    faces_flipped: int = 0
+    is_watertight: bool = False
+
+
+class FaceNormalOrient:
+    """
+    Force all face normals to point outward.
+    
+    Essential for proper shader rendering - inward-facing
+    normals cause black rendering artifacts.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def orient_outward(self) -> NormalOrientResult:
+        """
+        Orient all face normals to point outward from mesh center.
+        
+        Uses mesh centroid to determine inside vs outside.
+        
+        Returns:
+            NormalOrientResult with processing statistics
+        """
+        result = NormalOrientResult()
+        
+        bm = self._ensure_bmesh()
+        
+        centroid = Vector((0, 0, 0))
+        for vert in bm.verts:
+            centroid += vert.co
+        if len(bm.verts) > 0:
+            centroid /= len(bm.verts)
+        
+        result.faces_processed = len(bm.faces)
+        
+        for face in bm.faces:
+            face_center = face.calc_center_median()
+            outward_dir = (face_center - centroid).normalized()
+            
+            if face.normal.dot(outward_dir) < 0:
+                face.normal_flip()
+                result.faces_flipped += 1
+        
+        result.is_watertight = all(e.is_manifold for e in bm.edges)
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def make_consistent(self) -> NormalOrientResult:
+        """
+        Make all normals consistent using Blender's algorithm.
+        
+        Uses bmesh.ops.recalc_face_normals for proper topology-based
+        normal calculation (better for complex shapes).
+        """
+        result = NormalOrientResult()
+        
+        bm = self._ensure_bmesh()
+        result.faces_processed = len(bm.faces)
+        
+        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# LOCAL VS GLOBAL TRANSFORM - Coordinate Space Control
+# =============================================================================
+
+class TransformSpace:
+    """
+    Transform vertices in local (face normal) or global (world XYZ) space.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def move_along_normal(
+        self,
+        face_index: int,
+        distance: float,
+        affect_connected: bool = False
+    ) -> List[int]:
+        """
+        Move face vertices along face normal direction.
+        
+        Args:
+            face_index: Face to use for normal direction
+            distance: Distance to move (positive = outward)
+            affect_connected: If True, also move adjacent vertices
+            
+        Returns:
+            List of moved vertex indices
+        """
+        bm = self._ensure_bmesh()
+        bm.faces.ensure_lookup_table()
+        
+        if face_index >= len(bm.faces):
+            return []
+        
+        face = bm.faces[face_index]
+        normal = face.normal.copy()
+        
+        verts_to_move = set(face.verts)
+        
+        if affect_connected:
+            for vert in list(verts_to_move):
+                for edge in vert.link_edges:
+                    verts_to_move.add(edge.other_vert(vert))
+        
+        translation = normal * distance
+        for vert in verts_to_move:
+            vert.co += translation
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return [v.index for v in verts_to_move]
+    
+    def move_global(
+        self,
+        vert_indices: List[int],
+        translation: Tuple[float, float, float]
+    ) -> int:
+        """
+        Move vertices in global world coordinates.
+        
+        Args:
+            vert_indices: List of vertex indices to move
+            translation: (x, y, z) movement in world space
+            
+        Returns:
+            Number of vertices moved
+        """
+        bm = self._ensure_bmesh()
+        bm.verts.ensure_lookup_table()
+        
+        trans_vec = Vector(translation)
+        moved = 0
+        
+        for idx in vert_indices:
+            if idx < len(bm.verts):
+                bm.verts[idx].co += trans_vec
+                moved += 1
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return moved
+    
+    def scale_from_face_center(
+        self,
+        face_index: int,
+        scale: Tuple[float, float, float]
+    ) -> List[int]:
+        """
+        Scale vertices relative to face center in local space.
+        
+        Args:
+            face_index: Face to use as scale center
+            scale: (x, y, z) scale factors in face-local space
+            
+        Returns:
+            List of scaled vertex indices
+        """
+        bm = self._ensure_bmesh()
+        bm.faces.ensure_lookup_table()
+        
+        if face_index >= len(bm.faces):
+            return []
+        
+        face = bm.faces[face_index]
+        center = face.calc_center_median()
+        
+        normal = face.normal.normalized()
+        tangent = (face.verts[1].co - face.verts[0].co).normalized()
+        bitangent = normal.cross(tangent).normalized()
+        
+        for vert in face.verts:
+            local_pos = vert.co - center
+            
+            n_comp = local_pos.dot(normal)
+            t_comp = local_pos.dot(tangent)
+            b_comp = local_pos.dot(bitangent)
+            
+            n_comp *= scale[2]
+            t_comp *= scale[0]
+            b_comp *= scale[1]
+            
+            vert.co = center + tangent * t_comp + bitangent * b_comp + normal * n_comp
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return [v.index for v in face.verts]
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# SELECTION FILTER - Position-Based Face Selection
+# =============================================================================
+
+@dataclass
+class SelectionResult:
+    """Result of position-based selection"""
+    face_indices: List[int] = field(default_factory=list)
+    vert_indices: List[int] = field(default_factory=list)
+    edge_indices: List[int] = field(default_factory=list)
+    selection_type: str = ""
+
+
+class SelectionFilter:
+    """
+    Position-based automatic selection for AI-friendly modeling.
+    
+    Select faces by semantic position (top, front, left, etc.)
+    instead of requiring specific indices.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def _get_bounds(self) -> Tuple[Vector, Vector]:
+        """Get mesh bounding box min/max"""
+        bm = self._ensure_bmesh()
+        
+        if not bm.verts:
+            return Vector((0, 0, 0)), Vector((0, 0, 0))
+        
+        min_co = Vector(bm.verts[0].co)
+        max_co = Vector(bm.verts[0].co)
+        
+        for vert in bm.verts:
+            for i in range(3):
+                min_co[i] = min(min_co[i], vert.co[i])
+                max_co[i] = max(max_co[i], vert.co[i])
+        
+        return min_co, max_co
+    
+    def select_by_position(
+        self,
+        position: str,
+        threshold: float = 0.1
+    ) -> SelectionResult:
+        """
+        Select faces by semantic position.
+        
+        Args:
+            position: 'top', 'bottom', 'front', 'back', 'left', 'right',
+                     'center_x', 'center_y', 'center_z'
+            threshold: Relative threshold (0-1) for selection range
+            
+        Returns:
+            SelectionResult with selected geometry
+        """
+        result = SelectionResult(selection_type=position)
+        
+        bm = self._ensure_bmesh()
+        min_co, max_co = self._get_bounds()
+        size = max_co - min_co
+        
+        position_map = {
+            'top': (2, 'max'),
+            'bottom': (2, 'min'),
+            'front': (1, 'max'),
+            'back': (1, 'min'),
+            'right': (0, 'max'),
+            'left': (0, 'min'),
+            'center_x': (0, 'center'),
+            'center_y': (1, 'center'),
+            'center_z': (2, 'center'),
+        }
+        
+        pos_lower = position.lower()
+        if pos_lower not in position_map:
+            return result
+        
+        axis, direction = position_map[pos_lower]
+        
+        if direction == 'max':
+            target_val = max_co[axis]
+            range_min = target_val - size[axis] * threshold
+            range_max = target_val + 0.001
+        elif direction == 'min':
+            target_val = min_co[axis]
+            range_min = target_val - 0.001
+            range_max = target_val + size[axis] * threshold
+        else:
+            center_val = (min_co[axis] + max_co[axis]) / 2
+            half_range = size[axis] * threshold / 2
+            range_min = center_val - half_range
+            range_max = center_val + half_range
+        
+        selected_verts = set()
+        for face in bm.faces:
+            center = face.calc_center_median()
+            if range_min <= center[axis] <= range_max:
+                result.face_indices.append(face.index)
+                selected_verts.update(v.index for v in face.verts)
+        
+        result.vert_indices = list(selected_verts)
+        
+        return result
+    
+    def select_by_normal(
+        self,
+        direction: str,
+        angle_threshold: float = 45.0
+    ) -> SelectionResult:
+        """
+        Select faces by normal direction.
+        
+        Args:
+            direction: 'up', 'down', 'forward', 'backward', 'left', 'right'
+            angle_threshold: Maximum angle deviation in degrees
+            
+        Returns:
+            SelectionResult with selected geometry
+        """
+        import math
+        
+        result = SelectionResult(selection_type=f"normal_{direction}")
+        
+        bm = self._ensure_bmesh()
+        
+        direction_map = {
+            'up': Vector((0, 0, 1)),
+            'down': Vector((0, 0, -1)),
+            'forward': Vector((0, 1, 0)),
+            'backward': Vector((0, -1, 0)),
+            'right': Vector((1, 0, 0)),
+            'left': Vector((-1, 0, 0)),
+        }
+        
+        dir_lower = direction.lower()
+        if dir_lower not in direction_map:
+            return result
+        
+        target_normal = direction_map[dir_lower]
+        threshold_rad = math.radians(angle_threshold)
+        
+        selected_verts = set()
+        for face in bm.faces:
+            angle = face.normal.angle(target_normal)
+            if angle <= threshold_rad:
+                result.face_indices.append(face.index)
+                selected_verts.update(v.index for v in face.verts)
+        
+        result.vert_indices = list(selected_verts)
+        
+        return result
+    
+    def select_extremes(
+        self,
+        axis: str = 'Z',
+        select_max: bool = True,
+        count: int = 1
+    ) -> SelectionResult:
+        """
+        Select the most extreme faces along an axis.
+        
+        Args:
+            axis: 'X', 'Y', or 'Z'
+            select_max: If True, select highest; if False, select lowest
+            count: Number of faces to select
+            
+        Returns:
+            SelectionResult with selected geometry
+        """
+        result = SelectionResult(selection_type=f"extreme_{axis}_{('max' if select_max else 'min')}")
+        
+        bm = self._ensure_bmesh()
+        
+        axis_idx = {'X': 0, 'Y': 1, 'Z': 2}.get(axis.upper(), 2)
+        
+        face_positions = []
+        for face in bm.faces:
+            center = face.calc_center_median()
+            face_positions.append((face.index, center[axis_idx]))
+        
+        face_positions.sort(key=lambda x: x[1], reverse=select_max)
+        
+        selected_verts = set()
+        for i in range(min(count, len(face_positions))):
+            face_idx = face_positions[i][0]
+            result.face_indices.append(face_idx)
+            
+            bm.faces.ensure_lookup_table()
+            face = bm.faces[face_idx]
+            selected_verts.update(v.index for v in face.verts)
+        
+        result.vert_indices = list(selected_verts)
+        
+        return result
+    
+    def select_adjacent_to(
+        self,
+        face_indices: List[int],
+        depth: int = 1
+    ) -> SelectionResult:
+        """
+        Select faces adjacent to given faces.
+        
+        Args:
+            face_indices: Starting face indices
+            depth: How many layers of adjacency to include
+            
+        Returns:
+            SelectionResult with selected geometry
+        """
+        result = SelectionResult(selection_type="adjacent")
+        
+        bm = self._ensure_bmesh()
+        bm.faces.ensure_lookup_table()
+        
+        selected = set()
+        current_layer = set()
+        
+        for idx in face_indices:
+            if idx < len(bm.faces):
+                selected.add(idx)
+                current_layer.add(bm.faces[idx])
+        
+        for _ in range(depth):
+            next_layer = set()
+            for face in current_layer:
+                for edge in face.edges:
+                    for linked_face in edge.link_faces:
+                        if linked_face.index not in selected:
+                            selected.add(linked_face.index)
+                            next_layer.add(linked_face)
+            current_layer = next_layer
+        
+        result.face_indices = list(selected)
+        
+        selected_verts = set()
+        for idx in result.face_indices:
+            face = bm.faces[idx]
+            selected_verts.update(v.index for v in face.verts)
+        result.vert_indices = list(selected_verts)
+        
+        return result
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# CONVENIENCE FUNCTIONS FOR GEOMETRIC OPS
+# =============================================================================
+
+def symmetry_mirror(
+    obj: bpy.types.Object,
+    axis: str = 'X',
+    merge_center: bool = True,
+    merge_threshold: float = 0.001
+) -> SymmetryResult:
+    """
+    Mirror mesh with automatic center welding.
+    
+    Args:
+        obj: Mesh object
+        axis: 'X', 'Y', or 'Z'
+        merge_center: Weld center vertices
+        merge_threshold: Distance for merging
+    """
+    mirror = SymmetryMirror(obj)
+    result = mirror.mirror_geometry(axis, merge_center, merge_threshold)
+    mirror.finish()
+    return result
+
+
+def orient_normals_outward(obj: bpy.types.Object) -> NormalOrientResult:
+    """
+    Force all face normals to point outward using topology-based algorithm.
+    
+    Uses bmesh.ops.recalc_face_normals for reliable results on all mesh types.
+    
+    Args:
+        obj: Mesh object
+    """
+    orient = FaceNormalOrient(obj)
+    result = orient.make_consistent()
+    orient.finish()
+    return result
+
+
+def select_faces_by_position(
+    obj: bpy.types.Object,
+    position: str,
+    threshold: float = 0.1
+) -> SelectionResult:
+    """
+    Select faces by semantic position.
+    
+    Args:
+        obj: Mesh object
+        position: 'top', 'bottom', 'front', 'back', 'left', 'right'
+        threshold: Selection range (0-1)
+    """
+    selector = SelectionFilter(obj)
+    result = selector.select_by_position(position, threshold)
+    selector.finish()
+    return result
+
+
+def move_along_face_normal(
+    obj: bpy.types.Object,
+    face_index: int,
+    distance: float
+) -> List[int]:
+    """
+    Move face vertices along local normal direction.
+    
+    Args:
+        obj: Mesh object
+        face_index: Face to move
+        distance: Distance (positive = outward)
+    """
+    transform = TransformSpace(obj)
+    result = transform.move_along_normal(face_index, distance)
+    transform.finish()
+    return result

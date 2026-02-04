@@ -100,7 +100,7 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `rigging.py` | 324 | AutoWeightTransfer, WeightTransferResult (Data Transfer modifier) |
 | `finalize.py` | 1028 | FinalizePipeline, MeshOptimizer, DecimateEngine, MeshJoiner, LOD generation |
 | `procedural.py` | 600+ | ProceduralHumanoid, StyleProportions, PolyLevelPresets |
-| `bmesh_tools.py` | 1200+ | BmeshTools, AtomicMeshOps, RigAwareExtruder, EdgeLoopCutter, NormalRecalculator |
+| `bmesh_tools.py` | 2100+ | BmeshTools, AtomicMeshOps, SymmetryMirror, FaceNormalOrient, SelectionFilter |
 
 ### v3.8 New Features (2026-02-04)
 
@@ -136,6 +136,13 @@ Feature-based SDK with atomic mesh operations:
 - `NormalRecalculator`: Automatic normal recalculation after any mesh operation
 - `AtomicMeshOps`: Unified interface wrapping all atomic operations
 - `cut_edge_loop()`: Loop cuts with weight inheritance for smooth deformation
+
+#### 6. Geometric Precision Controls (v3.8)
+Essential precision functions for production-quality meshes:
+- `SymmetryMirror`: Real-time mirroring with automatic center vertex welding
+- `FaceNormalOrient`: Force all normals outward (prevents shader artifacts)
+- `TransformSpace`: Local (face normal) vs Global (world XYZ) transforms
+- `SelectionFilter`: Position-based face selection ('top', 'front', 'left', etc.)
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |

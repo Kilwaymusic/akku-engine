@@ -118,6 +118,17 @@ from .bmesh_tools import (
     rig_aware_extrude,
     recalculate_normals,
     cut_edge_loop,
+    SymmetryResult,
+    SymmetryMirror,
+    NormalOrientResult,
+    FaceNormalOrient,
+    TransformSpace,
+    SelectionResult,
+    SelectionFilter,
+    symmetry_mirror,
+    orient_normals_outward,
+    select_faces_by_position,
+    move_along_face_normal,
 )
 
 __version__ = "3.8.0"
@@ -199,4 +210,16 @@ __all__ = [
     "rig_aware_extrude",
     "recalculate_normals",
     "cut_edge_loop",
+    # Geometric Precision Controls
+    "SymmetryResult",
+    "SymmetryMirror",
+    "NormalOrientResult",
+    "FaceNormalOrient",
+    "TransformSpace",
+    "SelectionResult",
+    "SelectionFilter",
+    "symmetry_mirror",
+    "orient_normals_outward",
+    "select_faces_by_position",
+    "move_along_face_normal",
 ]
