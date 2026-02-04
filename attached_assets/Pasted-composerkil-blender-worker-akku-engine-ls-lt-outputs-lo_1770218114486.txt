@@ -1,0 +1,84 @@
+composerkil@blender-worker:~/akku-engine$ ls -lt outputs/*.log | head -3; cat outputs/debug_test.log 2>/dev/null | tail -80
+-rw-r--r-- 1 composerkil composerkil 187013 Feb  4 15:13 outputs/debug_test.log
+-rw-r--r-- 1 composerkil composerkil 187044 Feb  4 15:13 outputs/d9617d32-c934-4188-85d2-174e3e855f73.log
+-rw-r--r-- 1 composerkil composerkil 186848 Feb  4 15:09 outputs/test_cache_clear.log
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Cleaned up 45 empty vertex groups
+[Akku SDK][INFO] Equipped part: Knight_Shield
+  Data: {
+  "category": "shield",
+  "bone": "mixamorig:LeftForeArm"
+}
+[Akku SDK][INFO] Step 'equip_set': SUCCESS
+  Data: {
+  "duration_ms": 119.42291259765625,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Akku SDK][INFO] Executing tool: finalize
+DEBUG: Starting finalize
+Error: Python: Traceback (most recent call last):
+  File "/home/composerkil/akku-engine/akku-sdk-v3.py", line 125, in <module>
+    success = generate_character(prompt, style, poly_level, output_path, gender, body_type, use_remesh)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/composerkil/akku-engine/akku-sdk-v3.py", line 101, in generate_character
+    finalize(platform="mobile", target_tris=target_tris)
+  File "/home/composerkil/akku-engine/akku_sdk/tools.py", line 81, in wrapper
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/composerkil/akku-engine/akku_sdk/main.py", line 106, in finalize
+    results = FinalizePipeline.finalize_for_platform(objects, platform_enum)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/composerkil/akku-engine/akku_sdk/finalize.py", line 254, in finalize_for_platform
+    MeshOptimizer.optimize_mesh(obj)
+  File "/home/composerkil/akku-engine/akku_sdk/finalize.py", line 88, in optimize_mesh
+    results["doubles_removed"] = MeshOptimizer.remove_doubles(obj)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/composerkil/akku-engine/akku_sdk/finalize.py", line 51, in remove_doubles
+    removed = len(result.get('verts', []))
+                  ^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
+[Akku SDK][INFO] Decimated Alpha_Joints: 20840 -> 2032 tris
+[Akku SDK][INFO] Decimated Alpha_Surface: 34480 -> 2362 tris
+[Akku SDK][INFO] Step 'finalize': FAILED
+  Data: {
+  "duration_ms": 416.34392738342285,
+  "mesh_stats": {
+    "vertex_count": 1110,
+    "face_count": 2032,
+    "triangle_count": 2032,
+    "edge_count": 3048,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9456960558891296,
+      -0.1394716054201126,
+      0.007058268878608942
+    ],
+    "bounds_max": [
+      0.9448856115341187,
+      0.135422483086586,
+      1.5979140996932983
+    ],
+    "height": 1.5908558308146894
+  }
+}
+
+Blender quit
