@@ -115,15 +115,19 @@ class MeshFreezer:
     
     @classmethod
     def freeze_all_meshes(cls) -> int:
-        """Freeze all mesh objects in scene - modifiers AND transforms"""
+        """Freeze all mesh objects in scene - modifiers only for rigged meshes"""
         count = 0
         for obj in bpy.data.objects:
             if obj.type == 'MESH':
                 cls.freeze_modifiers(obj)
-                cls.freeze_transform(obj)
+                
+                has_armature = any(mod.type == 'ARMATURE' for mod in obj.modifiers) or obj.parent and obj.parent.type == 'ARMATURE'
+                if not has_armature:
+                    cls.freeze_transform(obj)
+                
                 count += 1
         
-        AkkuLogger.info(f"Froze {count} meshes (modifiers + transforms) for export")
+        AkkuLogger.info(f"Froze {count} meshes (modifiers, transforms for non-rigged) for export")
         return count
 
 
