@@ -97,7 +97,7 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `body.py` | 321 | BodyTypeParams, BodyTypePresets, BodyTypeSystem |
 | `kitbash.py` | 419 | SocketInfo, SemanticPart, KitbashLibrary, KitbashEquipper |
 | `rigging.py` | 324 | AutoWeightTransfer, WeightTransferResult (Data Transfer modifier) |
-| `finalize.py` | 550 | FinalizePipeline, MeshOptimizer, DecimateEngine, PlatformTargets |
+| `finalize.py` | 1028 | FinalizePipeline, MeshOptimizer, DecimateEngine, MeshJoiner, LOD generation |
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |
@@ -184,14 +184,15 @@ Procedural material system for low-poly characters:
 Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
 
 ## Recent Changes
-- 2026-02-04: **Added Game Engine Optimization Pipeline** - finalize.py module (550 lines)
-  - FinalizePipeline for Unity/Unreal-ready export
-  - MeshOptimizer: remove_doubles, dissolve_degenerate, recalculate_normals
-  - MaterialOptimizer: merge_identical_materials, consolidate_to_single_material
-  - DecimateEngine: decimate_to_target, decimate_by_ratio for poly reduction
+- 2026-02-04: **Added Game Engine Optimization Pipeline** - finalize.py module (1028 lines)
+  - FinalizePipeline for Unity/Unreal-ready export with context-independent operations
+  - MeshOptimizer: remove_doubles, dissolve_degenerate, recalculate_normals (bmesh-based)
+  - MaterialOptimizer: merge_identical, consolidate_to_single, reduce_to_limit
+  - DecimateEngine: decimate_to_target with depsgraph + bmesh fallback for headless
   - PlatformTargets: 6 profiles (mobile_low, mobile, mobile_high, pc_low, pc, pc_high)
-  - MeshJoiner: join_objects, join_by_material for mesh consolidation
+  - MeshJoiner: join_objects with UV preservation (bmesh-based, no bpy.ops)
   - LOD chain generation (LOD0-LOD3) for distance-based detail
+  - Note: Optimized for low-poly procedural models; complex rigged assets may need bpy.ops
 - 2026-02-04: **Added Prompt-to-Parameter Mapping Engine** - Enhanced gemini.ts
   - mapPromptToParameters() converts abstract prompts to SDK parameters
   - AkkuSDKParameters interface with bodyType, style, shader, equipment
