@@ -1,0 +1,36 @@
+composerkil@blender-worker:~/akku-engine$ ls -la /home/composerkil/akku-engine/
+total 596
+drwxr-xr-x 15 composerkil composerkil   4096 Feb  4 14:27 .
+drwxr-xr-x  6 composerkil composerkil   4096 Feb  4 10:53 ..
+drwxr-xr-x  8 composerkil composerkil   4096 Feb  4 10:47 .git
+-rw-r--r--  1 composerkil composerkil     67 Feb  4 10:47 .gitignore
+-rw-r--r--  1 composerkil composerkil    793 Feb  4 10:47 .replit
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 11:44 __pycache__
+-rw-r--r--  1 composerkil composerkil  96927 Feb  4 13:08 akku-sdk-v3.py
+-rw-r--r--  1 composerkil composerkil  20606 Feb  4 12:17 akku-sdk.py
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 14:27 akku_sdk
+-rw-r--r--  1 composerkil composerkil   7020 Feb  4 11:43 akku_sdk.py
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 14:23 akku_sdk_backup_20260204
+-rw-r--r--  1 composerkil composerkil   3316 Feb  4 13:00 app.py
+drwxr-xr-x  3 composerkil composerkil   4096 Feb  4 10:47 assets
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 10:47 attached_assets
+drwxr-xr-x  4 composerkil composerkil   4096 Feb  4 10:47 client
+-rw-r--r--  1 composerkil composerkil    459 Feb  4 10:47 components.json
+-rw-r--r--  1 composerkil composerkil    325 Feb  4 10:47 drizzle.config.ts
+-rw-r--r--  1 composerkil composerkil   2628 Feb  4 11:44 generate_humanoid.py
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 13:53 outputs
+-rw-r--r--  1 composerkil composerkil 325159 Feb  4 10:47 package-lock.json
+-rw-r--r--  1 composerkil composerkil   3777 Feb  4 10:47 package.json
+-rw-r--r--  1 composerkil composerkil     80 Feb  4 10:47 postcss.config.js
+drwxr-xr-x  3 composerkil composerkil   4096 Feb  4 10:47 public
+-rw-r--r--  1 composerkil composerkil  10509 Feb  4 10:47 replit.md
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 10:47 script
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 11:22 scripts
+drwxr-xr-x  3 composerkil composerkil   4096 Feb  4 10:47 server
+-rw-r--r--  1 composerkil composerkil    127 Feb  4 14:54 server.log
+drwxr-xr-x  2 composerkil composerkil   4096 Feb  4 10:47 shared
+-rw-r--r--  1 composerkil composerkil   4050 Feb  4 10:47 tailwind.config.ts
+-rw-r--r--  1 composerkil composerkil    657 Feb  4 10:47 tsconfig.json
+-rw-r--r--  1 composerkil composerkil   1080 Feb  4 10:47 vite.config.ts
+-rw-r--r--  1 composerkil composerkil  23695 Feb  4 12:53 worker.log
+-rw-r--r--  1 composerkil composerkil    901 Feb  4 10:39 worker.py
