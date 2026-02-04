@@ -100,7 +100,7 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `rigging.py` | 324 | AutoWeightTransfer, WeightTransferResult (Data Transfer modifier) |
 | `finalize.py` | 1028 | FinalizePipeline, MeshOptimizer, DecimateEngine, MeshJoiner, LOD generation |
 | `procedural.py` | 600+ | ProceduralHumanoid, StyleProportions, PolyLevelPresets |
-| `bmesh_tools.py` | 2100+ | BmeshTools, AtomicMeshOps, SymmetryMirror, FaceNormalOrient, SelectionFilter |
+| `bmesh_tools.py` | 3100+ | BmeshTools, TopologyOps, SemanticSelector, GameOptimizer, AI Macros |
 
 ### v3.8 New Features (2026-02-04)
 
@@ -143,6 +143,21 @@ Essential precision functions for production-quality meshes:
 - `FaceNormalOrient`: Force all normals outward (prevents shader artifacts)
 - `TransformSpace`: Local (face normal) vs Global (world XYZ) transforms
 - `SelectionFilter`: Position-based face selection ('top', 'front', 'left', etc.)
+
+#### 7. Game-Ready Atomic Operations (v3.8)
+Complete toolkit for game asset creation:
+- **Topology Ops**: `TopologyOps` - Inset, Bevel, Bridge edge loops
+- **Semantic Selection**: `SemanticSelector` - Select by loop/ring/sharp edges/boundary
+- **Transform Ops**: `TransformOps` - Proportional editing, flatten, snap to symmetry
+- **Game Optimizer**: `GameOptimizer` - Merge doubles, triangulate, decimate, UV project, shading
+
+#### 8. AI-Friendly Macro Functions (v3.8)
+High-level functions designed for LLM orchestration:
+- `extrude_and_scale(face, length, scale)`: Combined extrude + scale
+- `inset_and_extrude(face, inset, depth)`: For eye sockets, buttons, etc.
+- `bevel_sharp_edges(angle, width)`: Auto-bevel all sharp edges
+- `select_and_extrude(position, length)`: "Extrude top face 0.2 units"
+- `optimize_for_game()`: Full game pipeline (merge + triangulate + smooth)
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |

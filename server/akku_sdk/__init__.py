@@ -129,6 +129,19 @@ from .bmesh_tools import (
     orient_normals_outward,
     select_faces_by_position,
     move_along_face_normal,
+    InsetResult,
+    BevelResult,
+    BridgeResult,
+    OptimizeResult,
+    TopologyOps,
+    SemanticSelector,
+    TransformOps,
+    GameOptimizer,
+    extrude_and_scale,
+    inset_and_extrude,
+    bevel_sharp_edges,
+    select_and_extrude,
+    optimize_for_game,
 )
 
 __version__ = "3.8.0"
@@ -222,4 +235,19 @@ __all__ = [
     "orient_normals_outward",
     "select_faces_by_position",
     "move_along_face_normal",
+    # Game-Ready Operations
+    "InsetResult",
+    "BevelResult",
+    "BridgeResult",
+    "OptimizeResult",
+    "TopologyOps",
+    "SemanticSelector",
+    "TransformOps",
+    "GameOptimizer",
+    # AI-Friendly Macros
+    "extrude_and_scale",
+    "inset_and_extrude",
+    "bevel_sharp_edges",
+    "select_and_extrude",
+    "optimize_for_game",
 ]

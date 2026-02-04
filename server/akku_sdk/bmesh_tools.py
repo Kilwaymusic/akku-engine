@@ -2292,3 +2292,981 @@ def move_along_face_normal(
     result = transform.move_along_normal(face_index, distance)
     transform.finish()
     return result
+
+
+# =============================================================================
+# GAME-READY ATOMIC OPERATIONS
+# =============================================================================
+
+@dataclass
+class InsetResult:
+    """Result of inset operation"""
+    new_face_indices: List[int] = field(default_factory=list)
+    border_face_indices: List[int] = field(default_factory=list)
+    inset_depth: float = 0.0
+
+
+@dataclass
+class BevelResult:
+    """Result of bevel operation"""
+    new_face_indices: List[int] = field(default_factory=list)
+    new_edge_indices: List[int] = field(default_factory=list)
+    segments: int = 1
+
+
+@dataclass
+class BridgeResult:
+    """Result of bridge operation"""
+    new_face_indices: List[int] = field(default_factory=list)
+    connected_loops: int = 0
+
+
+@dataclass
+class OptimizeResult:
+    """Result of mesh optimization"""
+    original_faces: int = 0
+    final_faces: int = 0
+    removed_verts: int = 0
+    reduction_ratio: float = 0.0
+
+
+class TopologyOps:
+    """
+    Topology manipulation operations for game asset creation.
+    
+    Core operations: Inset, Bevel, Bridge
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def inset_face(
+        self,
+        face_index: int,
+        thickness: float,
+        depth: float = 0.0,
+        use_boundary: bool = True
+    ) -> InsetResult:
+        """
+        Create inset on a face (for armor borders, window frames, eye sockets).
+        
+        Args:
+            face_index: Face to inset
+            thickness: Inset distance from edges
+            depth: How much to push inset face in/out
+            use_boundary: Include boundary edges in inset operation
+            
+        Returns:
+            InsetResult with new geometry (inner face and border faces)
+        """
+        result = InsetResult(inset_depth=depth)
+        
+        bm = self._ensure_bmesh()
+        bm.faces.ensure_lookup_table()
+        
+        if face_index >= len(bm.faces):
+            return result
+        
+        face = bm.faces[face_index]
+        original_center = face.calc_center_median()
+        original_face_count = len(bm.faces)
+        
+        inset_result = bmesh.ops.inset_individual(
+            bm,
+            faces=[face],
+            thickness=thickness,
+            depth=depth,
+            use_even_offset=True,
+            use_interpolate=True,
+            use_relative_offset=False,
+            use_outset=not use_boundary
+        )
+        
+        bm.faces.ensure_lookup_table()
+        
+        inner_face = None
+        min_dist = float('inf')
+        for f in bm.faces:
+            center = f.calc_center_median()
+            dist = (center - original_center).length
+            if dist < min_dist:
+                min_dist = dist
+                inner_face = f
+        
+        if inner_face:
+            result.new_face_indices = [inner_face.index]
+        
+        for f in bm.faces:
+            if f.index >= original_face_count or f == inner_face:
+                continue
+            center = f.calc_center_median()
+            if (center - original_center).length < thickness * 3:
+                result.border_face_indices.append(f.index)
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def bevel_edges(
+        self,
+        edge_indices: List[int],
+        width: float,
+        segments: int = 1,
+        profile: float = 0.5
+    ) -> BevelResult:
+        """
+        Bevel edges to add highlight edges for low-poly style.
+        
+        Args:
+            edge_indices: Edges to bevel
+            width: Bevel width
+            segments: Number of segments (1 for low-poly)
+            profile: Bevel profile (0.5 = round, 0 = flat)
+            
+        Returns:
+            BevelResult with new geometry
+        """
+        result = BevelResult(segments=segments)
+        
+        bm = self._ensure_bmesh()
+        bm.edges.ensure_lookup_table()
+        
+        edges = [bm.edges[i] for i in edge_indices if i < len(bm.edges)]
+        if not edges:
+            return result
+        
+        original_faces = set(f.index for f in bm.faces)
+        original_edges = set(e.index for e in bm.edges)
+        
+        bevel_result = bmesh.ops.bevel(
+            bm,
+            geom=edges,
+            offset=width,
+            offset_type='OFFSET',
+            segments=segments,
+            profile=profile,
+            affect='EDGES'
+        )
+        
+        bm.faces.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        
+        result.new_face_indices = [f.index for f in bm.faces if f.index not in original_faces]
+        result.new_edge_indices = [e.index for e in bm.edges if e.index not in original_edges]
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def bridge_edge_loops(
+        self,
+        edge_loop_1: List[int],
+        edge_loop_2: List[int],
+        segments: int = 1,
+        twist: int = 0
+    ) -> BridgeResult:
+        """
+        Bridge two edge loops to create tunnel or handle.
+        
+        Args:
+            edge_loop_1: First edge loop indices
+            edge_loop_2: Second edge loop indices
+            segments: Number of connecting segments
+            twist: Twist offset for connection
+            
+        Returns:
+            BridgeResult with new geometry
+        """
+        result = BridgeResult()
+        
+        bm = self._ensure_bmesh()
+        bm.edges.ensure_lookup_table()
+        
+        edges1 = [bm.edges[i] for i in edge_loop_1 if i < len(bm.edges)]
+        edges2 = [bm.edges[i] for i in edge_loop_2 if i < len(bm.edges)]
+        
+        if not edges1 or not edges2:
+            return result
+        
+        original_faces = set(f.index for f in bm.faces)
+        
+        try:
+            bridge_result = bmesh.ops.bridge_loops(
+                bm,
+                edges=edges1 + edges2,
+                use_pairs=False,
+                use_cyclic=True,
+                use_merge=False,
+                merge_factor=0.5,
+                twist_offset=twist,
+                cuts=max(0, segments - 1)
+            )
+            result.connected_loops = 2
+        except:
+            return result
+        
+        bm.faces.ensure_lookup_table()
+        result.new_face_indices = [f.index for f in bm.faces if f.index not in original_faces]
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+class SemanticSelector:
+    """
+    Semantic selection for AI-driven modeling.
+    
+    Select geometry by meaning rather than indices.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def select_edge_loop(self, start_edge_index: int) -> List[int]:
+        """
+        Select entire edge loop from starting edge.
+        
+        Args:
+            start_edge_index: Starting edge
+            
+        Returns:
+            List of edge indices in the loop
+        """
+        bm = self._ensure_bmesh()
+        bm.edges.ensure_lookup_table()
+        
+        if start_edge_index >= len(bm.edges):
+            return []
+        
+        start_edge = bm.edges[start_edge_index]
+        loop_edges = [start_edge]
+        visited = {start_edge}
+        
+        def get_opposite_edge(edge, face):
+            if len(face.edges) != 4:
+                return None
+            edges = list(face.edges)
+            idx = edges.index(edge)
+            return edges[(idx + 2) % 4]
+        
+        for direction in [0, 1]:
+            current = start_edge
+            
+            while True:
+                next_edge = None
+                for face in current.link_faces:
+                    opposite = get_opposite_edge(current, face)
+                    if opposite and opposite not in visited:
+                        next_edge = opposite
+                        break
+                
+                if next_edge is None:
+                    break
+                
+                visited.add(next_edge)
+                if direction == 0:
+                    loop_edges.append(next_edge)
+                else:
+                    loop_edges.insert(0, next_edge)
+                current = next_edge
+        
+        return [e.index for e in loop_edges]
+    
+    def select_edge_ring(self, start_edge_index: int) -> List[int]:
+        """
+        Select edge ring (perpendicular to loop).
+        
+        Args:
+            start_edge_index: Starting edge
+            
+        Returns:
+            List of edge indices in the ring
+        """
+        bm = self._ensure_bmesh()
+        bm.edges.ensure_lookup_table()
+        
+        if start_edge_index >= len(bm.edges):
+            return []
+        
+        start_edge = bm.edges[start_edge_index]
+        ring_edges = [start_edge]
+        visited = {start_edge}
+        
+        def get_adjacent_edge(edge, face):
+            if len(face.edges) != 4:
+                return None
+            edges = list(face.edges)
+            idx = edges.index(edge)
+            return edges[(idx + 1) % 4]
+        
+        for direction in [0, 1]:
+            current = start_edge
+            
+            while True:
+                next_edge = None
+                for face in current.link_faces:
+                    adj = get_adjacent_edge(current, face)
+                    if adj:
+                        for other_face in adj.link_faces:
+                            if other_face != face:
+                                opp = get_adjacent_edge(adj, other_face)
+                                if opp and opp not in visited:
+                                    next_edge = opp
+                                    break
+                    if next_edge:
+                        break
+                
+                if next_edge is None:
+                    break
+                
+                visited.add(next_edge)
+                if direction == 0:
+                    ring_edges.append(next_edge)
+                else:
+                    ring_edges.insert(0, next_edge)
+                current = next_edge
+        
+        return [e.index for e in ring_edges]
+    
+    def select_sharp_edges(self, angle_threshold: float = 30.0) -> List[int]:
+        """
+        Select edges sharper than threshold (for bevel application).
+        
+        Args:
+            angle_threshold: Angle in degrees (edges sharper than this)
+            
+        Returns:
+            List of sharp edge indices
+        """
+        import math
+        
+        bm = self._ensure_bmesh()
+        threshold_rad = math.radians(angle_threshold)
+        
+        sharp_edges = []
+        for edge in bm.edges:
+            if len(edge.link_faces) == 2:
+                angle = edge.calc_face_angle()
+                if angle > threshold_rad:
+                    sharp_edges.append(edge.index)
+        
+        return sharp_edges
+    
+    def select_boundary_edges(self) -> List[int]:
+        """
+        Select all boundary (non-manifold) edges.
+        
+        Returns:
+            List of boundary edge indices
+        """
+        bm = self._ensure_bmesh()
+        return [e.index for e in bm.edges if len(e.link_faces) == 1]
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+class TransformOps:
+    """
+    Advanced transform operations for modeling.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def proportional_move(
+        self,
+        vert_indices: List[int],
+        translation: Tuple[float, float, float],
+        falloff_radius: float,
+        falloff_type: str = 'SMOOTH'
+    ) -> int:
+        """
+        Move vertices with proportional falloff to nearby verts.
+        
+        Args:
+            vert_indices: Primary vertices to move
+            translation: Movement vector
+            falloff_radius: Radius of proportional effect
+            falloff_type: 'SMOOTH', 'SPHERE', 'LINEAR', 'SHARP'
+            
+        Returns:
+            Number of affected vertices
+        """
+        import math
+        
+        bm = self._ensure_bmesh()
+        bm.verts.ensure_lookup_table()
+        
+        trans_vec = Vector(translation)
+        primary_verts = [bm.verts[i] for i in vert_indices if i < len(bm.verts)]
+        
+        if not primary_verts:
+            return 0
+        
+        primary_center = Vector((0, 0, 0))
+        for v in primary_verts:
+            primary_center += v.co
+        primary_center /= len(primary_verts)
+        
+        affected = 0
+        for vert in bm.verts:
+            dist = (vert.co - primary_center).length
+            
+            if dist <= falloff_radius:
+                if falloff_type == 'SMOOTH':
+                    factor = 1.0 - (dist / falloff_radius) ** 2
+                    factor = factor * factor * (3 - 2 * factor)
+                elif falloff_type == 'SPHERE':
+                    factor = math.sqrt(1.0 - (dist / falloff_radius) ** 2)
+                elif falloff_type == 'LINEAR':
+                    factor = 1.0 - dist / falloff_radius
+                elif falloff_type == 'SHARP':
+                    factor = (1.0 - dist / falloff_radius) ** 2
+                else:
+                    factor = 1.0 - dist / falloff_radius
+                
+                vert.co += trans_vec * factor
+                affected += 1
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return affected
+    
+    def flatten_to_axis(
+        self,
+        vert_indices: List[int],
+        axis: str = 'Z',
+        target_value: Optional[float] = None
+    ) -> int:
+        """
+        Flatten vertices to a plane along specified axis.
+        
+        Args:
+            vert_indices: Vertices to flatten
+            axis: 'X', 'Y', or 'Z'
+            target_value: Value to flatten to (None = average)
+            
+        Returns:
+            Number of flattened vertices
+        """
+        bm = self._ensure_bmesh()
+        bm.verts.ensure_lookup_table()
+        
+        axis_idx = {'X': 0, 'Y': 1, 'Z': 2}.get(axis.upper(), 2)
+        verts = [bm.verts[i] for i in vert_indices if i < len(bm.verts)]
+        
+        if not verts:
+            return 0
+        
+        if target_value is None:
+            target_value = sum(v.co[axis_idx] for v in verts) / len(verts)
+        
+        for vert in verts:
+            vert.co[axis_idx] = target_value
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return len(verts)
+    
+    def snap_to_symmetry(
+        self,
+        axis: str = 'X',
+        threshold: float = 0.001
+    ) -> int:
+        """
+        Snap vertices near center axis to exact center.
+        
+        Args:
+            axis: Symmetry axis
+            threshold: Distance from center to snap
+            
+        Returns:
+            Number of snapped vertices
+        """
+        bm = self._ensure_bmesh()
+        
+        axis_idx = {'X': 0, 'Y': 1, 'Z': 2}.get(axis.upper(), 0)
+        
+        snapped = 0
+        for vert in bm.verts:
+            if abs(vert.co[axis_idx]) <= threshold:
+                vert.co[axis_idx] = 0.0
+                snapped += 1
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return snapped
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+class GameOptimizer:
+    """
+    Game-ready mesh optimization operations.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def merge_by_distance(self, threshold: float = 0.0001) -> int:
+        """
+        Merge overlapping vertices (remove doubles).
+        
+        Args:
+            threshold: Distance for merging
+            
+        Returns:
+            Number of removed vertices
+        """
+        bm = self._ensure_bmesh()
+        
+        original_count = len(bm.verts)
+        
+        bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=threshold)
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return original_count - len(bm.verts)
+    
+    def triangulate(self, face_indices: Optional[List[int]] = None) -> OptimizeResult:
+        """
+        Convert faces to triangles for game engine.
+        
+        Args:
+            face_indices: Specific faces to triangulate (None = all)
+            
+        Returns:
+            OptimizeResult with statistics
+        """
+        result = OptimizeResult()
+        
+        bm = self._ensure_bmesh()
+        bm.faces.ensure_lookup_table()
+        
+        result.original_faces = len(bm.faces)
+        
+        if face_indices is None:
+            faces = list(bm.faces)
+        else:
+            faces = [bm.faces[i] for i in face_indices if i < len(bm.faces)]
+        
+        bmesh.ops.triangulate(bm, faces=faces)
+        
+        bm.faces.ensure_lookup_table()
+        result.final_faces = len(bm.faces)
+        result.reduction_ratio = result.final_faces / max(result.original_faces, 1)
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def decimate(self, ratio: float = 0.5, use_symmetry: bool = False) -> OptimizeResult:
+        """
+        Reduce polygon count while preserving shape.
+        
+        Args:
+            ratio: Target ratio (0.5 = half the faces)
+            use_symmetry: Preserve symmetry during decimation
+            
+        Returns:
+            OptimizeResult with statistics
+        """
+        result = OptimizeResult()
+        
+        bm = self._ensure_bmesh()
+        result.original_faces = len(bm.faces)
+        original_verts = len(bm.verts)
+        
+        target_faces = int(len(bm.faces) * ratio)
+        
+        bmesh.ops.dissolve_degenerate(bm, edges=list(bm.edges), dist=0.0001)
+        
+        iterations = 0
+        max_iterations = result.original_faces
+        
+        while len(bm.faces) > target_faces and len(bm.edges) > 0 and iterations < max_iterations:
+            shortest_edge = min(bm.edges, key=lambda e: e.calc_length())
+            try:
+                bmesh.ops.collapse(bm, edges=[shortest_edge])
+            except:
+                break
+            
+            iterations += 1
+            if len(bm.faces) <= target_faces:
+                break
+        
+        bm.verts.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+        
+        result.final_faces = len(bm.faces)
+        result.removed_verts = original_verts - len(bm.verts)
+        result.reduction_ratio = result.final_faces / max(result.original_faces, 1)
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def smart_uv_project(self, angle_limit: float = 66.0, island_margin: float = 0.02):
+        """
+        Automatic UV projection based on angles.
+        
+        Args:
+            angle_limit: Angle threshold for island separation
+            island_margin: Margin between UV islands
+        """
+        import math
+        
+        bm = self._ensure_bmesh()
+        
+        uv_layer = bm.loops.layers.uv.verify()
+        
+        for face in bm.faces:
+            normal = face.normal
+            
+            if abs(normal.z) > 0.707:
+                project_axis = 'Z'
+            elif abs(normal.y) > 0.707:
+                project_axis = 'Y'
+            else:
+                project_axis = 'X'
+            
+            for loop in face.loops:
+                co = loop.vert.co
+                
+                if project_axis == 'Z':
+                    loop[uv_layer].uv = (co.x, co.y)
+                elif project_axis == 'Y':
+                    loop[uv_layer].uv = (co.x, co.z)
+                else:
+                    loop[uv_layer].uv = (co.y, co.z)
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+    
+    def set_shading(
+        self,
+        edge_indices: Optional[List[int]] = None,
+        sharp: bool = True
+    ):
+        """
+        Set edge shading (sharp or smooth).
+        
+        Args:
+            edge_indices: Edges to set (None = all)
+            sharp: True for sharp (flat shading), False for smooth
+        """
+        bm = self._ensure_bmesh()
+        bm.edges.ensure_lookup_table()
+        
+        if edge_indices is None:
+            edges = list(bm.edges)
+        else:
+            edges = [bm.edges[i] for i in edge_indices if i < len(bm.edges)]
+        
+        for edge in edges:
+            edge.smooth = not sharp
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+    
+    def auto_smooth_by_angle(self, angle_threshold: float = 30.0):
+        """
+        Set smooth/flat shading based on edge angle.
+        
+        Args:
+            angle_threshold: Edges sharper than this stay sharp
+        """
+        import math
+        
+        bm = self._ensure_bmesh()
+        threshold_rad = math.radians(angle_threshold)
+        
+        for edge in bm.edges:
+            if len(edge.link_faces) == 2:
+                angle = edge.calc_face_angle()
+                edge.smooth = angle < threshold_rad
+            else:
+                edge.smooth = True
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+    
+    def finish(self):
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# AI-FRIENDLY MACRO FUNCTIONS
+# =============================================================================
+
+def extrude_and_scale(
+    obj: bpy.types.Object,
+    face_index: int,
+    extrude_length: float,
+    scale: Tuple[float, float] = (1.0, 1.0),
+    axis: str = 'NORMAL'
+) -> ExtrudeResult:
+    """
+    Extrude face and scale in one operation.
+    
+    Example: "Extrude top face 0.2 on Z axis, scale to 0.8"
+    
+    Args:
+        obj: Mesh object
+        face_index: Face to extrude
+        extrude_length: Extrusion distance
+        scale: (x, y) scale factors
+        axis: 'NORMAL' (along face normal), 'X', 'Y', or 'Z' (world axis)
+    """
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    
+    result = ExtrudeResult()
+    
+    if face_index >= len(bm.faces):
+        bm.free()
+        return result
+    
+    face = bm.faces[face_index]
+    
+    if axis.upper() == 'NORMAL':
+        direction = face.normal.copy()
+    elif axis.upper() == 'X':
+        direction = Vector((1, 0, 0))
+    elif axis.upper() == 'Y':
+        direction = Vector((0, 1, 0))
+    elif axis.upper() == 'Z':
+        direction = Vector((0, 0, 1))
+    else:
+        direction = face.normal.copy()
+    
+    extrude_result = bmesh.ops.extrude_face_region(bm, geom=[face])
+    new_verts = [v for v in extrude_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+    
+    translation = direction * extrude_length
+    bmesh.ops.translate(bm, verts=new_verts, vec=translation)
+    
+    cap_face = None
+    for f in bm.faces:
+        if all(v in new_verts for v in f.verts):
+            cap_face = f
+            break
+    
+    if scale != (1.0, 1.0) and cap_face:
+        cap_center = cap_face.calc_center_median()
+        for vert in cap_face.verts:
+            local_pos = vert.co - cap_center
+            vert.co.x = cap_center.x + local_pos.x * scale[0]
+            vert.co.y = cap_center.y + local_pos.y * scale[1]
+    
+    bm.verts.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
+    
+    result.new_vert_indices = [v.index for v in new_verts]
+    if cap_face:
+        result.new_face_indices = [cap_face.index]
+    
+    bm.normal_update()
+    bm.to_mesh(obj.data)
+    obj.data.update()
+    bm.free()
+    
+    return result
+
+
+def inset_and_extrude(
+    obj: bpy.types.Object,
+    face_index: int,
+    inset_thickness: float,
+    extrude_depth: float,
+    scale: Tuple[float, float] = (1.0, 1.0)
+) -> Dict:
+    """
+    Inset face then extrude (for eye sockets, buttons, etc.).
+    
+    Args:
+        obj: Mesh object
+        face_index: Face to process
+        inset_thickness: Inset amount
+        extrude_depth: Extrusion depth (negative = inward)
+        scale: Scale for final face
+    """
+    topo = TopologyOps(obj)
+    inset_result = topo.inset_face(face_index, inset_thickness)
+    topo.finish()
+    
+    if inset_result.new_face_indices:
+        inner_face = inset_result.new_face_indices[0]
+        tools = BmeshTools(obj)
+        extrude_result = tools.smart_extrude(inner_face, extrude_depth, scale=scale)
+        tools.finish()
+        return {
+            'inset': inset_result,
+            'extrude': extrude_result
+        }
+    
+    return {'inset': inset_result, 'extrude': None}
+
+
+def bevel_sharp_edges(
+    obj: bpy.types.Object,
+    angle_threshold: float = 30.0,
+    bevel_width: float = 0.02,
+    segments: int = 1
+) -> BevelResult:
+    """
+    Auto-bevel all sharp edges for low-poly highlight.
+    
+    Args:
+        obj: Mesh object
+        angle_threshold: Edges sharper than this get beveled
+        bevel_width: Bevel size
+        segments: Bevel segments
+    """
+    selector = SemanticSelector(obj)
+    sharp_edges = selector.select_sharp_edges(angle_threshold)
+    selector.finish()
+    
+    if not sharp_edges:
+        return BevelResult()
+    
+    topo = TopologyOps(obj)
+    result = topo.bevel_edges(sharp_edges, bevel_width, segments)
+    topo.finish()
+    
+    return result
+
+
+def select_and_extrude(
+    obj: bpy.types.Object,
+    position: str,
+    extrude_length: float,
+    threshold: float = 0.1
+) -> Dict:
+    """
+    Select face by position and extrude.
+    
+    Example: "Select top face and extrude 0.5 units"
+    
+    Args:
+        obj: Mesh object
+        position: 'top', 'bottom', 'front', 'back', 'left', 'right'
+        extrude_length: Extrusion distance
+        threshold: Selection threshold
+    """
+    selection = select_faces_by_position(obj, position, threshold)
+    
+    if not selection.face_indices:
+        return {'selection': selection, 'extrudes': []}
+    
+    extrudes = []
+    for face_idx in selection.face_indices[:1]:
+        tools = BmeshTools(obj)
+        result = tools.smart_extrude(face_idx, extrude_length)
+        tools.finish()
+        extrudes.append(result)
+    
+    return {'selection': selection, 'extrudes': extrudes}
+
+
+def optimize_for_game(
+    obj: bpy.types.Object,
+    merge_distance: float = 0.0001,
+    triangulate: bool = True,
+    auto_smooth_angle: float = 30.0
+) -> Dict:
+    """
+    Full game optimization pipeline.
+    
+    Args:
+        obj: Mesh object
+        merge_distance: Distance for merging doubles
+        triangulate: Convert to triangles
+        auto_smooth_angle: Angle for smooth/flat shading
+    """
+    opt = GameOptimizer(obj)
+    
+    merged = opt.merge_by_distance(merge_distance)
+    
+    tri_result = None
+    if triangulate:
+        tri_result = opt.triangulate()
+    
+    opt.auto_smooth_by_angle(auto_smooth_angle)
+    
+    opt.finish()
+    
+    orient_normals_outward(obj)
+    
+    return {
+        'merged_verts': merged,
+        'triangulate': tri_result,
+        'smooth_angle': auto_smooth_angle
+    }
