@@ -140,7 +140,39 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `medium` | ~1500 tris | Balanced quality |
 | `high` | ~3000 tris | PC/Console games |
 
+### Body Type System (SDK v3.3)
+12 body type presets with Korean language support:
+
+| Preset | Korean | Description |
+|--------|--------|-------------|
+| `default` | 기본 | Standard proportions |
+| `muscular` | 근육질 | Wide shoulders, narrow waist |
+| `thin` | 마른 | Slim overall |
+| `fat` | 뚱뚱한 | Wide torso |
+| `tall` | 키큰 | Long legs/arms |
+| `athletic` | 운동선수 | Balanced muscular |
+| `heroic` | 영웅 | Muscular + tall |
+| `chibi` | 치비 | Large head, small body |
+
+### Stylized Shader System (SDK v3.3)
+Procedural material system for low-poly characters:
+
+| Node | Function |
+|------|----------|
+| Geometry (Pointiness) | Edge highlighting - bright edges |
+| Ambient Occlusion | Cavity darkening - dark creases |
+| Fresnel | Rim lighting effect |
+
+Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
+
 ## Recent Changes
+- 2026-02-04: **Added Stylized Shader System** - Edge highlighting + cavity darkening for low-poly models
+  - Geometry (Pointiness) + AO nodes for procedural shading
+  - 8 style presets with different shader parameters
+  - Fresnel rim lighting support
+- 2026-02-04: **Added Body Type System** - 12 presets with Korean support
+  - Lattice/Vertex deformation for natural body shapes
+  - Auto-detection from prompts (e.g., "근육질 전사")
 - 2026-02-04: **Migrated to GCP Worker architecture** - Remote Blender server for reliable 3D generation
   - Removed local Blender MCP/CLI execution (Replit headless limitations)
   - Added HTTP client with timeout (2 min), GLB validation, error handling
