@@ -13,10 +13,21 @@ const MODELS_DIR = path.join(process.cwd(), "public", "models");
 // GCP Worker server for Blender operations
 const GCP_WORKER_URL = "http://34.134.82.224:5000/generate";
 
+interface BodyTypeParams {
+  preset?: string;
+  muscular?: number;
+  fat?: number;
+  height?: number;
+  shoulderWidth?: number;
+  hipWidth?: number;
+}
+
 interface GenerationOptions {
   prompt: string;
   style?: string;
   polyLevel?: string;
+  bodyType?: BodyTypeParams;
+  gender?: string;
 }
 
 // Timeout for GCP Worker requests (2 minutes)
@@ -27,11 +38,13 @@ const GCP_WORKER_TIMEOUT = 120000;
  * Sends prompt to external Blender server and receives GLB file
  */
 async function generateModelRemote(jobId: string, options: GenerationOptions): Promise<string> {
-  const { prompt, style = "stylized", polyLevel = "medium" } = options;
+  const { prompt, style = "stylized", polyLevel = "medium", bodyType, gender = "male" } = options;
   
   console.log(`[GCP Worker] Sending generation request for job ${jobId}...`);
   console.log(`Prompt: ${prompt}`);
   console.log(`Style: ${style}, Poly Level: ${polyLevel}`);
+  console.log(`Body Type:`, bodyType);
+  console.log(`Gender: ${gender}`);
 
   if (!existsSync(MODELS_DIR)) {
     mkdirSync(MODELS_DIR, { recursive: true });
@@ -54,6 +67,8 @@ async function generateModelRemote(jobId: string, options: GenerationOptions): P
         style,
         polyLevel,
         jobId,
+        gender,
+        bodyType: bodyType ? JSON.stringify(bodyType) : undefined,
       }),
       signal: controller.signal,
     });

@@ -319,16 +319,18 @@ def generate_character(
     output_path: str = None,
     gender: str = "male",
     body_type: str = "auto",
+    body_type_params: dict = None,
     use_remesh: bool = False
 ):
     """Generate a complete low-poly character from prompt."""
     
     print(f"\n{'='*60}")
-    print(f"[Akku SDK v3.5] Character Generation")
+    print(f"[Akku SDK v3.6] Character Generation")
     print(f"{'='*60}")
     print(f"Prompt: {prompt}")
     print(f"Style: {style}, Poly Level: {poly_level}")
     print(f"Gender: {gender}, Body Type: {body_type}")
+    print(f"Body Type Params: {body_type_params}")
     print(f"Use Remesh: {use_remesh}")
     print(f"{'='*60}\n")
     
@@ -337,7 +339,20 @@ def generate_character(
         raise RuntimeError(f"Load failed: {load_result['message']}")
     
     body_type_result = None
-    if body_type != "default":
+    
+    # Use detailed params if provided (from Gemini), otherwise fallback to preset/auto
+    if body_type_params and any(k in body_type_params for k in ["muscular", "fat", "shoulderWidth", "height", "hipWidth"]):
+        # Convert camelCase to snake_case for SDK
+        AkkuLogger.info("Using detailed body type params from Gemini", body_type_params)
+        body_type_result = ToolRegistry.execute("apply_body_type", {
+            "body_type": body_type_params.get("preset", "default"),
+            "muscular": body_type_params.get("muscular", 0.0),
+            "fat": body_type_params.get("fat", 0.0),
+            "height": body_type_params.get("height", 0.0),
+            "shoulder_width": body_type_params.get("shoulderWidth", 0.0),
+            "hip_width": body_type_params.get("hipWidth", 0.0)
+        })
+    elif body_type != "default":
         if body_type == "auto":
             detected_params = BodyTypePresets.detect_from_prompt(prompt)
             if detected_params != BodyTypePresets.PRESETS["default"]:
@@ -411,8 +426,22 @@ def main():
     poly_level = args[2]
     output_path = args[3]
     gender = args[4] if len(args) > 4 else "male"
-    body_type = args[5] if len(args) > 5 else "auto"
+    body_type_raw = args[5] if len(args) > 5 else "auto"
     use_remesh = args[6].lower() == "true" if len(args) > 6 else False
+    
+    # Parse body type - can be JSON with detailed params or simple preset name
+    body_type_params = None
+    body_type = "auto"
+    if body_type_raw.startswith("{"):
+        try:
+            body_type_params = json.loads(body_type_raw)
+            body_type = body_type_params.get("preset", "auto")
+            AkkuLogger.info("Parsed detailed body type params", body_type_params)
+        except json.JSONDecodeError:
+            body_type_params = {"preset": "auto"}
+    else:
+        body_type = body_type_raw
+        body_type_params = {"preset": body_type_raw}
     
     try:
         result = ToolRegistry.execute("generate_character", {
@@ -422,6 +451,7 @@ def main():
             "output_path": output_path,
             "gender": gender,
             "body_type": body_type,
+            "body_type_params": body_type_params,
             "use_remesh": use_remesh
         })
         

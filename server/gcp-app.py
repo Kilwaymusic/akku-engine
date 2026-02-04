@@ -59,28 +59,42 @@ def generate():
         poly_level = data.get('polyLevel', 'medium')
         job_id = data.get('jobId', str(uuid.uuid4()))
         gender = data.get('gender', 'male')
-        body_type = data.get('bodyType', 'auto')
+        body_type_raw = data.get('bodyType', 'auto')
         use_remesh = data.get('useRemesh', False)
+        
+        # Parse bodyType - can be JSON string with detailed params or simple preset name
+        body_type_params = None
+        if isinstance(body_type_raw, str):
+            try:
+                body_type_params = json.loads(body_type_raw)
+            except (json.JSONDecodeError, TypeError):
+                body_type_params = {"preset": body_type_raw}
+        elif isinstance(body_type_raw, dict):
+            body_type_params = body_type_raw
+        else:
+            body_type_params = {"preset": "auto"}
         
         # Output path
         output_filename = f"{job_id}.glb"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
         
         print(f"\n{'='*60}")
-        print(f"[Akku Worker v3.5] Starting generation")
+        print(f"[Akku Worker v3.6] Starting generation")
         print(f"{'='*60}")
         print(f"  Job ID: {job_id}")
         print(f"  Prompt: {prompt}")
         print(f"  Style: {style}")
         print(f"  Poly Level: {poly_level}")
         print(f"  Gender: {gender}")
-        print(f"  Body Type: {body_type}")
+        print(f"  Body Type Params: {json.dumps(body_type_params)}")
         print(f"  Use Remesh: {use_remesh}")
         print(f"  Output: {output_path}")
         print(f"{'='*60}\n")
         
         # Build Blender command for modular SDK
         # Use safe entry script with arguments passed via command line
+        # Pass body type params as JSON string for detailed control
+        body_type_json = json.dumps(body_type_params)
         cmd = [
             BLENDER_PATH,
             "--background",
@@ -91,7 +105,7 @@ def generate():
             poly_level,
             output_path,
             gender,
-            body_type,
+            body_type_json,
             "true" if use_remesh else "false"
         ]
         

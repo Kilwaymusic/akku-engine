@@ -246,49 +246,49 @@ class BodyTypeSystem:
                     dz = params.height * 0.15 * height * z_norm
                 
                 if z_norm > 0.85:
-                    scale = 1.0 + params.head_size * 0.15
+                    scale = 1.0 + params.head_size * 0.4
                     vert.co.x *= scale
                     vert.co.y *= scale
-                    dz += params.head_size * 0.05 * height
+                    dz += params.head_size * 0.1 * height
                     
                 elif 0.7 < z_norm <= 0.85:
-                    shoulder_scale = 1.0 + params.shoulder_width * 0.12 + params.muscular * 0.08
+                    shoulder_scale = 1.0 + params.shoulder_width * 0.5 + params.muscular * 0.35
                     vert.co.x *= shoulder_scale
-                    vert.co.y *= 1.0 + params.muscular * 0.05 + params.fat * 0.06
+                    vert.co.y *= 1.0 + params.muscular * 0.25 + params.fat * 0.3
                     
                 elif 0.55 < z_norm <= 0.7:
-                    chest_scale = 1.0 + params.muscular * 0.1 + params.fat * 0.08
+                    chest_scale = 1.0 + params.muscular * 0.4 + params.fat * 0.35
                     vert.co.x *= chest_scale
                     vert.co.y *= chest_scale
                     
                 elif 0.45 < z_norm <= 0.55:
-                    waist_scale = 1.0 - params.muscular * 0.08 + params.fat * 0.12
+                    waist_scale = 1.0 - params.muscular * 0.2 + params.fat * 0.45
                     vert.co.x *= waist_scale
                     vert.co.y *= waist_scale
                     
                 elif 0.35 < z_norm <= 0.45:
-                    hip_scale = 1.0 + params.hip_width * 0.1 + params.fat * 0.08
+                    hip_scale = 1.0 + params.hip_width * 0.4 + params.fat * 0.35
                     vert.co.x *= hip_scale
                     vert.co.y *= hip_scale
                     
                 elif z_norm <= 0.35:
                     if params.leg_length != 0:
-                        leg_factor = 1.0 + params.leg_length * 0.15
+                        leg_factor = 1.0 + params.leg_length * 0.4
                         vert.co.z = z_min + (vert.co.z - z_min) * leg_factor
                     
-                    leg_thickness = 1.0 + params.muscular * 0.06 + params.fat * 0.08
+                    leg_thickness = 1.0 + params.muscular * 0.25 + params.fat * 0.35
                     vert.co.x *= leg_thickness
                     vert.co.y *= leg_thickness
                 
                 if x_dist > 0.1 and 0.5 < z_norm < 0.8:
                     if params.arm_length != 0:
-                        arm_extend = params.arm_length * 0.1 * height
+                        arm_extend = params.arm_length * 0.25 * height
                         if vert.co.x > 0:
-                            vert.co.x += arm_extend * 0.3
+                            vert.co.x += arm_extend * 0.5
                         else:
-                            vert.co.x -= arm_extend * 0.3
+                            vert.co.x -= arm_extend * 0.5
                     
-                    arm_scale = 1.0 + params.muscular * 0.12 + params.fat * 0.06
+                    arm_scale = 1.0 + params.muscular * 0.4 + params.fat * 0.25
                     vert.co.y *= arm_scale
                 
                 vert.co.z += dz
