@@ -197,6 +197,63 @@ export async function registerRoutes(
     });
   });
 
+  // Serve SDK file for GCP download
+  app.get("/api/sdk", async (req, res) => {
+    try {
+      const { readFileSync } = await import("fs");
+      const sdkPath = path.join(process.cwd(), "server", "akku-sdk-v3.py");
+      const sdkContent = readFileSync(sdkPath, "utf-8");
+      res.setHeader("Content-Type", "text/plain");
+      res.send(sdkContent);
+    } catch (error) {
+      res.status(500).send("Error reading SDK file");
+    }
+  });
+
+  // Serve Flask app for GCP download
+  app.get("/api/flask-app", async (req, res) => {
+    try {
+      const { readFileSync } = await import("fs");
+      const appPath = path.join(process.cwd(), "server", "gcp-app.py");
+      const appContent = readFileSync(appPath, "utf-8");
+      res.setHeader("Content-Type", "text/plain");
+      res.send(appContent);
+    } catch (error) {
+      res.status(500).send("Error reading app file");
+    }
+  });
+
+  // Deployment script for GCP
+  app.get("/api/deploy-script", async (req, res) => {
+    const replitUrl = req.get('host') || 'localhost:5000';
+    const protocol = req.protocol || 'https';
+    const baseUrl = `${protocol}://${replitUrl}`;
+    
+    const script = `#!/bin/bash
+# Akku SDK v3.0 Deployment Script
+set -e
+cd ~/akku-engine
+
+echo "Downloading Akku SDK v3.0..."
+curl -sL "${baseUrl}/api/sdk" > akku-sdk.py
+echo "SDK downloaded."
+
+echo "Downloading Flask server..."
+curl -sL "${baseUrl}/api/flask-app" > app.py
+echo "Flask app downloaded."
+
+echo "Restarting server..."
+pkill -f "python3 app.py" 2>/dev/null || true
+nohup python3 app.py > server.log 2>&1 &
+sleep 3
+curl http://localhost:5000/health
+echo ""
+echo "Deployment complete!"
+`;
+    res.setHeader("Content-Type", "text/plain");
+    res.send(script);
+  });
+
   // Deploy SDK to GCP
   app.post("/api/deploy", async (req, res) => {
     try {
