@@ -1,9 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import express from "express";
 import { storage } from "./storage";
 import { insertJobSchema } from "@shared/schema";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import path from "path";
+
+const PUBLIC_DIR = path.join(process.cwd(), "public");
 
 const MODELS_DIR = path.join(process.cwd(), "public", "models");
 
@@ -117,6 +120,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Serve static files from public directory (for SDK downloads, etc.)
+  app.use(express.static(PUBLIC_DIR));
+  
   // Get all jobs
   app.get("/api/jobs", async (req, res) => {
     try {
