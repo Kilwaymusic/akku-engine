@@ -123,13 +123,20 @@ export async function registerRoutes(
   // Serve static files from public directory (for SDK downloads, etc.)
   app.use("/models", express.static(path.join(PUBLIC_DIR, "models")));
   
-  // SDK download endpoint
-  app.get("/akku_sdk_v3.6.tar.gz", (req, res) => {
+  // SDK download endpoint - returns base64 encoded file
+  app.get("/api/sdk-base64", (req, res) => {
     const filePath = path.join(PUBLIC_DIR, "akku_sdk_v3.6.tar.gz");
     if (existsSync(filePath)) {
-      res.download(filePath);
+      const fs = require("fs");
+      const fileData = fs.readFileSync(filePath);
+      const base64Data = fileData.toString("base64");
+      res.json({ 
+        filename: "akku_sdk_v3.6.tar.gz",
+        size: fileData.length,
+        data: base64Data 
+      });
     } else {
-      res.status(404).send("SDK file not found");
+      res.status(404).json({ error: "SDK file not found" });
     }
   });
   
