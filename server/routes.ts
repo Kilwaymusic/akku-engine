@@ -138,6 +138,35 @@ export async function registerRoutes(
       res.status(404).json({ error: "SDK file not found" });
     }
   });
+
+  // SDK individual file download - returns raw Python file
+  app.get("/api/sdk-file/:filename", (req, res) => {
+    const sdkDir = path.join(process.cwd(), "server", "akku_sdk");
+    const filename = req.params.filename;
+    const allowedFiles = ["core.py", "tools.py", "mesh.py", "shader.py", "body.py", 
+                          "kitbash.py", "rigging.py", "finalize.py", "handlers.py", 
+                          "main.py", "run.py", "__init__.py"];
+    if (!allowedFiles.includes(filename)) {
+      return res.status(400).send("Invalid filename");
+    }
+    const filePath = path.join(sdkDir, filename);
+    if (existsSync(filePath)) {
+      res.setHeader("Content-Type", "text/plain");
+      res.send(readFileSync(filePath, "utf-8"));
+    } else {
+      res.status(404).send("File not found");
+    }
+  });
+
+  // List all SDK files
+  app.get("/api/sdk-files", (req, res) => {
+    res.json({
+      files: ["core.py", "tools.py", "mesh.py", "shader.py", "body.py", 
+              "kitbash.py", "rigging.py", "finalize.py", "handlers.py", 
+              "main.py", "run.py", "__init__.py"],
+      version: "3.6"
+    });
+  });
   
   // Get all jobs
   app.get("/api/jobs", async (req, res) => {
