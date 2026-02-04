@@ -197,19 +197,20 @@ Analyze the user's character description and output a STRICT JSON object with ex
 ## Mapping Rules
 
 ### Character Archetypes → Body Type Presets
+IMPORTANT: USE MAXIMUM VALUES (1.0) for dramatic visual differences! Don't be conservative!
 | Archetype Keywords | Body Preset | Muscular | Fat | Shoulders | Style |
 |-------------------|-------------|----------|-----|-----------|-------|
-| 강력한/powerful/strong | heroic | 0.8 | 0.1 | 1.3 | stylized |
-| 전사/warrior/fighter | muscular | 0.7 | 0.15 | 1.2 | stylized |
-| 기사/knight/paladin | muscular | 0.6 | 0.2 | 1.25 | realistic |
-| 마법사/mage/wizard | thin | 0.2 | 0.1 | 0.9 | stylized |
-| 도적/rogue/assassin | athletic | 0.5 | 0.05 | 1.0 | stylized |
-| 로봇/robot/mech | default | 0.3 | 0.0 | 1.1 | stylized |
-| 몬스터/monster/beast | broad | 0.7 | 0.3 | 1.4 | cartoon |
-| 치비/chibi/cute | chibi | 0.0 | 0.2 | 0.8 | chibi |
-| 날씬한/slim/slender | slim | 0.2 | 0.0 | 0.85 | stylized |
-| 뚱뚱한/fat/heavy | stocky | 0.2 | 0.8 | 1.0 | cartoon |
-| 영웅/hero | heroic | 0.75 | 0.1 | 1.35 | stylized |
+| 강력한/powerful/strong | heroic | 1.0 | 0.0 | 1.5 | stylized |
+| 전사/warrior/fighter | muscular | 1.0 | 0.0 | 1.4 | stylized |
+| 기사/knight/paladin | muscular | 0.9 | 0.1 | 1.4 | realistic |
+| 마법사/mage/wizard | thin | 0.0 | 0.0 | 0.7 | stylized |
+| 도적/rogue/assassin | athletic | 0.6 | 0.0 | 1.0 | stylized |
+| 로봇/robot/mech | muscular | 0.8 | 0.0 | 1.3 | stylized |
+| 몬스터/monster/beast | broad | 1.0 | 0.5 | 1.5 | cartoon |
+| 치비/chibi/cute | chibi | 0.0 | 0.3 | 0.7 | chibi |
+| 날씬한/slim/slender | slim | 0.0 | 0.0 | 0.7 | stylized |
+| 뚱뚱한/fat/heavy | stocky | 0.0 | 1.0 | 1.0 | cartoon |
+| 영웅/hero | heroic | 1.0 | 0.0 | 1.5 | stylized |
 
 ### Armor Style Mappings
 | Keywords | Armor Style | Equipment Set |
@@ -263,12 +264,12 @@ Analyze the user's character description and output a STRICT JSON object with ex
 Input: "강력한 전사"
 Output:
 {
-  "bodyType": {"preset": "heroic", "muscular": 0.8, "fat": 0.1, "height": 1.05, "shoulderWidth": 1.3, "hipWidth": 1.0},
+  "bodyType": {"preset": "heroic", "muscular": 1.0, "fat": 0.0, "height": 1.15, "shoulderWidth": 1.5, "hipWidth": 1.0},
   "style": {"proportionType": "stylized", "polyLevel": "medium", "gender": "male"},
-  "shader": {"baseColor": [0.5, 0.5, 0.55], "metallic": 0.85, "roughness": 0.3, "edgeBrightness": 1.2, "cavityDarkness": 0.4, "fresnelStrength": 0.3, "stylePreset": "heroic"},
+  "shader": {"baseColor": [0.5, 0.5, 0.55], "metallic": 0.95, "roughness": 0.2, "edgeBrightness": 1.5, "cavityDarkness": 0.5, "fresnelStrength": 0.4, "stylePreset": "heroic"},
   "equipment": {"helmet": "Knight_Helmet", "shoulders": "Knight_Shoulder", "chest": "Knight_Chestplate", "gauntlets": "Knight_Gauntlet", "boots": "Heavy_Boots", "weapon": "Knight_Sword", "shield": "Knight_Shield", "armorStyle": "plate"},
   "archetype": "warrior",
-  "description": "Powerful warrior with full plate armor"
+  "description": "Powerful warrior with full plate armor and massive muscular build"
 }
 
 Input: "빨간 로봇"
