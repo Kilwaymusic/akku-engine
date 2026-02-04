@@ -101,14 +101,30 @@ async function generateModelRemote(jobId: string, options: GenerationOptions): P
     if (magic !== "glTF") {
       throw new Error(`Invalid GLB file: bad magic number "${magic}"`);
     }
+
+    // Save with timestamped filename from header if available, else useJobID
+    const contentDisposition = response.headers.get("content-disposition");
+    let filename = `${jobId}.glb`;
+    if (contentDisposition && contentDisposition.includes("filename=")) {
+      const match = contentDisposition.match(/filename="(.+)"/);
+      if (match) filename = match[1];
+    }
     
-    writeFileSync(outputPath, buffer);
+    const finalOutputPath = path.join(MODELS_DIR, filename);
+    writeFileSync(finalOutputPath, buffer);
     
-    console.log(`[GCP Worker] GLB file saved: ${outputPath} (${buffer.length} bytes)`);
+    // Also save to outputs directory for persistent record
+    const OUTPUTS_DIR = path.join(process.cwd(), "public", "outputs");
+    if (!existsSync(OUTPUTS_DIR)) {
+      mkdirSync(OUTPUTS_DIR, { recursive: true });
+    }
+    writeFileSync(path.join(OUTPUTS_DIR, filename), buffer);
     
-    if (existsSync(outputPath)) {
+    console.log(`[GCP Worker] GLB file saved: ${finalOutputPath} (${buffer.length} bytes)`);
+    
+    if (existsSync(finalOutputPath)) {
       console.log(`[GCP Worker] Generation completed successfully for job ${jobId}`);
-      return `/models/${jobId}.glb`;
+      return `/models/${filename}`;
     } else {
       throw new Error("GLB file was not saved correctly");
     }
@@ -137,6 +153,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Serve static files from public directory (for SDK downloads, etc.)
   app.use("/models", express.static(path.join(PUBLIC_DIR, "models")));
+  app.use("/outputs", express.static(path.join(PUBLIC_DIR, "outputs")));
   
   // SDK download endpoint - returns base64 encoded file
   app.get("/api/sdk-base64", (req, res) => {
