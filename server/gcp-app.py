@@ -9,6 +9,7 @@ import uuid
 import os
 import traceback
 import json
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -74,8 +75,9 @@ def generate():
         else:
             body_type_params = {"preset": "auto"}
         
-        # Output path
-        output_filename = f"{job_id}.glb"
+        # Output path with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"{job_id}_{timestamp}.glb"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
         
         print(f"\n{'='*60}")
