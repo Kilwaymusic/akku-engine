@@ -157,6 +157,13 @@ class GLBHandler:
         if freeze_before_export:
             MeshFreezer.freeze_all_meshes()
         
+        for obj in bpy.data.objects:
+            if obj.type == 'ARMATURE':
+                obj.hide_viewport = False
+                obj.hide_render = True
+                if hasattr(obj.data, 'display_type'):
+                    obj.data.display_type = 'STICK'
+        
         try:
             bpy.ops.export_scene.gltf(
                 filepath=filepath,
@@ -170,6 +177,7 @@ class GLBHandler:
                 export_cameras=False,
                 export_materials='EXPORT',
                 export_colors=True,
+                export_extras=False,
             )
         except Exception as e:
             AkkuLogger.error(f"GLB export error: {str(e)}")

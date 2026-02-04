@@ -187,13 +187,11 @@ def tool_apply_stylized_shader(params: dict):
 
 
 @tool("equip_item", "Equip semantic parts from Kitbash library to character")
-def tool_equip_item(params: dict):
+def tool_equip_item(category: str = None, style: str = None, part_name: str = None, 
+                    color: tuple = (0.6, 0.6, 0.6), shader_style: str = "stylized"):
     """Equip items from Kitbash library to character"""
-    category = params.get("category")
-    style = params.get("style")
-    part_name = params.get("part_name")
-    color = tuple(params.get("color", (0.6, 0.6, 0.6)))
-    shader_style = params.get("shader_style", "stylized")
+    if isinstance(color, list):
+        color = tuple(color)
     
     equipped = []
     
@@ -218,10 +216,8 @@ def tool_equip_item(params: dict):
 
 
 @tool("list_kitbash_parts", "List available parts in Kitbash library")
-def tool_list_kitbash_parts(params: dict):
+def tool_list_kitbash_parts(category: str = None, style: str = None):
     """List available semantic parts"""
-    category = params.get("category")
-    style = params.get("style")
     
     parts = KitbashLibrary.query_parts(category=category, style=style)
     

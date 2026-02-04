@@ -87,133 +87,175 @@ class KitbashLibrary:
         
         cls._parts["Knight_Helmet"] = SemanticPart(
             name="Knight_Helmet", category="helmet", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, 0, 0.08), rotation=(0, 0, 0), scale=0.12),
-            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 8, "rings": 6},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, 0, 0.12), rotation=(0, 0, 0), scale=0.18),
+            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 16, "rings": 12},
             tags=["knight", "medieval", "armor", "heavy"]
         )
         
         cls._parts["SciFi_Helmet"] = SemanticPart(
             name="SciFi_Helmet", category="helmet", style="scifi",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, 0.02, 0.06), rotation=(15, 0, 0), scale=0.11),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, 0.02, 0.10), rotation=(15, 0, 0), scale=0.16),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["scifi", "futuristic", "tech", "visor"]
         )
         
         cls._parts["Light_Hood"] = SemanticPart(
             name="Light_Hood", category="helmet", style="light",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, -0.02, 0.05), rotation=(-10, 0, 0), scale=0.13),
-            mesh_type="primitive", mesh_data={"type": "cone", "vertices": 8, "radius1": 1.0, "depth": 0.8},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, -0.02, 0.08), rotation=(-10, 0, 0), scale=0.18),
+            mesh_type="primitive", mesh_data={"type": "cone", "vertices": 16, "radius1": 1.0, "depth": 0.8},
             tags=["rogue", "assassin", "light", "cloth"]
+        )
+        
+        cls._parts["Magic_Hood"] = SemanticPart(
+            name="Magic_Hood", category="helmet", style="magic",
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, -0.02, 0.10), rotation=(-15, 0, 0), scale=0.20),
+            mesh_type="primitive", mesh_data={"type": "cone", "vertices": 16, "radius1": 1.2, "depth": 1.0},
+            tags=["mage", "wizard", "magic", "cloth"]
         )
         
         cls._parts["Knight_Shoulder_L"] = SemanticPart(
             name="Knight_Shoulder_L", category="shoulder", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_shoulder"], offset=(0.08, 0, 0.02), rotation=(0, 0, -15), scale=0.08),
-            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 6, "rings": 4},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_shoulder"], offset=(0.10, 0, 0.04), rotation=(0, 0, -15), scale=0.12),
+            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 12, "rings": 8},
             tags=["knight", "pauldron", "armor", "left"]
         )
         
         cls._parts["Knight_Shoulder_R"] = SemanticPart(
             name="Knight_Shoulder_R", category="shoulder", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_shoulder"], offset=(-0.08, 0, 0.02), rotation=(0, 0, 15), scale=0.08),
-            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 6, "rings": 4},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_shoulder"], offset=(-0.10, 0, 0.04), rotation=(0, 0, 15), scale=0.12),
+            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 12, "rings": 8},
             tags=["knight", "pauldron", "armor", "right"]
         )
         
         cls._parts["SciFi_Shoulder_L"] = SemanticPart(
             name="SciFi_Shoulder_L", category="shoulder", style="scifi",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_shoulder"], offset=(0.1, 0, 0.03), rotation=(0, 45, -20), scale=0.06),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_shoulder"], offset=(0.12, 0, 0.05), rotation=(0, 45, -20), scale=0.10),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["scifi", "tech", "angular", "left"]
         )
         
         cls._parts["SciFi_Shoulder_R"] = SemanticPart(
             name="SciFi_Shoulder_R", category="shoulder", style="scifi",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_shoulder"], offset=(-0.1, 0, 0.03), rotation=(0, -45, 20), scale=0.06),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_shoulder"], offset=(-0.12, 0, 0.05), rotation=(0, -45, 20), scale=0.10),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["scifi", "tech", "angular", "right"]
         )
         
         cls._parts["Knight_Chestplate"] = SemanticPart(
             name="Knight_Chestplate", category="chest", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["chest"], offset=(0, 0.08, 0), rotation=(0, 0, 0), scale=0.15),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["chest"], offset=(0, 0.10, 0), rotation=(0, 0, 0), scale=0.20),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["knight", "plate", "torso", "heavy"]
         )
         
         cls._parts["SciFi_Chestplate"] = SemanticPart(
             name="SciFi_Chestplate", category="chest", style="scifi",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["chest"], offset=(0, 0.07, 0.01), rotation=(5, 0, 0), scale=0.14),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["chest"], offset=(0, 0.09, 0.02), rotation=(5, 0, 0), scale=0.18),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["scifi", "tech", "armor", "angular"]
         )
         
+        cls._parts["Magic_Robe"] = SemanticPart(
+            name="Magic_Robe", category="chest", style="magic",
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["chest"], offset=(0, 0.08, 0), rotation=(0, 0, 0), scale=0.22),
+            mesh_type="primitive", mesh_data={"type": "cone", "vertices": 16, "radius1": 1.0, "depth": 1.5},
+            tags=["mage", "wizard", "robe", "magic"]
+        )
+        
         cls._parts["Heavy_Boots_L"] = SemanticPart(
             name="Heavy_Boots_L", category="boots", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_foot"], offset=(0, 0, -0.02), rotation=(0, 0, 0), scale=0.06),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_foot"], offset=(0, 0, -0.03), rotation=(0, 0, 0), scale=0.08),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["knight", "boots", "heavy", "left"]
         )
         
         cls._parts["Heavy_Boots_R"] = SemanticPart(
             name="Heavy_Boots_R", category="boots", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_foot"], offset=(0, 0, -0.02), rotation=(0, 0, 0), scale=0.06),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_foot"], offset=(0, 0, -0.03), rotation=(0, 0, 0), scale=0.08),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["knight", "boots", "heavy", "right"]
         )
         
         cls._parts["SciFi_Boots_L"] = SemanticPart(
             name="SciFi_Boots_L", category="boots", style="scifi",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_foot"], offset=(0, 0.02, -0.01), rotation=(10, 0, 0), scale=0.055),
-            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 8, "radius": 0.5, "depth": 1.2},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_foot"], offset=(0, 0.02, -0.02), rotation=(10, 0, 0), scale=0.07),
+            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 12, "radius": 0.5, "depth": 1.2},
             tags=["scifi", "boots", "tech", "left"]
         )
         
         cls._parts["SciFi_Boots_R"] = SemanticPart(
             name="SciFi_Boots_R", category="boots", style="scifi",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_foot"], offset=(0, 0.02, -0.01), rotation=(10, 0, 0), scale=0.055),
-            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 8, "radius": 0.5, "depth": 1.2},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_foot"], offset=(0, 0.02, -0.02), rotation=(10, 0, 0), scale=0.07),
+            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 12, "radius": 0.5, "depth": 1.2},
             tags=["scifi", "boots", "tech", "right"]
+        )
+        
+        cls._parts["Magic_Boots_L"] = SemanticPart(
+            name="Magic_Boots_L", category="boots", style="magic",
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_foot"], offset=(0, 0, -0.02), rotation=(0, 0, 0), scale=0.06),
+            mesh_type="primitive", mesh_data={"type": "cone", "vertices": 12, "radius1": 0.8, "depth": 1.0},
+            tags=["mage", "boots", "cloth", "left"]
+        )
+        
+        cls._parts["Magic_Boots_R"] = SemanticPart(
+            name="Magic_Boots_R", category="boots", style="magic",
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_foot"], offset=(0, 0, -0.02), rotation=(0, 0, 0), scale=0.06),
+            mesh_type="primitive", mesh_data={"type": "cone", "vertices": 12, "radius1": 0.8, "depth": 1.0},
+            tags=["mage", "boots", "cloth", "right"]
         )
         
         cls._parts["Knight_Gauntlet_L"] = SemanticPart(
             name="Knight_Gauntlet_L", category="gauntlet", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_forearm"], offset=(0, 0, 0), rotation=(0, 0, 0), scale=0.04),
-            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 6, "radius": 0.6, "depth": 1.5},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_forearm"], offset=(0, 0, 0), rotation=(0, 0, 0), scale=0.06),
+            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 12, "radius": 0.6, "depth": 1.5},
             tags=["knight", "gauntlet", "arm", "left"]
         )
         
         cls._parts["Knight_Gauntlet_R"] = SemanticPart(
             name="Knight_Gauntlet_R", category="gauntlet", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_forearm"], offset=(0, 0, 0), rotation=(0, 0, 0), scale=0.04),
-            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 6, "radius": 0.6, "depth": 1.5},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_forearm"], offset=(0, 0, 0), rotation=(0, 0, 0), scale=0.06),
+            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 12, "radius": 0.6, "depth": 1.5},
             tags=["knight", "gauntlet", "arm", "right"]
         )
         
         cls._parts["Knight_Sword"] = SemanticPart(
             name="Knight_Sword", category="weapon", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_hand"], offset=(0, 0.05, 0), rotation=(90, 0, 0), scale=0.08),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_hand"], offset=(0, 0.08, 0), rotation=(90, 0, 0), scale=0.12),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["sword", "weapon", "melee", "knight"]
         )
         
         cls._parts["SciFi_Blaster"] = SemanticPart(
             name="SciFi_Blaster", category="weapon", style="scifi",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_hand"], offset=(0.02, 0.04, 0), rotation=(90, 0, 0), scale=0.05),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_hand"], offset=(0.02, 0.06, 0), rotation=(90, 0, 0), scale=0.08),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["gun", "blaster", "ranged", "scifi"]
         )
         
         cls._parts["Staff"] = SemanticPart(
             name="Staff", category="weapon", style="magic",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_hand"], offset=(0, 0.08, 0), rotation=(0, 0, 0), scale=0.03),
-            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 6, "radius": 0.15, "depth": 4.0},
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_hand"], offset=(0, 0.12, 0), rotation=(0, 0, 0), scale=0.05),
+            mesh_type="primitive", mesh_data={"type": "cylinder", "vertices": 12, "radius": 0.15, "depth": 4.0},
             tags=["staff", "magic", "wizard", "mage"]
+        )
+        
+        cls._parts["Magic_Shoulder_L"] = SemanticPart(
+            name="Magic_Shoulder_L", category="shoulder", style="magic",
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_shoulder"], offset=(0.08, 0, 0.03), rotation=(0, 0, -10), scale=0.08),
+            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 12, "rings": 8},
+            tags=["mage", "shoulder", "cloth", "left"]
+        )
+        
+        cls._parts["Magic_Shoulder_R"] = SemanticPart(
+            name="Magic_Shoulder_R", category="shoulder", style="magic",
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_shoulder"], offset=(-0.08, 0, 0.03), rotation=(0, 0, 10), scale=0.08),
+            mesh_type="primitive", mesh_data={"type": "uv_sphere", "segments": 12, "rings": 8},
+            tags=["mage", "shoulder", "cloth", "right"]
         )
         
         cls._parts["Knight_Shield"] = SemanticPart(
             name="Knight_Shield", category="shield", style="heavy",
-            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_forearm"], offset=(0.05, 0.03, 0), rotation=(0, 90, 0), scale=0.1),
+            socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_forearm"], offset=(0.06, 0.04, 0), rotation=(0, 90, 0), scale=0.14),
             mesh_type="primitive", mesh_data={"type": "cube", "size": 1.0},
             tags=["shield", "defense", "knight", "left"]
         )
