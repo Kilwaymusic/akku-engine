@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Configuration
 BASE_DIR = "/home/composerkil/akku-engine"
-SDK_ENTRY_SCRIPT = os.path.join(BASE_DIR, "akku_sdk", "run.py")
+SDK_ENTRY_SCRIPT = os.path.join(BASE_DIR, "server/server/akku_sdk", "run.py")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 BLENDER_PATH = "blender"
 
@@ -28,7 +28,7 @@ def health():
     return jsonify({
         "status": "healthy",
         "version": "3.5.0",
-        "sdk": "akku_sdk (modular)",
+        "sdk": "server/server/akku_sdk (modular)",
         "architecture": "mcp-style"
     })
 

@@ -1,0 +1,270 @@
+[Akku SDK][INFO] Executing tool: generate_character
+
+============================================================
+[Akku SDK v3.3] Character Generation
+============================================================
+Prompt: 파란 기사
+Style: heroic, Poly Level: medium
+Gender: male, Body Type: auto
+Use Remesh: False
+============================================================
+
+[Akku SDK][INFO] Executing tool: load_base_mesh
+[Akku SDK][INFO] Scene cleared
+FBX version: 7700
+[Akku SDK][INFO] Imported FBX: /home/composerkil/akku-engine/assets/base_meshes/Y_Bot.fbx
+  Data: {
+  "new_objects": 3
+}
+[Akku SDK][DEBUG] Captured snapshot of 'Alpha_Joints'
+  Data: {
+  "vertices": 10514,
+  "faces": 11120
+}
+[Akku SDK][DEBUG] Saved undo state for 'Alpha_Joints'
+  Data: {
+  "label": "before_normalize"
+}
+[Akku SDK][INFO] Normalized scale: 1.59m -> 1.80m
+  Data: {
+  "scale_factor": 1.1315756489438455
+}
+[Akku SDK][INFO] Mesh Stats - After normalization
+  Data: {
+  "object": "Alpha_Joints",
+  "vertices": 10514,
+  "faces": 11120,
+  "triangles": 20840,
+  "height": "1.591m"
+}
+[Akku SDK][DEBUG] Captured snapshot of 'Alpha_Surface'
+  Data: {
+  "vertices": 17336,
+  "faces": 17368
+}
+[Akku SDK][DEBUG] Saved undo state for 'Alpha_Surface'
+  Data: {
+  "label": "before_normalize"
+}
+[Akku SDK][INFO] Normalized scale: 1.80m -> 1.80m
+  Data: {
+  "scale_factor": 0.9973768140789647
+}
+[Akku SDK][INFO] Mesh Stats - After normalization
+  Data: {
+  "object": "Alpha_Surface",
+  "vertices": 17336,
+  "faces": 17368,
+  "triangles": 34480,
+  "height": "1.805m"
+}
+[Akku SDK][INFO] Step 'load_base_mesh': SUCCESS
+  Data: {
+  "duration_ms": 1026.0436534881592,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Akku SDK][INFO] Executing tool: apply_style
+[Akku SDK][INFO] Style Analysis
+  Data: {
+  "color": [
+    0.1,
+    0.3,
+    1.0
+  ],
+  "archetype": {
+    "metallic": 0.85,
+    "roughness": 0.25,
+    "emission": 0.0
+  },
+  "proportion_scale": 1.0,
+  "poly_level": "medium"
+}
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Joints
+  Data: {
+  "edge_brightness": 0.45,
+  "cavity_darkness": 0.4,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Joints
+  Data: {
+  "style": "heroic"
+}
+[Akku SDK][DEBUG] Captured snapshot of 'Alpha_Joints'
+  Data: {
+  "vertices": 10514,
+  "faces": 11120
+}
+[Akku SDK][DEBUG] Saved undo state for 'Alpha_Joints'
+  Data: {
+  "label": "before_decimate"
+}
+[Akku SDK][INFO] Applied decimation
+  Data: {
+  "ratio": 0.5
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Surface
+  Data: {
+  "edge_brightness": 0.45,
+  "cavity_darkness": 0.4,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Surface
+  Data: {
+  "style": "heroic"
+}
+[Akku SDK][DEBUG] Captured snapshot of 'Alpha_Surface'
+  Data: {
+  "vertices": 17336,
+  "faces": 17368
+}
+[Akku SDK][DEBUG] Saved undo state for 'Alpha_Surface'
+  Data: {
+  "label": "before_decimate"
+}
+[Akku SDK][INFO] Applied decimation
+  Data: {
+  "ratio": 0.5
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Step 'apply_style': SUCCESS
+  Data: {
+  "duration_ms": 453.75895500183105,
+  "mesh_stats": {
+    "vertex_count": 5304,
+    "face_count": 10420,
+    "triangle_count": 10420,
+    "edge_count": 15630,
+    "material_count": 1,
+    "bounds_min": [
+      -1.06974196434021,
+      -0.15805700421333313,
+      0.008698689751327038
+    ],
+    "bounds_max": [
+      1.0699018239974976,
+      0.15380920469760895,
+      1.8087002038955688
+    ],
+    "height": 1.8000015141442418
+  }
+}
+[Akku SDK][INFO] Executing tool: export_glb
+13:00:53 | ERROR: Draco mesh compression is not available because library could not be found at /usr/bin/3.4/python/lib/python3.11/site-packages/libextern_draco.so
+13:00:53 | INFO: Starting glTF 2.0 export
+13:00:53 | INFO: Extracting primitive: Alpha_Joints
+13:00:53 | INFO: Primitives created: 1
+13:00:53 | INFO: Extracting primitive: Alpha_Surface
+13:00:53 | INFO: Primitives created: 1
+13:00:54 | INFO: Finished glTF 2.0 export in 0.3192765712738037 s
+
+[Akku SDK][INFO] Exported GLB
+  Data: {
+  "path": "/home/composerkil/akku-engine/outputs/test-final-ok.glb",
+  "size": 775320
+}
+[Akku SDK][INFO] Step 'export_glb': SUCCESS
+  Data: {
+  "duration_ms": 580.4002285003662,
+  "mesh_stats": {
+    "vertex_count": 5304,
+    "face_count": 10420,
+    "triangle_count": 10420,
+    "edge_count": 15630,
+    "material_count": 1,
+    "bounds_min": [
+      -1.06974196434021,
+      -0.15805700421333313,
+      0.008698689751327038
+    ],
+    "bounds_max": [
+      1.0699018239974976,
+      0.15380920469760895,
+      1.8087002038955688
+    ],
+    "height": 1.8000015141442418
+  }
+}
+[Akku SDK][INFO] Step 'generate_character': SUCCESS
+  Data: {
+  "duration_ms": 2117.3739433288574,
+  "mesh_stats": {
+    "vertex_count": 5304,
+    "face_count": 10420,
+    "triangle_count": 10420,
+    "edge_count": 15630,
+    "material_count": 1,
+    "bounds_min": [
+      -1.06974196434021,
+      -0.15805700421333313,
+      0.008698689751327038
+    ],
+    "bounds_max": [
+      1.0699018239974976,
+      0.15380920469760895,
+      1.8087002038955688
+    ],
+    "height": 1.8000015141442418
+  }
+}
+
+[Akku SDK] Generation completed successfully!
+{
+  "prompt": "파란 기사",
+  "style": "heroic",
+  "poly_level": "medium",
+  "body_type": "auto",
+  "output_path": "/home/composerkil/akku-engine/outputs/test-final-ok.glb",
+  "load_info": {
+    "mesh_count": 2,
+    "mesh_names": [
+      "Alpha_Joints",
+      "Alpha_Surface"
+    ],
+    "target_height": 1.8
+  },
+  "body_type_info": null,
+  "style_info": {
+    "color": [
+      0.1,
+      0.3,
+      1.0
+    ],
+    "archetype": {
+      "metallic": 0.85,
+      "roughness": 0.25,
+      "emission": 0.0
+    },
+    "proportion_scale": 1.0,
+    "decimate_ratio": 0.5,
+    "total_triangles": 27660
+  },
+  "remesh_info": null,
+  "export_info": {
+    "path": "/home/composerkil/akku-engine/outputs/test-final-ok.glb",
+    "size_bytes": 775320,
+    "success": true,
+    "log_report": "{\n  \"logs\": [\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.690946\",\n      \"level\": \"INFO\",\n      \"message\": \"Imported FBX: /home/composerkil/akku-engine/assets/base_meshes/Y_Bot.fbx\",\n      \"data\": {\n        \"new_objects\": 3\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.714199\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Captured snapshot of 'Alpha_Joints'\",\n      \"data\": {\n        \"vertices\": 10514,\n        \"faces\": 11120\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.714340\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Saved undo state for 'Alpha_Joints'\",\n      \"data\": {\n        \"label\": \"before_normalize\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.731308\",\n      \"level\": \"INFO\",\n      \"message\": \"Normalized scale: 1.59m -> 1.80m\",\n      \"data\": {\n        \"scale_factor\": 1.1315756489438455\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.768682\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh Stats - After normalization\",\n      \"data\": {\n        \"object\": \"Alpha_Joints\",\n        \"vertices\": 10514,\n        \"faces\": 11120,\n        \"triangles\": 20840,\n        \"height\": \"1.591m\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.832917\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Captured snapshot of 'Alpha_Surface'\",\n      \"data\": {\n        \"vertices\": 17336,\n        \"faces\": 17368\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.833027\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Saved undo state for 'Alpha_Surface'\",\n      \"data\": {\n        \"label\": \"before_normalize\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.863755\",\n      \"level\": \"INFO\",\n      \"message\": \"Normalized scale: 1.80m -> 1.80m\",\n      \"data\": {\n        \"scale_factor\": 0.9973768140789647\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.935140\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh Stats - After normalization\",\n      \"data\": {\n        \"object\": \"Alpha_Surface\",\n        \"vertices\": 17336,\n        \"faces\": 17368,\n        \"triangles\": 34480,\n        \"height\": \"1.805m\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.969370\",\n      \"level\": \"INFO\",\n      \"message\": \"Step 'load_base_mesh': SUCCESS\",\n      \"data\": {\n        \"duration_ms\": 1026.0436534881592,\n        \"mesh_stats\": {\n          \"vertex_count\": 10514,\n          \"face_count\": 11120,\n          \"triangle_count\": 20840,\n          \"edge_count\": 21540,\n          \"material_count\": 1,\n          \"bounds_min\": [\n            -0.9452752470970154,\n            -0.1396786868572235,\n            0.007688506506383419\n          ],\n          \"bounds_max\": [\n            0.9452717304229736,\n            0.1359248012304306,\n            1.598390817642212\n          ],\n          \"height\": 1.5907023111358285\n        }\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.969580\",\n      \"level\": \"INFO\",\n      \"message\": \"Executing tool: apply_style\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.969606\",\n      \"level\": \"INFO\",\n      \"message\": \"Style Analysis\",\n      \"data\": {\n        \"color\": [\n          0.1,\n          0.3,\n          1.0\n        ],\n        \"archetype\": {\n          \"metallic\": 0.85,\n          \"roughness\": 0.25,\n          \"emission\": 0.0\n        },\n        \"proportion_scale\": 1.0,\n        \"poly_level\": \"medium\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.971908\",\n      \"level\": \"INFO\",\n      \"message\": \"Created stylized material: Akku_Stylized_Alpha_Joints\",\n      \"data\": {\n        \"edge_brightness\": 0.45,\n        \"cavity_darkness\": 0.4,\n        \"use_fresnel\": true\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.972063\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied stylized shader to Alpha_Joints\",\n      \"data\": {\n        \"style\": \"heroic\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.996288\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Captured snapshot of 'Alpha_Joints'\",\n      \"data\": {\n        \"vertices\": 10514,\n        \"faces\": 11120\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:52.996381\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Saved undo state for 'Alpha_Joints'\",\n      \"data\": {\n        \"label\": \"before_decimate\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.096664\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied decimation\",\n      \"data\": {\n        \"ratio\": 0.5\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.112205\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.114292\",\n      \"level\": \"INFO\",\n      \"message\": \"Created stylized material: Akku_Stylized_Alpha_Surface\",\n      \"data\": {\n        \"edge_brightness\": 0.45,\n        \"cavity_darkness\": 0.4,\n        \"use_fresnel\": true\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.114443\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied stylized shader to Alpha_Surface\",\n      \"data\": {\n        \"style\": \"heroic\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.154210\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Captured snapshot of 'Alpha_Surface'\",\n      \"data\": {\n        \"vertices\": 17336,\n        \"faces\": 17368\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.154312\",\n      \"level\": \"DEBUG\",\n      \"message\": \"Saved undo state for 'Alpha_Surface'\",\n      \"data\": {\n        \"label\": \"before_decimate\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.361541\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied decimation\",\n      \"data\": {\n        \"ratio\": 0.5\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.390228\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.434694\",\n      \"level\": \"INFO\",\n      \"message\": \"Step 'apply_style': SUCCESS\",\n      \"data\": {\n        \"duration_ms\": 453.75895500183105,\n        \"mesh_stats\": {\n          \"vertex_count\": 5304,\n          \"face_count\": 10420,\n          \"triangle_count\": 10420,\n          \"edge_count\": 15630,\n          \"material_count\": 1,\n          \"bounds_min\": [\n            -1.06974196434021,\n            -0.15805700421333313,\n            0.008698689751327038\n          ],\n          \"bounds_max\": [\n            1.0699018239974976,\n            0.15380920469760895,\n            1.8087002038955688\n          ],\n          \"height\": 1.8000015141442418\n        }\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:53.434795\",\n      \"level\": \"INFO\",\n      \"message\": \"Executing tool: export_glb\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-04T13:00:54.014375\",\n      \"level\": \"INFO\",\n      \"message\": \"Exported GLB\",\n      \"data\": {\n        \"path\": \"/home/composerkil/akku-engine/outputs/test-final-ok.glb\",\n        \"size\": 775320\n      }\n    }\n  ],\n  \"step_results\": [\n    {\n      \"step_name\": \"load_base_mesh\",\n      \"success\": true,\n      \"message\": \"Completed successfully\",\n      \"mesh_stats\": {\n        \"vertex_count\": 10514,\n        \"face_count\": 11120,\n        \"triangle_count\": 20840,\n        \"edge_count\": 21540,\n        \"material_count\": 1,\n        \"bounds_min\": [\n          -0.9452752470970154,\n          -0.1396786868572235,\n          0.007688506506383419\n        ],\n        \"bounds_max\": [\n          0.9452717304229736,\n          0.1359248012304306,\n          1.598390817642212\n        ],\n        \"height\": 1.5907023111358285\n      },\n      \"duration_ms\": 1026.0436534881592,\n      \"timestamp\": \"2026-02-04T13:00:52.969252\",\n      \"error_details\": null\n    },\n    {\n      \"step_name\": \"apply_style\",\n      \"success\": true,\n      \"message\": \"Completed successfully\",\n      \"mesh_stats\": {\n        \"vertex_count\": 5304,\n        \"face_count\": 10420,\n        \"triangle_count\": 10420,\n        \"edge_count\": 15630,\n        \"material_count\": 1,\n        \"bounds_min\": [\n          -1.06974196434021,\n          -0.15805700421333313,\n          0.008698689751327038\n        ],\n        \"bounds_max\": [\n          1.0699018239974976,\n          0.15380920469760895,\n          1.8087002038955688\n        ],\n        \"height\": 1.8000015141442418\n      },\n      \"duration_ms\": 453.75895500183105,\n      \"timestamp\": \"2026-02-04T13:00:53.434612\",\n      \"error_details\": null\n    }\n  ],\n  \"summary\": {\n    \"total_steps\": 2,\n    \"successful_steps\": 2,\n    \"failed_steps\": 0\n  }\n}"
+  }
+}
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+
+Blender quit

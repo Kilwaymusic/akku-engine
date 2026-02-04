@@ -1,0 +1,776 @@
+[Akku SDK][INFO] Akku SDK v3.6.0 loaded
+[Akku SDK][INFO] Starting generation: blue mage wizard
+[Akku SDK][INFO] Executing tool: clear_scene
+DEBUG: Starting clear_scene
+[Akku SDK][INFO] Step 'clear_scene': SUCCESS
+  Data: {
+  "duration_ms": 0.2899169921875,
+  "mesh_stats": null
+}
+[Akku SDK][INFO] Executing tool: import_base_mesh
+DEBUG: Starting import_base_mesh
+FBX version: 7700
+[Akku SDK][INFO] Imported FBX: /home/composerkil/akku-engine/assets/base_meshes/Y_Bot.fbx
+[Akku SDK][INFO] Step 'import_base_mesh': SUCCESS
+  Data: {
+  "duration_ms": 792.5798892974854,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Akku SDK][INFO] Executing tool: apply_body_type
+DEBUG: Starting apply_body_type
+[Akku SDK][INFO] Step 'apply_body_type': SUCCESS
+  Data: {
+  "duration_ms": 0.08559226989746094,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Akku SDK][INFO] Executing tool: apply_shader
+DEBUG: Starting apply_shader
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Joints
+  Data: {
+  "edge_brightness": 0.3,
+  "cavity_darkness": 0.35,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Joints
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Surface
+  Data: {
+  "edge_brightness": 0.3,
+  "cavity_darkness": 0.35,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Surface
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Step 'apply_shader': SUCCESS
+  Data: {
+  "duration_ms": 4.713535308837891,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Akku SDK][INFO] Executing tool: equip_set
+DEBUG: Starting equip_set
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+Error: Vertex not in group
+[Akku SDK][INFO] Kitbash library initialized with 12 parts
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Staff
+  Data: {
+  "edge_brightness": 0.3,
+  "cavity_darkness": 0.35,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Staff
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Cleaned up 45 empty vertex groups
+[Akku SDK][INFO] Equipped part: Staff
+  Data: {
+  "category": "weapon",
+  "bone": "mixamorig:RightHand"
+}
+[Akku SDK][INFO] Step 'equip_set': SUCCESS
+  Data: {
+  "duration_ms": 31.487703323364258,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Akku SDK][INFO] Executing tool: finalize
+DEBUG: Starting finalize
+[Akku SDK][INFO] Decimated Alpha_Joints: 20840 -> 2032 tris
+[Akku SDK][INFO] Decimated Alpha_Surface: 34480 -> 2362 tris
+[Akku SDK][INFO] Optimized mesh: Alpha_Joints
+  Data: {
+  "doubles_removed": 0,
+  "degenerate_dissolved": 0,
+  "normals_fixed": true
+}
+[Akku SDK][INFO] Decimated Alpha_Joints: 2032 -> 800 tris
+[Akku SDK][INFO] Optimized mesh: Alpha_Surface
+  Data: {
+  "doubles_removed": 0,
+  "degenerate_dissolved": 0,
+  "normals_fixed": true
+}
+[Akku SDK][INFO] Decimated Alpha_Surface: 2362 -> 796 tris
+[Akku SDK][INFO] Optimized mesh: Staff
+  Data: {
+  "doubles_removed": 0,
+  "degenerate_dissolved": 0,
+  "normals_fixed": true
+}
+[Akku SDK][INFO] Finalized for mobile
+  Data: {
+  "platform": "mobile",
+  "objects_processed": 3,
+  "total_tris": 1616
+}
+[Akku SDK][INFO] Step 'finalize': SUCCESS
+  Data: {
+  "duration_ms": 479.3210029602051,
+  "mesh_stats": {
+    "vertex_count": 494,
+    "face_count": 800,
+    "triangle_count": 800,
+    "edge_count": 1200,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9406092762947083,
+      -0.1376975178718567,
+      0.0058710635639727116
+    ],
+    "bounds_max": [
+      0.9449464082717896,
+      0.13518588244915009,
+      1.5992001295089722
+    ],
+    "height": 1.5933290659449995
+  }
+}
+[Akku SDK][INFO] Executing tool: export_glb
+DEBUG: Starting export_glb
+15:16:56 | ERROR: Draco mesh compression is not available because library could not be found at /usr/bin/3.4/python/lib/python3.11/site-packages/libextern_draco.so
+15:16:56 | INFO: Starting glTF 2.0 export
+WARNING: Armature must be the parent of skinned mesh
+Armature is selected by its name, but may be false in case of instances
+15:16:56 | INFO: Extracting primitive: Alpha_Joints.002
+15:16:56 | INFO: Primitives created: 1
+15:16:56 | INFO: Extracting primitive: Alpha_Surface.002
+15:16:56 | INFO: Primitives created: 1
+15:16:56 | INFO: Extracting primitive: Staff_mesh
+15:16:56 | INFO: Primitives created: 1
+15:16:56 | INFO: Finished glTF 2.0 export in 0.12353682518005371 s
+
+[Akku SDK][INFO] Exported GLB: /home/composerkil/akku-engine/outputs/replit_test.glb
+[Akku SDK][INFO] Step 'export_glb': SUCCESS
+  Data: {
+  "duration_ms": 361.0568046569824,
+  "mesh_stats": {
+    "vertex_count": 494,
+    "face_count": 792,
+    "triangle_count": 792,
+    "edge_count": 1200,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9406092762947083,
+      -0.1376975178718567,
+      0.0058710635639727116
+    ],
+    "bounds_max": [
+      0.9449464082717896,
+      0.13518588244915009,
+      1.5992001295089722
+    ],
+    "height": 1.5933290659449995
+  }
+}
+[Akku SDK][INFO] Generation complete: /home/composerkil/akku-engine/outputs/replit_test.glb

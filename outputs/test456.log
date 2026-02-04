@@ -1,0 +1,32 @@
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+Error: Python: Traceback (most recent call last):
+  File "/home/composerkil/akku-engine/akku-sdk-v3.py", line 125, in <module>
+    success = generate_character(prompt, style, poly_level, output_path, gender, body_type, use_remesh)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/composerkil/akku-engine/akku-sdk-v3.py", line 80, in generate_character
+    result = import_base_mesh()
+             ^^^^^^^^^^^^^^^^^^
+  File "/home/composerkil/akku-engine/akku_sdk/tools.py", line 80, in wrapper
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/composerkil/akku-engine/akku_sdk/main.py", line 38, in import_base_mesh
+    filepath = AkkuConfig.MIXAMO_FBX_PATH
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'AkkuConfig' has no attribute 'MIXAMO_FBX_PATH'
+[Akku SDK][INFO] Akku SDK v3.6.0 loaded
+[Akku SDK][INFO] Starting generation: red knight warrior
+[Akku SDK][INFO] Executing tool: clear_scene
+[Akku SDK][INFO] Step 'clear_scene': SUCCESS
+  Data: {
+  "duration_ms": 0.37789344787597656,
+  "mesh_stats": null
+}
+[Akku SDK][INFO] Executing tool: import_base_mesh
+[Akku SDK][INFO] Step 'import_base_mesh': FAILED
+  Data: {
+  "duration_ms": 0.013828277587890625,
+  "mesh_stats": null
+}
+
+Blender quit
