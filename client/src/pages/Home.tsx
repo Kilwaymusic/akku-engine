@@ -55,6 +55,8 @@ export default function Home() {
         prompt: options.prompt,
         style: options.style,
         polyLevel: options.polyLevel,
+        bodyType: options.bodyType,
+        gender: options.gender,
       });
       return response.json();
     },

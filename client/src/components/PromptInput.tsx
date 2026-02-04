@@ -9,6 +9,8 @@ interface GenerationOptions {
   prompt: string;
   style: string;
   polyLevel: string;
+  bodyType: string;
+  gender: string;
 }
 
 interface PromptInputProps {
@@ -33,6 +35,22 @@ const POLY_LEVEL_OPTIONS = [
   { value: "high", label: "고폴리", desc: "~3000 tris, PC/콘솔" },
 ];
 
+const BODY_TYPE_OPTIONS = [
+  { value: "default", label: "기본", desc: "표준 체형" },
+  { value: "muscular", label: "근육질", desc: "넓은 어깨, 좁은 허리" },
+  { value: "thin", label: "마른", desc: "날씬한 체형" },
+  { value: "fat", label: "뚱뚱한", desc: "넓은 몸통" },
+  { value: "tall", label: "키큰", desc: "긴 팔다리" },
+  { value: "athletic", label: "운동선수", desc: "균형잡힌 근육" },
+  { value: "heroic", label: "영웅", desc: "근육 + 키큼" },
+  { value: "chibi", label: "치비", desc: "큰 머리, 작은 몸" },
+];
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "남성" },
+  { value: "female", label: "여성" },
+];
+
 const EXAMPLE_PROMPTS = [
   "귀여운 고양이 캐릭터, 큰 눈, 분홍색 귀",
   "SF 로봇 전사, 메탈릭 블루 아머",
@@ -44,10 +62,12 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("stylized");
   const [polyLevel, setPolyLevel] = useState("medium");
+  const [bodyType, setBodyType] = useState("default");
+  const [gender, setGender] = useState("male");
 
   const handleSubmit = () => {
     if (prompt.trim() && !isLoading) {
-      onSubmit({ prompt: prompt.trim(), style, polyLevel });
+      onSubmit({ prompt: prompt.trim(), style, polyLevel, bodyType, gender });
     }
   };
 
@@ -91,7 +111,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">캐릭터 스타일</label>
             <Select value={style} onValueChange={setStyle} disabled={isLoading}>
@@ -123,6 +143,39 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
                       <span className="font-medium">{opt.label}</span>
                       <span className="text-muted-foreground text-xs">({opt.desc})</span>
                     </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">체형</label>
+            <Select value={bodyType} onValueChange={setBodyType} disabled={isLoading}>
+              <SelectTrigger data-testid="select-body-type" className="w-full">
+                <SelectValue placeholder="체형 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {BODY_TYPE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium">{opt.label}</span>
+                      <span className="text-muted-foreground text-xs">({opt.desc})</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">성별</label>
+            <Select value={gender} onValueChange={setGender} disabled={isLoading}>
+              <SelectTrigger data-testid="select-gender" className="w-full">
+                <SelectValue placeholder="성별 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {GENDER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="font-medium">{opt.label}</span>
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -227,10 +227,19 @@ export async function registerRoutes(
         try {
           await storage.updateJob(job.id, { status: "processing" });
           
+          // Convert string bodyType to BodyTypeParams
+          let bodyTypeParams: BodyTypeParams | undefined;
+          const rawBodyType = (req.body as { bodyType?: string }).bodyType;
+          if (rawBodyType && typeof rawBodyType === 'string') {
+            bodyTypeParams = { preset: rawBodyType };
+          }
+          
           const modelUrl = await generateModel(job.id, {
             prompt: job.prompt,
             style: result.data.style,
             polyLevel: result.data.polyLevel,
+            bodyType: bodyTypeParams,
+            gender: (req.body as { gender?: string }).gender || 'male',
           });
           
           await storage.updateJob(job.id, {
