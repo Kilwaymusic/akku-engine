@@ -11,6 +11,14 @@ Modules:
 - handlers: FBX Import and GLB Export
 """
 
+# Ensure the package directory is in sys.path for Blender imports
+import sys
+import os
+
+_package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _package_dir not in sys.path:
+    sys.path.insert(0, _package_dir)
+
 from .core import (
     AkkuConfig,
     AkkuLogger,

@@ -82,7 +82,7 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | File | Purpose |
 |------|---------|
 | `server/routes.ts` | API routes with GCP Worker integration |
-| `server/gemini.ts` | Gemini AI integration for prompt analysis (legacy) |
+| `server/gcp-app.py` | GCP Worker Flask server (v3.5) |
 | `client/src/components/BabylonViewer.tsx` | 3D model viewer component |
 | `server/akku_sdk/` | Modular Blender SDK package (v3.5) |
 
@@ -98,7 +98,8 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `kitbash.py` | 398 | SocketInfo, SemanticPart, KitbashLibrary, KitbashEquipper |
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 390 | CLI interface and registered tools |
-| `__init__.py` | 96 | Clean API with all exports |
+| `run.py` | 25 | Blender entry script (safe subprocess invocation) |
+| `__init__.py` | 104 | Clean API with all exports, sys.path registration |
 
 ## API Endpoints
 

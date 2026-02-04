@@ -1,6 +1,6 @@
 """
-Akku Engine - GCP Worker Flask Server v3.0
-MCP-style architecture with Blender character generation
+Akku Engine - GCP Worker Flask Server v3.5
+Modular SDK architecture with Blender character generation
 """
 
 from flask import Flask, request, jsonify, send_file
@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Configuration
 BASE_DIR = "/home/composerkil/akku-engine"
-SDK_SCRIPT = os.path.join(BASE_DIR, "akku-sdk-v3.py")
+SDK_ENTRY_SCRIPT = os.path.join(BASE_DIR, "akku_sdk", "run.py")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 BLENDER_PATH = "blender"
 
@@ -27,8 +27,8 @@ def health():
     """Health check endpoint"""
     return jsonify({
         "status": "healthy",
-        "version": "3.0.0",
-        "sdk": "akku-sdk-v3",
+        "version": "3.5.0",
+        "sdk": "akku_sdk (modular)",
         "architecture": "mcp-style"
     })
 
@@ -39,6 +39,9 @@ def list_tools():
     tools = [
         {"name": "load_base_mesh", "description": "Load Mixamo FBX base mesh"},
         {"name": "apply_style", "description": "Apply style-based transformations"},
+        {"name": "apply_body_type", "description": "Apply body type deformation"},
+        {"name": "apply_stylized_shader", "description": "Apply edge/cavity shader"},
+        {"name": "equip_item", "description": "Equip kitbash parts"},
         {"name": "export_glb", "description": "Export scene as GLB file"},
         {"name": "generate_character", "description": "Complete character generation pipeline"}
     ]
@@ -56,33 +59,40 @@ def generate():
         poly_level = data.get('polyLevel', 'medium')
         job_id = data.get('jobId', str(uuid.uuid4()))
         gender = data.get('gender', 'male')
+        body_type = data.get('bodyType', 'auto')
+        use_remesh = data.get('useRemesh', False)
         
         # Output path
         output_filename = f"{job_id}.glb"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
         
         print(f"\n{'='*60}")
-        print(f"[Akku Worker v3.0] Starting generation")
+        print(f"[Akku Worker v3.5] Starting generation")
         print(f"{'='*60}")
         print(f"  Job ID: {job_id}")
         print(f"  Prompt: {prompt}")
         print(f"  Style: {style}")
         print(f"  Poly Level: {poly_level}")
         print(f"  Gender: {gender}")
+        print(f"  Body Type: {body_type}")
+        print(f"  Use Remesh: {use_remesh}")
         print(f"  Output: {output_path}")
         print(f"{'='*60}\n")
         
-        # Build Blender command for SDK v3 (positional arguments)
+        # Build Blender command for modular SDK
+        # Use safe entry script with arguments passed via command line
         cmd = [
             BLENDER_PATH,
             "--background",
-            "--python", SDK_SCRIPT,
+            "--python", SDK_ENTRY_SCRIPT,
             "--",
             prompt,
             style,
             poly_level,
             output_path,
-            gender
+            gender,
+            body_type,
+            "true" if use_remesh else "false"
         ]
         
         # Run Blender
@@ -150,7 +160,7 @@ def execute_tool():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Akku Engine GCP Worker v3.0")
-    print("MCP-Style Character Generation Server")
+    print("Akku Engine GCP Worker v3.5")
+    print("Modular SDK Character Generation Server")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=True)
