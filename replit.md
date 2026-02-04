@@ -34,10 +34,11 @@ Preferred communication style: Simple, everyday language.
 
 ### 3D Model Generation Pipeline (Akku Low-poly SDK)
 
-The system uses the **Akku Low-poly SDK** architecture with 8 structured tools instead of arbitrary Blender code, ensuring production-ready quality with clean topology, optimized UV, and automatic rigging.
+The system uses the **Akku Low-poly SDK** architecture with Mixamo FBX base meshes (Y Bot / X Bot) for high-quality rigged humanoids.
 
 #### Mode 1: Akku SDK via MCP (Primary)
 - **Architecture**: Persistent Blender process with TCP socket communication
+- **Base Meshes**: Mixamo Y Bot (neutral/female) and X Bot (male) FBX files in `assets/base_meshes/`
 - **Components**:
   - `scripts/blender_mcp_addon.py` - Blender addon with Akku SDK implementation
   - `server/blender-mcp-client.ts` - Node.js TCP client with SDK methods
@@ -46,17 +47,21 @@ The system uses the **Akku Low-poly SDK** architecture with 8 structured tools i
 
 | Category | Tool | Description |
 |----------|------|-------------|
-| Base Generation | `spawn_humanoid_base` | Create base mesh with proportions and poly level (7 styles, 4 poly levels) |
-| Base Generation | `deform_body` | Apply body deformations (muscular/slim/stocky/elongated) |
+| Base Generation | `spawn_humanoid_base` | Load Mixamo FBX with proportions, poly level, and gender |
+| Base Generation | `deform_body` | Scale entire body (limited: only "body" + "scale" supported) |
 | Kitbashing | `attach_armor_plate` | Add armor pieces (7 styles: knight/samurai/scifi/heavy/rogue/mage/tribal) |
 | Kitbashing | `add_scifi_detail` | Add sci-fi elements (antenna/visor/jetpack/tubes/panel) |
 | PBR Shading | `apply_akku_pbr` | Apply PBR materials (10 presets: metal/cloth/leather/skin/etc.) |
 | PBR Shading | `set_material_property` | Fine-tune material properties |
-| Rigging | `finalize_and_bind` | Auto-rig with Rigify and bind armature |
+| Rigging | `finalize_and_bind` | Finalize mesh and export (rigging included from FBX) |
 | Rigging | `test_animation` | Apply animation clips (idle/walk/run/attack) |
 
-- **Object Naming**: `AkkuBase_*` (after spawn_humanoid_base), `Armor_*` (after attach_armor_plate)
-- **Advantages**: Clean topology, optimized UV, game-ready output, no arbitrary code execution
+- **Object Naming**: 
+  - `AkkuBase_Armature` - Rigged skeleton
+  - `AkkuBase_Surface` - Main character mesh (target for materials)
+  - `AkkuBase_Aux_*` - Auxiliary meshes (joints, eyes)
+  - `Armor_*` - Armor plates from kitbashing
+- **Advantages**: Pre-rigged Mixamo skeleton, clean topology, Mixamo animation compatible
 
 #### Mode 2: CLI (Command Line Interface) - Fallback
 - **Generator**: Python script (`scripts/generate_humanoid.py`) runs in Blender's background mode
@@ -126,15 +131,17 @@ The system uses the **Akku Low-poly SDK** architecture with 8 structured tools i
 ## Character Generation Options
 
 ### Proportion Types (7 styles)
-| Type | Description | Target Use Case |
-|------|-------------|-----------------|
-| `stylized` | 5-6 heads tall, versatile | General purpose |
-| `chibi` | 1.5-2 heads, big head | Cute characters |
-| `sd` | 2-3 heads, super-deformed | Anime/mascot |
-| `mobile` | Ultra-low-poly | Mobile games |
-| `minifig` | LEGO-style proportions | Block-style games |
-| `cartoon` | Exaggerated features | Cartoon games |
-| `realistic` | 8 heads, human-like | Realistic games |
+**Note**: With Mixamo FBX meshes, all proportion types use the same base body shape. The type name affects uniform scale factor and is passed to AI for style guidance.
+
+| Type | Scale | Description |
+|------|-------|-------------|
+| `stylized` | 1.0 | Default, versatile |
+| `chibi` | 0.7 | Smaller scale (cute style) |
+| `sd` | 0.7 | Smaller scale (super-deformed style) |
+| `mobile` | 0.8 | Optimized for mobile |
+| `minifig` | 0.6 | Smallest scale (block style) |
+| `cartoon` | 0.9 | Slightly smaller (cartoon style) |
+| `realistic` | 1.0 | Full scale, human-like |
 
 ### Polygon Levels (4 levels)
 | Level | Triangle Count | Target Platform |
@@ -145,11 +152,16 @@ The system uses the **Akku Low-poly SDK** architecture with 8 structured tools i
 | `high` | ~3000 tris | PC/Console games |
 
 ## Recent Changes
+- 2026-02-04: **Integrated Mixamo FBX base meshes** - Replaced procedural generation with Y Bot / X Bot
+  - High-quality pre-rigged humanoid meshes with Mixamo bone hierarchy
+  - Clean topology suitable for animation and games
+  - Consistent object naming: `AkkuBase_Surface` (mesh), `AkkuBase_Armature` (rig)
+  - Decimation applied only to main surface mesh
 - 2026-02-04: **Fixed MCP headless mode** - All SDK functions now work in Blender's background mode
   - Replaced `bpy.context.active_object` with `bpy.data.objects` lookups
   - Used `bpy.context.evaluated_depsgraph_get()` for modifier application
   - Export uses subprocess approach to avoid glTF exporter context issues
-  - `finalize_and_bind` exports mesh-only (rigging deferred for headless stability)
+  - `finalize_and_bind` exports mesh-only (rigging included from FBX)
   - `test_animation` gracefully skips when no armature present
 - 2026-02-04: Added UI style selector with 7 proportion types and 4 poly levels
 - 2026-02-04: Optimized GLB export for game engines (mesh joining, Y-up orientation)
@@ -169,4 +181,17 @@ The Blender MCP server runs in background/headless mode, which has limitations:
 1. **No `bpy.context.active_object`** - Use `bpy.data.objects['name']` instead
 2. **No `bpy.context.selected_objects`** - Track objects manually or iterate `bpy.context.scene.objects`
 3. **glTF exporter requires window context** - Export via subprocess with `-b` flag
-4. **Object naming is critical** - Body parts follow exact naming: AkkuBase_Head, AkkuBase_Torso, AkkuBase_Forearm_L (NOT LowerArm)
+4. **Object naming is consistent** - Main mesh is always `AkkuBase_Surface`, armature is `AkkuBase_Armature`
+
+## Mixamo Integration Notes
+
+- **Base Meshes**: `assets/base_meshes/Y_Bot.fbx` and `assets/base_meshes/X_Bot.fbx`
+- **Gender Selection**: `gender: "neutral"|"female"` uses Y Bot, `gender: "male"` uses X Bot
+- **Proportion Types**: Control overall scale only (all types use same Mixamo proportions)
+- **Polygon Reduction**: Decimate modifier applied only to main surface mesh
+- **Pre-rigged**: Meshes come with complete Mixamo rig, compatible with Mixamo animations
+
+### Current Limitations
+- `deform_body` only supports scaling entire body, not individual parts (due to Mixamo unified mesh)
+- Proportion types (chibi/SD/minifig) only affect scale, not actual body proportions
+- Custom proportions would require separate FBX files with different body shapes

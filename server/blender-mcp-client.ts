@@ -143,22 +143,23 @@ export class BlenderMCPClient {
   // ============================================================
 
   /**
-   * Spawn a clean topology low-poly humanoid base with optimized UV and proportions.
+   * Load Mixamo Y Bot / X Bot as base mesh and apply proportion adjustments.
    * @param proportionType 'sd' | 'stylized' | 'realistic' | 'chibi' | 'mobile' | 'minifig' | 'cartoon'
    * @param polyLevel 'ultra_low' | 'low' | 'medium' | 'high' - controls polygon density
+   * @param gender 'neutral' | 'male' | 'female' - which base mesh to use (Y Bot or X Bot)
    */
-  async spawnHumanoidBase(proportionType: string = 'stylized', polyLevel: string = 'medium'): Promise<MCPResponse> {
+  async spawnHumanoidBase(proportionType: string = 'stylized', polyLevel: string = 'medium', gender: string = 'neutral'): Promise<MCPResponse> {
     return this.sendCommand({
       type: 'spawn_humanoid_base',
-      params: { proportion_type: proportionType, poly_level: polyLevel }
+      params: { proportion_type: proportionType, poly_level: polyLevel, gender }
     });
   }
 
   /**
-   * Deform a specific body part using shape keys or scaling.
-   * @param part 'head' | 'torso' | 'arms' | 'legs' | 'hands' | 'feet' | 'shoulders' | 'hips'
+   * Scale the entire body mesh. LIMITED FUNCTIONALITY with Mixamo meshes.
+   * @param part Only 'body' is reliably supported (Mixamo uses unified mesh)
    * @param strength -1.0 to 1.0 (negative = shrink, positive = enlarge)
-   * @param deformType 'scale' | 'stretch_vertical' | 'stretch_horizontal' | 'bulge'
+   * @param deformType Only 'scale' is reliably supported
    */
   async deformBody(part: string, strength: number = 0.5, deformType: string = 'scale'): Promise<MCPResponse> {
     return this.sendCommand({
@@ -228,11 +229,11 @@ export class BlenderMCPClient {
   }
 
   // ============================================================
-  // AKKU SDK CATEGORY 4: AUTO-RIG & ANIMATION
+  // AKKU SDK CATEGORY 4: FINALIZE & ANIMATION
   // ============================================================
 
   /**
-   * Join all mesh objects and bind to an armature with automatic weights.
+   * Finalize mesh for export. OPTIONAL - Mixamo FBX meshes are already rigged.
    */
   async finalizeAndBind(): Promise<MCPResponse> {
     return this.sendCommand({ type: 'finalize_and_bind' });
@@ -276,7 +277,7 @@ export type AkkuSDKAction =
   // Category 3: Game-Ready PBR Shading
   | 'apply_akku_pbr'
   | 'set_material_property'
-  // Category 4: Auto-Rig & Animation
+  // Category 4: Finalize & Animation
   | 'finalize_and_bind'
   | 'test_animation'
   // Legacy/Utility
@@ -332,7 +333,8 @@ export async function executeAkkuPlan(
         case 'spawn_humanoid_base':
           response = await client.spawnHumanoidBase(
             step.params.proportion_type,
-            step.params.poly_level || 'medium'
+            step.params.poly_level || 'medium',
+            step.params.gender || 'neutral'
           );
           break;
         
@@ -378,7 +380,7 @@ export async function executeAkkuPlan(
           );
           break;
         
-        // Category 4: Auto-Rig & Animation
+        // Category 4: Finalize & Animation
         case 'finalize_and_bind':
           response = await client.finalizeAndBind();
           break;

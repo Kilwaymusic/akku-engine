@@ -661,170 +661,138 @@ print("GLB_EXPORT_SUCCESS")
     # AKKU SDK CATEGORY 1: BASE GENERATION
     # ============================================================
 
-    def spawn_humanoid_base(self, proportion_type="stylized", poly_level="medium"):
+    def spawn_humanoid_base(self, proportion_type="stylized", poly_level="medium", gender="neutral"):
         """
-        Spawn a clean topology low-poly humanoid base with optimized UV and proportions.
+        Load Mixamo Y Bot / X Bot as base mesh and apply proportion adjustments.
         proportion_type: 'sd', 'stylized', 'realistic', 'chibi', 'mobile', 'minifig', 'cartoon'
-        poly_level: 'ultra_low', 'low', 'medium', 'high' - controls polygon density
+        poly_level: 'ultra_low', 'low', 'medium', 'high' - controls polygon density via decimation
+        gender: 'neutral' (Y Bot), 'male' (X Bot), 'female' (Y Bot)
         """
         self.clear_scene()
         
         preset = BASE_PRESETS.get(proportion_type, BASE_PRESETS["stylized"])
         poly_config = POLY_LEVELS.get(poly_level, POLY_LEVELS["medium"])
         
+        # Determine which FBX to load
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(script_dir)
+        
+        if gender == "male":
+            fbx_path = os.path.join(project_root, "assets", "base_meshes", "X_Bot.fbx")
+        else:
+            fbx_path = os.path.join(project_root, "assets", "base_meshes", "Y_Bot.fbx")
+        
+        # Fallback paths for different working directories
+        if not os.path.exists(fbx_path):
+            alt_paths = [
+                f"/home/runner/workspace/assets/base_meshes/{'X_Bot' if gender == 'male' else 'Y_Bot'}.fbx",
+                f"./assets/base_meshes/{'X_Bot' if gender == 'male' else 'Y_Bot'}.fbx"
+            ]
+            for alt in alt_paths:
+                if os.path.exists(alt):
+                    fbx_path = alt
+                    break
+        
+        if not os.path.exists(fbx_path):
+            raise FileNotFoundError(f"Base mesh FBX not found: {fbx_path}")
+        
+        # Store existing objects before import
+        existing_objects = set(obj.name for obj in bpy.data.objects)
+        
+        # Import FBX
+        bpy.ops.import_scene.fbx(
+            filepath=fbx_path,
+            use_custom_normals=True,
+            use_image_search=False,
+            use_alpha_decals=False,
+            ignore_leaf_bones=True,
+            force_connect_children=False,
+            automatic_bone_orientation=True,
+            primary_bone_axis='Y',
+            secondary_bone_axis='X',
+            use_prepost_rot=True,
+            axis_forward='-Z',
+            axis_up='Y'
+        )
+        
+        # Find imported objects (armature and meshes)
+        imported_objects = []
+        imported_armature = None
+        imported_meshes = []
+        main_surface_mesh = None
+        
+        for obj in bpy.data.objects:
+            if obj.name not in existing_objects:
+                imported_objects.append(obj)
+                if obj.type == 'ARMATURE':
+                    imported_armature = obj
+                    self.current_armature = obj
+                elif obj.type == 'MESH':
+                    imported_meshes.append(obj)
+        
+        # Identify main surface mesh (largest vertex count is typically the body mesh)
+        if imported_meshes:
+            imported_meshes.sort(key=lambda m: len(m.data.vertices), reverse=True)
+            main_surface_mesh = imported_meshes[0]
+        
+        # Rename imported objects with consistent Akku naming
+        for obj in imported_objects:
+            if obj.type == 'ARMATURE':
+                obj.name = "AkkuBase_Armature"
+            elif obj.type == 'MESH':
+                if obj == main_surface_mesh:
+                    # Main body mesh gets consistent name for material targeting
+                    obj.name = "AkkuBase_Surface"
+                else:
+                    # Secondary meshes (joints, eyes, etc.) - prefix with AkkuBase_Aux_
+                    original_name = obj.name.replace("Alpha_", "").replace("Beta_", "")
+                    obj.name = f"AkkuBase_Aux_{original_name}"
+        
+        # Apply proportion scaling based on proportion_type
         body_height = preset["body_height"]
-        head_scale = preset["head_scale"]
-        torso_width = preset["torso_width"]
-        limb_thickness = preset["limb_thickness"]
-        leg_length = preset["leg_length"]
         
-        # Low-poly mesh settings from preset
-        sphere_segments = preset.get("sphere_segments", 12)
-        sphere_rings = preset.get("sphere_rings", 8)
-        cylinder_verts = preset.get("cylinder_vertices", 8)
+        # Scale the entire character uniformly first
+        base_scale = body_height / 1.8  # Normalize to ~1.8m default height
         
-        # Adjust for poly_level
-        if poly_level == "ultra_low":
-            sphere_segments = max(6, sphere_segments // 2)
-            sphere_rings = max(4, sphere_rings // 2)
-            cylinder_verts = max(4, cylinder_verts // 2)
-        elif poly_level == "low":
-            sphere_segments = max(8, int(sphere_segments * 0.7))
-            sphere_rings = max(5, int(sphere_rings * 0.7))
-            cylinder_verts = max(6, int(cylinder_verts * 0.7))
-        elif poly_level == "high":
-            sphere_segments = int(sphere_segments * 1.3)
-            sphere_rings = int(sphere_rings * 1.3)
-            cylinder_verts = int(cylinder_verts * 1.3)
+        for obj in imported_objects:
+            obj.scale = (base_scale, base_scale, base_scale)
         
-        # Calculate positions based on body height
-        head_pos = body_height * 0.9
-        torso_pos = body_height * 0.6
-        hip_pos = body_height * 0.4
+        # Apply transforms to all objects so scaling is baked into mesh
+        for obj in imported_objects:
+            obj.select_set(True)
+        if imported_objects:
+            bpy.context.view_layer.objects.active = imported_objects[0]
+            try:
+                bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            except Exception as e:
+                print(f"Warning: Could not apply transforms: {e}")
         
-        # Head - optimized low-poly sphere
-        head = create_and_get_primitive(
-            bpy.ops.mesh.primitive_uv_sphere_add,
-            radius=0.22 * head_scale,
-            segments=sphere_segments,
-            ring_count=sphere_rings,
-            location=(0, 0, head_pos)
-        )
-        head.name = "AkkuBase_Head"
-        apply_smooth_shading(head)
+        # NOTE: Non-uniform scaling breaks armature deformation
+        # For proportion_type variations, we only adjust uniform scale
+        # Stylized proportions are achieved through the FBX model choice
+        # Chibi/SD effects would require custom FBX models with different proportions
         
-        # Torso - rounded box style
-        torso = create_and_get_primitive(
-            bpy.ops.mesh.primitive_cube_add,
-            size=1,
-            location=(0, 0, torso_pos)
-        )
-        torso.name = "AkkuBase_Torso"
-        torso.scale = (torso_width, torso_width * 0.6, body_height * 0.25)
-        apply_transform(torso, scale=True)
+        # Apply decimation for poly_level - ONLY to main surface mesh
+        decimate_ratio = poly_config.get("decimate_ratio", 1.0)
         
-        # Add bevel to torso for rounded edges (fewer segments for low-poly)
-        bevel = torso.modifiers.new(name="Bevel", type='BEVEL')
-        bevel.width = 0.05
-        bevel.segments = 2 if poly_level in ["ultra_low", "low"] else 3
-        # Apply bevel modifier directly on mesh
-        try:
-            bpy.context.view_layer.objects.active = torso
-            bpy.ops.object.modifier_apply(modifier="Bevel")
-        except:
-            # Fallback: apply modifier using geometry
-            pass
-        
-        # Hips
-        hips = create_and_get_primitive(
-            bpy.ops.mesh.primitive_cube_add,
-            size=1,
-            location=(0, 0, hip_pos)
-        )
-        hips.name = "AkkuBase_Hips"
-        hips.scale = (torso_width * 0.9, torso_width * 0.5, body_height * 0.1)
-        apply_transform(hips, scale=True)
-        
-        # Arms
-        arm_positions = [
-            (-torso_width - 0.05, 0, torso_pos + 0.05),
-            (torso_width + 0.05, 0, torso_pos + 0.05)
-        ]
-        for i, pos in enumerate(arm_positions):
-            side = "L" if i == 0 else "R"
+        if decimate_ratio < 1.0 and main_surface_mesh:
+            # Add decimate modifier only to main surface mesh
+            decimate = main_surface_mesh.modifiers.new(name="Decimate", type='DECIMATE')
+            decimate.decimate_type = 'COLLAPSE'
+            decimate.ratio = decimate_ratio
+            decimate.use_collapse_triangulate = True
             
-            # Upper arm - low-poly cylinder
-            upper_arm = create_and_get_primitive(
-                bpy.ops.mesh.primitive_cylinder_add,
-                vertices=cylinder_verts,
-                radius=limb_thickness,
-                depth=body_height * 0.2,
-                location=(pos[0] + (0.1 if i == 0 else -0.1), pos[1], pos[2] - 0.05),
-                rotation=(0, 1.57, 0)
-            )
-            upper_arm.name = f"AkkuBase_UpperArm_{side}"
-            apply_smooth_shading(upper_arm)
-            
-            # Forearm
-            forearm = create_and_get_primitive(
-                bpy.ops.mesh.primitive_cylinder_add,
-                vertices=cylinder_verts,
-                radius=limb_thickness * 0.85,
-                depth=body_height * 0.18,
-                location=(pos[0] + (0.25 if i == 0 else -0.25), pos[1], pos[2] - 0.05),
-                rotation=(0, 1.57, 0)
-            )
-            forearm.name = f"AkkuBase_Forearm_{side}"
-            apply_smooth_shading(forearm)
-            
-            # Hand
-            hand = create_and_get_primitive(
-                bpy.ops.mesh.primitive_cube_add,
-                size=limb_thickness * 2,
-                location=(pos[0] + (0.4 if i == 0 else -0.4), pos[1], pos[2] - 0.05)
-            )
-            hand.name = f"AkkuBase_Hand_{side}"
-            hand.scale = (1, 0.4, 1.2)
-            apply_transform(hand, scale=True)
-
-        # Legs
-        leg_positions = [(-torso_width * 0.4, 0, hip_pos - 0.1), (torso_width * 0.4, 0, hip_pos - 0.1)]
-        for i, pos in enumerate(leg_positions):
-            side = "L" if i == 0 else "R"
-            
-            # Upper leg - low-poly cylinder
-            upper_leg = create_and_get_primitive(
-                bpy.ops.mesh.primitive_cylinder_add,
-                vertices=cylinder_verts,
-                radius=limb_thickness * 1.3,
-                depth=leg_length,
-                location=(pos[0], pos[1], pos[2] - leg_length * 0.5)
-            )
-            upper_leg.name = f"AkkuBase_UpperLeg_{side}"
-            apply_smooth_shading(upper_leg)
-            
-            # Lower leg
-            lower_leg = create_and_get_primitive(
-                bpy.ops.mesh.primitive_cylinder_add,
-                vertices=cylinder_verts,
-                radius=limb_thickness * 1.1,
-                depth=leg_length * 0.9,
-                location=(pos[0], pos[1], pos[2] - leg_length * 1.3)
-            )
-            lower_leg.name = f"AkkuBase_LowerLeg_{side}"
-            apply_smooth_shading(lower_leg)
-            
-            # Foot
-            foot = create_and_get_primitive(
-                bpy.ops.mesh.primitive_cube_add,
-                size=limb_thickness * 2.5,
-                location=(pos[0], pos[1] - 0.03, pos[2] - leg_length * 1.7)
-            )
-            foot.name = f"AkkuBase_Foot_{side}"
-            foot.scale = (0.8, 1.5, 0.4)
-            apply_transform(foot, scale=True)
-
-        # Apply default gray material to all
+            # Apply modifier using depsgraph (headless compatible)
+            try:
+                depsgraph = bpy.context.evaluated_depsgraph_get()
+                eval_obj = main_surface_mesh.evaluated_get(depsgraph)
+                new_mesh = bpy.data.meshes.new_from_object(eval_obj)
+                main_surface_mesh.data = new_mesh
+                main_surface_mesh.modifiers.clear()
+            except Exception as e:
+                print(f"Warning: Could not apply decimate: {e}")
+        
+        # Apply default material
         default_mat = bpy.data.materials.new(name="AkkuBase_Material")
         default_mat.use_nodes = True
         bsdf = default_mat.node_tree.nodes.get("Principled BSDF")
@@ -832,93 +800,99 @@ print("GLB_EXPORT_SUCCESS")
             bsdf.inputs["Base Color"].default_value = (0.6, 0.6, 0.6, 1.0)
             bsdf.inputs["Roughness"].default_value = 0.5
         
-        # Count total triangles
+        # Count total triangles and apply material only to main surface
         total_tris = 0
-        for obj in bpy.context.scene.objects:
-            if obj.type == 'MESH' and obj.name.startswith("AkkuBase_"):
-                obj.data.materials.clear()
-                obj.data.materials.append(default_mat)
-                # Calculate triangle count
-                total_tris += sum(len(p.vertices) - 2 for p in obj.data.polygons)
-
+        if main_surface_mesh:
+            main_surface_mesh.data.materials.clear()
+            main_surface_mesh.data.materials.append(default_mat)
+            total_tris = sum(len(p.vertices) - 2 for p in main_surface_mesh.data.polygons)
+        
+        # Build list of final object names
+        final_objects = [obj.name for obj in imported_objects if obj and obj.name]
+        
         return {
-            "message": f"Spawned {proportion_type} humanoid base ({poly_level} poly)",
+            "message": f"Loaded Mixamo {'X Bot' if gender == 'male' else 'Y Bot'} as {proportion_type} base ({poly_level} poly)",
             "proportion_type": proportion_type,
             "poly_level": poly_level,
+            "gender": gender,
             "body_height": body_height,
             "triangle_count": total_tris,
-            "objects": [obj.name for obj in bpy.context.scene.objects if obj.name.startswith("AkkuBase_")]
+            "has_armature": imported_armature is not None,
+            "main_mesh": "AkkuBase_Surface" if main_surface_mesh else None,
+            "objects": final_objects
         }
 
     def deform_body(self, part, strength=0.5, deform_type="scale"):
         """
-        Deform a specific body part using shape keys or scaling.
-        part: 'head', 'torso', 'arms', 'legs', 'hands', 'feet', 'shoulders', 'hips'
+        Deform a specific body part via armature bone scaling (for Mixamo mesh).
+        part: 'head', 'torso', 'arms', 'legs', 'hands', 'feet', 'shoulders', 'hips', 'body'
         strength: -1.0 to 1.0 (negative = shrink, positive = enlarge)
-        deform_type: 'scale', 'stretch_vertical', 'stretch_horizontal', 'bulge'
+        deform_type: 'scale', 'stretch_vertical', 'stretch_horizontal'
         """
-        part_mapping = {
-            "head": ["AkkuBase_Head"],
-            "torso": ["AkkuBase_Torso"],
-            "arms": ["AkkuBase_UpperArm_L", "AkkuBase_UpperArm_R", "AkkuBase_Forearm_L", "AkkuBase_Forearm_R"],
-            "legs": ["AkkuBase_UpperLeg_L", "AkkuBase_UpperLeg_R", "AkkuBase_LowerLeg_L", "AkkuBase_LowerLeg_R"],
-            "hands": ["AkkuBase_Hand_L", "AkkuBase_Hand_R"],
-            "feet": ["AkkuBase_Foot_L", "AkkuBase_Foot_R"],
-            "shoulders": ["AkkuBase_UpperArm_L", "AkkuBase_UpperArm_R"],
-            "hips": ["AkkuBase_Hips"]
+        # Mixamo bone name patterns for each body part
+        bone_patterns = {
+            "head": ["Head", "head"],
+            "torso": ["Spine", "spine"],
+            "arms": ["Arm", "arm", "ForeArm", "forearm"],
+            "legs": ["UpLeg", "upleg", "Leg", "leg"],
+            "hands": ["Hand", "hand"],
+            "feet": ["Foot", "foot", "Toe", "toe"],
+            "shoulders": ["Shoulder", "shoulder"],
+            "hips": ["Hips", "hips"],
+            "body": []  # Special case: scale entire mesh
         }
         
-        target_objects = part_mapping.get(part, [])
-        if not target_objects:
+        patterns = bone_patterns.get(part)
+        if patterns is None:
             raise ValueError(f"Unknown body part: {part}")
         
         scale_factor = 1.0 + (strength * 0.5)  # Convert -1..1 to 0.5..1.5
         
-        modified_objects = []
-        for obj_name in target_objects:
-            obj = bpy.data.objects.get(obj_name)
-            if not obj:
-                continue
-            
-            bpy.context.view_layer.objects.active = obj
-            
-            if deform_type == "scale":
-                obj.scale *= scale_factor
-            elif deform_type == "stretch_vertical":
-                obj.scale[2] *= scale_factor
-            elif deform_type == "stretch_horizontal":
-                obj.scale[0] *= scale_factor
-                obj.scale[1] *= scale_factor
-            elif deform_type == "bulge":
-                # Add lattice modifier for bulge effect
-                lattice = create_and_get_primitive(bpy.ops.object.add, type='LATTICE')
-                if lattice:
-                    lattice.name = f"{obj_name}_Lattice"
-                lattice.location = obj.location
-                lattice.scale = obj.scale * 1.5
-                
-                # Modify lattice points for bulge
-                lattice.data.points_u = 2
-                lattice.data.points_v = 2
-                lattice.data.points_w = 3
-                
-                # Add lattice modifier to object
-                bpy.context.view_layer.objects.active = obj
-                mod = obj.modifiers.new(name="Lattice", type='LATTICE')
-                mod.object = lattice
-            
-            modified_objects.append(obj_name)
+        # Special case: scale entire body mesh
+        if part == "body":
+            surface = bpy.data.objects.get("AkkuBase_Surface")
+            if surface:
+                if deform_type == "scale":
+                    surface.scale *= scale_factor
+                elif deform_type == "stretch_vertical":
+                    surface.scale[2] *= scale_factor
+                elif deform_type == "stretch_horizontal":
+                    surface.scale[0] *= scale_factor
+                    surface.scale[1] *= scale_factor
+                apply_transform(surface, scale=True)
+                return {"message": f"Scaled entire body by {scale_factor}", "part": part}
         
-        # Apply transforms to all modified objects
-        for obj_name in modified_objects:
-            obj = bpy.data.objects.get(obj_name)
-            if obj:
-                apply_transform(obj, scale=True)
+        # For specific body parts, try to scale bones in armature
+        armature = bpy.data.objects.get("AkkuBase_Armature")
+        modified_bones = []
+        
+        if armature and armature.type == 'ARMATURE':
+            for bone in armature.data.bones:
+                for pattern in patterns:
+                    if pattern.lower() in bone.name.lower():
+                        pose_bone = armature.pose.bones.get(bone.name)
+                        if pose_bone:
+                            if deform_type == "scale":
+                                pose_bone.scale = (scale_factor, scale_factor, scale_factor)
+                            elif deform_type == "stretch_vertical":
+                                pose_bone.scale = (1.0, scale_factor, 1.0)
+                            elif deform_type == "stretch_horizontal":
+                                pose_bone.scale = (scale_factor, 1.0, scale_factor)
+                            modified_bones.append(bone.name)
+                        break
+        
+        if not modified_bones:
+            return {
+                "message": f"No bones found for part '{part}'",
+                "part": part,
+                "modified_bones": []
+            }
         
         return {
             "message": f"Deformed {part} with {deform_type}",
             "strength": strength,
-            "modified_objects": modified_objects
+            "deform_type": deform_type,
+            "modified_bones": modified_bones
         }
 
     # ============================================================

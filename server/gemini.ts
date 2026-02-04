@@ -30,24 +30,29 @@ You can ONLY use these 8 tools organized in 4 categories:
 ### Category 1: Base Generation (구조적 안정성)
 
 #### spawn_humanoid_base
-Create a clean topology low-poly humanoid base with optimized UV.
+Load Mixamo Y Bot or X Bot as base mesh with proportion adjustments.
 {
   "action": "spawn_humanoid_base",
   "params": { 
     "proportion_type": "sd|stylized|realistic|chibi|mobile|minifig|cartoon",
-    "poly_level": "ultra_low|low|medium|high"  // Optional, default: "medium"
+    "poly_level": "ultra_low|low|medium|high",  // Optional, default: "medium"
+    "gender": "neutral|male|female"  // Optional, default: "neutral"
   },
-  "description": "Spawn chibi low-poly base"
+  "description": "Load Y Bot with chibi proportions"
 }
 
-Proportion types:
-- "sd": Super-deformed (2-3 heads tall), cute style
-- "stylized": Stylized proportions (5-6 heads), versatile
-- "realistic": 8-head proportions, human-like
-- "chibi": Ultra-cute (1.5-2 heads), big head
-- "mobile": Ultra-low-poly for mobile games (~300 tris)
-- "minifig": LEGO-like minifigure proportions
-- "cartoon": Cartoon style with exaggerated features
+Gender options:
+- "neutral" or "female": Y Bot (slimmer silhouette)
+- "male": X Bot (broader build)
+
+Proportion types (NOTE: All types use same Mixamo mesh, only affects uniform scale):
+- "sd": Smaller scale (0.7x) for super-deformed style
+- "stylized": Default scale (1.0x), versatile
+- "realistic": Default scale (1.0x), human-like
+- "chibi": Smaller scale (0.7x) for cute style
+- "mobile": Smaller scale (0.8x) for mobile games
+- "minifig": Smallest scale (0.6x) for block style
+- "cartoon": Slightly smaller scale (0.9x)
 
 Poly levels:
 - "ultra_low": ~300 triangles, for mobile games
@@ -55,17 +60,18 @@ Poly levels:
 - "medium": ~1500 triangles, balanced quality
 - "high": ~3000 triangles, for PC/console
 
-#### deform_body
-Adjust specific body parts (using Lattice/Shape Key).
+#### deform_body (LIMITED - use sparingly)
+Scale the entire body mesh. Note: Individual body part scaling is not supported with Mixamo meshes.
 {
   "action": "deform_body",
   "params": { 
-    "part": "head|torso|arms|legs|hands|feet|shoulders|hips",
+    "part": "body",  // Only "body" is reliably supported
     "strength": 0.5,  // -1.0 to 1.0
-    "deform_type": "scale|stretch_vertical|stretch_horizontal|bulge"
+    "deform_type": "scale"  // Only "scale" is reliably supported
   },
-  "description": "Make shoulders broader"
+  "description": "Scale entire body larger"
 }
+NOTE: This tool has LIMITED functionality. Prefer using different proportion_type values instead.
 
 ### Category 2: Hard-Surface Kitbashing (디테일 상향)
 
@@ -131,14 +137,14 @@ Fine-tune PBR values on existing material.
   "description": "Increase metallic value"
 }
 
-### Category 4: Auto-Rig & Animation (플레이 가능)
+### Category 4: Finalize & Animation (플레이 가능)
 
-#### finalize_and_bind
-Join all meshes and auto-rig with armature.
+#### finalize_and_bind (OPTIONAL - Mixamo already has rigging)
+Finalize mesh and prepare for export. Note: Mixamo FBX meshes are already rigged.
 {
   "action": "finalize_and_bind",
   "params": {},
-  "description": "Finalize and bind to armature"
+  "description": "Finalize mesh for export"
 }
 
 #### test_animation
@@ -172,7 +178,7 @@ Return ONLY valid JSON:
 - Robot/Mech: stylized/realistic base + armor plates + metal/chrome materials
 - Warrior/Knight: stylized base + armor (shoulders, chest, gauntlets) + brushed_metal
 - Fantasy/Magic: stylized base + glow materials with emission
-- Creature/Monster: sd/chibi base + deform body parts + organic materials
+- Creature/Monster: sd/chibi base + organic materials (skip deform_body)
 - Chibi/Cute: chibi base + minimal armor + plastic/colorful materials
 
 ### Korean Color Terms
@@ -190,29 +196,26 @@ Return ONLY valid JSON:
 - 하늘색: [0.5, 0.8, 1.0]
 - 청록색: [0.2, 0.8, 0.7]
 
-### Object Naming Convention (CRITICAL - use EXACTLY these names)
-After spawn_humanoid_base, ONLY these 13 objects exist:
-- AkkuBase_Head
-- AkkuBase_Torso
-- AkkuBase_Hips
-- AkkuBase_UpperArm_L, AkkuBase_UpperArm_R (upper arms)
-- AkkuBase_Forearm_L, AkkuBase_Forearm_R (forearms, NOT LowerArm)
-- AkkuBase_Hand_L, AkkuBase_Hand_R
-- AkkuBase_UpperLeg_L, AkkuBase_UpperLeg_R
-- AkkuBase_LowerLeg_L, AkkuBase_LowerLeg_R (lower legs)
-- AkkuBase_Foot_L, AkkuBase_Foot_R
+### Object Naming Convention (CRITICAL)
+After spawn_humanoid_base, the following objects exist:
+- AkkuBase_Armature (rigged skeleton with Mixamo bone hierarchy)
+- AkkuBase_Surface (main character body mesh - always use this for materials)
+- AkkuBase_Aux_* (auxiliary meshes like joints, eyes - usually not targeted)
 
-IMPORTANT: Use "Forearm" not "LowerArm" for arm segments!
+For materials, ALWAYS target:
+- "AkkuBase_Surface" for the main body mesh
+
+IMPORTANT: The character is a single unified mesh, not separate body parts!
 
 After attach_armor_plate:
 - Armor_{location}_{style} (e.g., "Armor_chest_chest_plate")
 
 ### Best Practices
 1. Always start with spawn_humanoid_base
-2. Apply deform_body BEFORE adding armor
+2. SKIP deform_body unless scaling entire body is needed (Mixamo mesh is pre-proportioned)
 3. Add armor plates in logical order (body center → extremities)
 4. Apply materials AFTER all geometry is placed
-5. Use finalize_and_bind ONLY if rigging is needed
+5. finalize_and_bind is optional (Mixamo FBX already has rigging)
 6. test_animation is optional, only if user requests animation
 7. ALWAYS end with export
 
@@ -233,7 +236,8 @@ export interface BlenderParams {
   metallic: number;
 }
 
-// Legacy procedural artist prompt (for backward compatibility)
+// Legacy procedural artist prompt (CLI fallback mode only - NOT compatible with Mixamo/MCP mode)
+// Note: headScale/armLength/legLength parameters only work with procedural generation, not Mixamo FBX
 const PROCEDURAL_ARTIST_PROMPT = `You are an expert Blender procedural artist AI. Your role is to convert natural language character descriptions into detailed, multi-step generation plans that leverage Blender's advanced features.
 
 You output JSON generation plans with these step types:
@@ -312,7 +316,8 @@ After create_base: Head, Torso, Hips, Arm_L, Arm_R, Leg_L, Leg_R
 ALWAYS end with the export step.
 Output ONLY valid JSON, no explanations or markdown.`;
 
-// Simple params system prompt (legacy support)
+// Simple params system prompt (CLI fallback mode only - NOT compatible with Mixamo/MCP mode)
+// Note: headScale/armLength/legLength parameters only work with procedural generation, not Mixamo FBX
 const SIMPLE_PARAMS_PROMPT = `You are an AI assistant that converts natural language character descriptions into precise Blender parameters for generating 3D humanoid characters.
 
 Given a character description, output ONLY valid JSON with these parameters:
@@ -567,18 +572,13 @@ function getDefaultAkkuPlan(prompt: string): AkkuGenerationPlan {
   const steps: AkkuGenerationPlan['steps'] = [
     {
       action: 'spawn_humanoid_base',
-      params: { proportion_type: proportionType },
-      description: `Spawn ${proportionType} humanoid base`
+      params: { proportion_type: proportionType, gender: 'neutral' },
+      description: `Load Mixamo Y Bot with ${proportionType} proportions`
     },
     {
       action: 'apply_akku_pbr',
-      params: { object_name: 'AkkuBase_Torso', preset_name: materialPreset, base_color: baseColor },
-      description: `Apply ${materialPreset} material to torso`
-    },
-    {
-      action: 'apply_akku_pbr',
-      params: { object_name: 'AkkuBase_Head', preset_name: 'skin', base_color: [0.85, 0.7, 0.55] },
-      description: 'Apply skin material to head'
+      params: { object_name: 'AkkuBase_Surface', preset_name: materialPreset, base_color: baseColor },
+      description: `Apply ${materialPreset} material to character mesh`
     },
     {
       action: 'export',
