@@ -1,11 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
 
+// Use custom API key from secrets, fallback to Replit AI Integrations
+const apiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+const baseUrl = process.env.GEMINI_API_KEY 
+  ? undefined  // Use default Google API endpoint when using custom key
+  : process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+
 const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
+  apiKey: apiKey,
+  ...(baseUrl && {
+    httpOptions: {
+      apiVersion: "",
+      baseUrl: baseUrl,
+    },
+  }),
 });
 
 export interface BlenderParams {
