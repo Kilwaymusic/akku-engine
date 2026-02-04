@@ -48,7 +48,7 @@ export class BlenderMCPClient {
     });
   }
 
-  async sendCommand(command: MCPCommand, timeout: number = 60000): Promise<MCPResponse> {
+  async sendCommand(command: MCPCommand, timeout: number = 300000): Promise<MCPResponse> {
     if (!this.socket || !this.connected) {
       throw new Error('Not connected to MCP server');
     }
@@ -100,17 +100,24 @@ export class BlenderMCPClient {
     });
   }
 
-  async applyModifier(objectName: string, modifierType: string, params?: Record<string, any>): Promise<MCPResponse> {
+  async applyModifier(objectName: string, modifierType: string, modifierParams?: Record<string, any>): Promise<MCPResponse> {
     return this.sendCommand({
       type: 'apply_modifier',
-      params: { object_name: objectName, modifier_type: modifierType, params }
+      params: { 
+        object_name: objectName, 
+        modifier_type: modifierType, 
+        params: modifierParams || {}
+      }
     });
   }
 
   async setupMaterial(objectName: string, materialParams: Record<string, any>): Promise<MCPResponse> {
     return this.sendCommand({
       type: 'setup_material',
-      params: { object_name: objectName, material_params: materialParams }
+      params: { 
+        object_name: objectName, 
+        material_params: materialParams 
+      }
     });
   }
 
@@ -174,7 +181,11 @@ export async function executeGenerationPlan(
         
         case 'apply_modifier':
           if (!step.target) throw new Error('Modifier requires target object');
-          response = await client.applyModifier(step.target, step.params.type, step.params);
+          // Extract modifier type and pass remaining params
+          const modType = step.params.type as string;
+          const modParams = { ...step.params };
+          delete modParams.type;
+          response = await client.applyModifier(step.target, modType, modParams);
           break;
         
         case 'setup_material':
@@ -183,7 +194,11 @@ export async function executeGenerationPlan(
           break;
         
         case 'execute_code':
-          response = await client.executeCode(step.params.code);
+          if (step.params.code) {
+            response = await client.executeCode(step.params.code);
+          } else {
+            response = { status: 'success', result: 'No code to execute' };
+          }
           break;
         
         case 'export':

@@ -71,7 +71,7 @@ class BlenderMCPServer:
                     break
 
     def _handle_client(self, client):
-        client.settimeout(60.0)
+        client.settimeout(300.0)  # 5 minutes for long operations like export
         buffer = b''
 
         try:
@@ -143,6 +143,14 @@ class BlenderMCPServer:
         }
 
     def execute_code(self, code):
+        # Security: Only allow trusted code patterns for Blender operations
+        forbidden = ['import os', 'import subprocess', 'open(', 'eval(', '__import__', 
+                     'exec(', 'compile(', 'shutil', 'socket', 'requests', 'urllib']
+        code_lower = code.lower()
+        for pattern in forbidden:
+            if pattern.lower() in code_lower:
+                raise ValueError(f"Forbidden code pattern detected: {pattern}")
+        
         local_vars = {"bpy": bpy, "result": None}
         exec(code, {"bpy": bpy}, local_vars)
         return local_vars.get("result", "Code executed successfully")
@@ -360,5 +368,14 @@ def run_headless_server(port=9876):
 
 if __name__ == "__main__":
     import sys
-    port = int(sys.argv[sys.argv.index("--") + 1]) if "--" in sys.argv else 9876
+    port = 9876
+    try:
+        if "--" in sys.argv:
+            idx = sys.argv.index("--")
+            if len(sys.argv) > idx + 1:
+                port = int(sys.argv[idx + 1])
+    except (ValueError, IndexError):
+        pass
+    
+    print(f"Starting Blender MCP with port {port}")
     run_headless_server(port)

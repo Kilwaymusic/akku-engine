@@ -1,6 +1,11 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { BlenderMCPClient, executeGenerationPlan, CharacterGenerationPlan } from './blender-mcp-client';
+
+// ESM compatibility for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export class MCPManager {
   private blenderProcess: ChildProcess | null = null;
