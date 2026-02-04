@@ -186,6 +186,12 @@ Procedural material system for low-poly characters:
 Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
 
 ## Recent Changes
+- 2026-02-04: **Direct Data Manipulation Refactoring** - Ensures GLB export compatibility
+  - `shader.py`: Replaced complex shader nodes with GLB-standard Principled BSDF (Base Color, Metallic, Roughness, Emission only)
+  - `body.py`: Added DirectMeshDeformer class - all vertex deformations via bmesh, baked into mesh data
+  - `kitbash.py`: Added DirectBoneParenting - parts created at origin, immediately parented with BONE parent type
+  - `handlers.py`: Added MeshFreezer class - freezes modifiers AND transforms before GLB export
+  - Reduced body scaling factors from 0.4-0.5 to 0.12-0.25 for natural-looking results
 - 2026-02-04: **Added Game Engine Optimization Pipeline** - finalize.py module (1028 lines)
   - FinalizePipeline for Unity/Unreal-ready export with context-independent operations
   - MeshOptimizer: remove_doubles, dissolve_degenerate, recalculate_normals (bmesh-based)
