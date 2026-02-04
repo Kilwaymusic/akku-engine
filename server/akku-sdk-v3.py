@@ -1,5 +1,5 @@
 """
-Akku SDK v3.2 - Production-Ready Low-Poly Character Generation Toolkit
+Akku SDK v3.3 - Production-Ready Low-Poly Character Generation Toolkit
 Features:
 - MCP-style tool registry architecture
 - Context-independent headless operations
@@ -7,6 +7,7 @@ Features:
 - Step-by-step logging with mesh statistics
 - Undo/rollback capability
 - Boolean + Voxel Remesh workflow
+- Body Type System with Lattice/Vertex deformation
 """
 
 import bpy
@@ -913,6 +914,385 @@ class BooleanRemeshTools:
 
 
 # ========================================
+# BODY TYPE SYSTEM (Step 4)
+# Lattice & Bone-based body deformation
+# ========================================
+
+@dataclass
+class BodyTypeParams:
+    """Body type parameters for character customization"""
+    muscular: float = 0.0      # -1.0 (thin) to 1.0 (muscular)
+    fat: float = 0.0           # -1.0 (thin) to 1.0 (fat)
+    height: float = 0.0        # -1.0 (short) to 1.0 (tall)
+    shoulder_width: float = 0.0  # -1.0 (narrow) to 1.0 (wide)
+    hip_width: float = 0.0     # -1.0 (narrow) to 1.0 (wide)
+    leg_length: float = 0.0    # -1.0 (short) to 1.0 (long)
+    arm_length: float = 0.0    # -1.0 (short) to 1.0 (long)
+    head_size: float = 0.0     # -1.0 (small) to 1.0 (large)
+
+
+class BodyTypePresets:
+    """Predefined body type configurations"""
+    
+    PRESETS: Dict[str, BodyTypeParams] = {
+        "default": BodyTypeParams(),
+        "muscular": BodyTypeParams(muscular=0.8, shoulder_width=0.5, fat=-0.2),
+        "thin": BodyTypeParams(muscular=-0.6, fat=-0.5, shoulder_width=-0.3),
+        "fat": BodyTypeParams(fat=0.7, muscular=-0.2, hip_width=0.4),
+        "tall": BodyTypeParams(height=0.5, leg_length=0.3, arm_length=0.2),
+        "short": BodyTypeParams(height=-0.4, leg_length=-0.2),
+        "athletic": BodyTypeParams(muscular=0.5, fat=-0.3, shoulder_width=0.3, leg_length=0.1),
+        "stocky": BodyTypeParams(height=-0.2, muscular=0.4, shoulder_width=0.4, fat=0.2),
+        "slim": BodyTypeParams(muscular=-0.3, fat=-0.4, shoulder_width=-0.2, hip_width=-0.2),
+        "heroic": BodyTypeParams(muscular=0.6, height=0.3, shoulder_width=0.5, hip_width=-0.1),
+        "chibi": BodyTypeParams(height=-0.5, head_size=0.8, leg_length=-0.4, arm_length=-0.3),
+        "giant": BodyTypeParams(height=0.8, muscular=0.4, shoulder_width=0.3),
+    }
+    
+    # Korean aliases
+    KOREAN_ALIASES: Dict[str, str] = {
+        "근육질": "muscular",
+        "마른": "thin",
+        "뚱뚱한": "fat",
+        "키큰": "tall",
+        "키작은": "short",
+        "운동선수": "athletic",
+        "땅딸막한": "stocky",
+        "날씬한": "slim",
+        "영웅": "heroic",
+        "치비": "chibi",
+        "거인": "giant",
+    }
+    
+    @classmethod
+    def get_preset(cls, name: str) -> BodyTypeParams:
+        """Get body type preset by name (supports Korean)"""
+        # Check Korean aliases first
+        if name in cls.KOREAN_ALIASES:
+            name = cls.KOREAN_ALIASES[name]
+        
+        return cls.PRESETS.get(name.lower(), cls.PRESETS["default"])
+    
+    @classmethod
+    def detect_from_prompt(cls, prompt: str) -> BodyTypeParams:
+        """Detect body type from prompt text"""
+        prompt_lower = prompt.lower()
+        
+        # Check for preset keywords
+        for korean, english in cls.KOREAN_ALIASES.items():
+            if korean in prompt_lower:
+                AkkuLogger.info(f"Detected body type from prompt: {english}")
+                return cls.get_preset(english)
+        
+        for preset_name in cls.PRESETS.keys():
+            if preset_name in prompt_lower:
+                AkkuLogger.info(f"Detected body type from prompt: {preset_name}")
+                return cls.get_preset(preset_name)
+        
+        return cls.PRESETS["default"]
+
+
+class BodyTypeSystem:
+    """
+    Body type deformation system using Lattice and vertex manipulation.
+    Provides natural body shape changes instead of simple scaling.
+    """
+    
+    # Body region definitions (approximate Z-height ranges for 1.8m character)
+    BODY_REGIONS = {
+        "head": {"z_min": 1.5, "z_max": 1.85, "scale_axes": "XYZ"},
+        "neck": {"z_min": 1.4, "z_max": 1.5, "scale_axes": "XY"},
+        "shoulders": {"z_min": 1.25, "z_max": 1.4, "scale_axes": "X"},
+        "chest": {"z_min": 1.0, "z_max": 1.25, "scale_axes": "XYZ"},
+        "waist": {"z_min": 0.85, "z_max": 1.0, "scale_axes": "XY"},
+        "hips": {"z_min": 0.7, "z_max": 0.85, "scale_axes": "XY"},
+        "upper_legs": {"z_min": 0.4, "z_max": 0.7, "scale_axes": "XYZ"},
+        "lower_legs": {"z_min": 0.0, "z_max": 0.4, "scale_axes": "XYZ"},
+    }
+    
+    # Arm detection: vertices far from center X axis
+    ARM_X_THRESHOLD = 0.15  # meters from center
+    ARM_Z_RANGE = (0.9, 1.4)  # Z height range for arms
+    
+    @classmethod
+    def create_lattice_for_mesh(cls, obj: bpy.types.Object, resolution: Tuple[int, int, int] = (4, 4, 6)) -> bpy.types.Object:
+        """
+        Create a lattice object that encompasses the mesh.
+        Returns the lattice object.
+        """
+        if obj.type != 'MESH':
+            return None
+        
+        # Get mesh bounds
+        min_co, max_co, _ = MeshTools.get_mesh_bounds(obj)
+        
+        # Create lattice with padding
+        padding = 0.05
+        size = (
+            (max_co.x - min_co.x) + padding * 2,
+            (max_co.y - min_co.y) + padding * 2,
+            (max_co.z - min_co.z) + padding * 2
+        )
+        center = (
+            (min_co.x + max_co.x) / 2,
+            (min_co.y + max_co.y) / 2,
+            (min_co.z + max_co.z) / 2
+        )
+        
+        # Create lattice data
+        lattice_data = bpy.data.lattices.new(name="AkkuBodyLattice")
+        lattice_data.points_u = resolution[0]
+        lattice_data.points_v = resolution[1]
+        lattice_data.points_w = resolution[2]
+        lattice_data.interpolation_type_u = 'KEY_BSPLINE'
+        lattice_data.interpolation_type_v = 'KEY_BSPLINE'
+        lattice_data.interpolation_type_w = 'KEY_BSPLINE'
+        
+        # Create lattice object
+        lattice_obj = bpy.data.objects.new("AkkuBodyLattice", lattice_data)
+        bpy.context.collection.objects.link(lattice_obj)
+        
+        # Position and scale lattice
+        lattice_obj.location = Vector(center)
+        lattice_obj.scale = Vector(size)
+        
+        # Add lattice modifier to mesh
+        mod = obj.modifiers.new(name="AkkuLattice", type='LATTICE')
+        mod.object = lattice_obj
+        
+        AkkuLogger.info("Created lattice for body deformation", {
+            "resolution": resolution,
+            "size": size
+        })
+        
+        return lattice_obj
+    
+    @classmethod
+    def deform_lattice(cls, lattice_obj: bpy.types.Object, params: BodyTypeParams) -> bool:
+        """
+        Deform lattice points based on body type parameters.
+        """
+        if lattice_obj.type != 'LATTICE':
+            return False
+        
+        lattice = lattice_obj.data
+        points_u = lattice.points_u
+        points_v = lattice.points_v
+        points_w = lattice.points_w
+        
+        AkkuLogger.info("Deforming lattice", {
+            "muscular": params.muscular,
+            "fat": params.fat,
+            "height": params.height
+        })
+        
+        # Iterate through lattice points
+        for i, point in enumerate(lattice.points):
+            # Calculate grid position (normalized 0-1)
+            w_idx = i // (points_u * points_v)
+            remaining = i % (points_u * points_v)
+            v_idx = remaining // points_u
+            u_idx = remaining % points_u
+            
+            # Normalized positions
+            u_norm = u_idx / max(1, points_u - 1)  # X axis
+            v_norm = v_idx / max(1, points_v - 1)  # Y axis  
+            w_norm = w_idx / max(1, points_w - 1)  # Z axis (height)
+            
+            # Calculate deformation
+            dx, dy, dz = 0.0, 0.0, 0.0
+            
+            # Height deformation (stretch/compress along Z)
+            if params.height != 0:
+                # Scale from bottom, more effect on upper body
+                dz = params.height * 0.15 * w_norm
+            
+            # Muscular/Fat affects X and Y (width)
+            body_width_factor = params.muscular * 0.12 + params.fat * 0.15
+            
+            # Chest/shoulder region (upper body)
+            if 0.55 < w_norm < 0.8:
+                shoulder_factor = params.shoulder_width * 0.1
+                dx = (u_norm - 0.5) * (body_width_factor + shoulder_factor)
+                dy = (v_norm - 0.5) * body_width_factor * 0.7
+            
+            # Waist region (middle)
+            elif 0.45 < w_norm <= 0.55:
+                # Muscular = narrow waist, Fat = wide waist
+                waist_factor = -params.muscular * 0.05 + params.fat * 0.1
+                dx = (u_norm - 0.5) * waist_factor
+                dy = (v_norm - 0.5) * waist_factor
+            
+            # Hip region
+            elif 0.35 < w_norm <= 0.45:
+                hip_factor = params.hip_width * 0.08 + params.fat * 0.08
+                dx = (u_norm - 0.5) * hip_factor
+                dy = (v_norm - 0.5) * hip_factor
+            
+            # Leg region
+            elif w_norm <= 0.35:
+                leg_scale = params.leg_length * 0.1
+                dz = leg_scale * w_norm
+                # Thicker legs for muscular/fat
+                leg_width = (params.muscular * 0.05 + params.fat * 0.06) * (1 - w_norm)
+                dx = (u_norm - 0.5) * leg_width
+                dy = (v_norm - 0.5) * leg_width
+            
+            # Head region
+            elif w_norm > 0.85:
+                head_scale = params.head_size * 0.08
+                dx = (u_norm - 0.5) * head_scale
+                dy = (v_norm - 0.5) * head_scale
+                dz += head_scale * 0.5
+            
+            # Apply deformation
+            point.co_deform.x += dx
+            point.co_deform.y += dy
+            point.co_deform.z += dz
+        
+        return True
+    
+    @classmethod
+    def apply_body_type_direct(cls, obj: bpy.types.Object, params: BodyTypeParams) -> bool:
+        """
+        Apply body type deformation directly to mesh vertices.
+        More efficient than lattice for simple deformations.
+        Context-independent using bmesh.
+        """
+        if obj.type != 'MESH':
+            return False
+        
+        UndoManager.save_state(obj, "before_body_type")
+        
+        try:
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+            
+            # Get mesh bounds for normalization
+            z_coords = [v.co.z for v in bm.verts]
+            z_min, z_max = min(z_coords), max(z_coords)
+            height = z_max - z_min
+            
+            if height <= 0:
+                bm.free()
+                return False
+            
+            AkkuLogger.info("Applying body type directly", {
+                "mesh_height": height,
+                "params": asdict(params)
+            })
+            
+            for vert in bm.verts:
+                # Normalized height (0 = feet, 1 = head)
+                z_norm = (vert.co.z - z_min) / height
+                
+                # Distance from center (for arms detection)
+                x_dist = abs(vert.co.x)
+                
+                dx, dy, dz = 0.0, 0.0, 0.0
+                
+                # Height scaling
+                if params.height != 0:
+                    dz = params.height * 0.15 * height * z_norm
+                
+                # Body regions
+                if z_norm > 0.85:  # Head
+                    scale = 1.0 + params.head_size * 0.15
+                    vert.co.x *= scale
+                    vert.co.y *= scale
+                    dz += params.head_size * 0.05 * height
+                    
+                elif 0.7 < z_norm <= 0.85:  # Shoulders/Upper chest
+                    shoulder_scale = 1.0 + params.shoulder_width * 0.12 + params.muscular * 0.08
+                    vert.co.x *= shoulder_scale
+                    vert.co.y *= 1.0 + params.muscular * 0.05 + params.fat * 0.06
+                    
+                elif 0.55 < z_norm <= 0.7:  # Chest
+                    chest_scale = 1.0 + params.muscular * 0.1 + params.fat * 0.08
+                    vert.co.x *= chest_scale
+                    vert.co.y *= chest_scale
+                    
+                elif 0.45 < z_norm <= 0.55:  # Waist
+                    # Muscular = V-shape (narrow waist), Fat = wide waist
+                    waist_scale = 1.0 - params.muscular * 0.08 + params.fat * 0.12
+                    vert.co.x *= waist_scale
+                    vert.co.y *= waist_scale
+                    
+                elif 0.35 < z_norm <= 0.45:  # Hips
+                    hip_scale = 1.0 + params.hip_width * 0.1 + params.fat * 0.08
+                    vert.co.x *= hip_scale
+                    vert.co.y *= hip_scale
+                    
+                elif z_norm <= 0.35:  # Legs
+                    # Leg length
+                    if params.leg_length != 0:
+                        leg_factor = 1.0 + params.leg_length * 0.15
+                        vert.co.z = z_min + (vert.co.z - z_min) * leg_factor
+                    
+                    # Leg thickness
+                    leg_thickness = 1.0 + params.muscular * 0.06 + params.fat * 0.08
+                    vert.co.x *= leg_thickness
+                    vert.co.y *= leg_thickness
+                
+                # Arm deformation (vertices far from center)
+                if x_dist > 0.1 and 0.5 < z_norm < 0.8:
+                    # Arm length
+                    if params.arm_length != 0:
+                        arm_extend = params.arm_length * 0.1 * height
+                        if vert.co.x > 0:
+                            vert.co.x += arm_extend * 0.3
+                        else:
+                            vert.co.x -= arm_extend * 0.3
+                    
+                    # Arm thickness
+                    arm_scale = 1.0 + params.muscular * 0.12 + params.fat * 0.06
+                    # Scale perpendicular to arm direction
+                    vert.co.y *= arm_scale
+                
+                # Apply height change
+                vert.co.z += dz
+            
+            bm.to_mesh(obj.data)
+            bm.free()
+            obj.data.update()
+            
+            AkkuLogger.info("Body type deformation completed")
+            MeshAnalyzer.log_stats(obj, "After body type")
+            
+            return True
+            
+        except Exception as e:
+            AkkuLogger.error(f"Body type deformation failed: {str(e)}")
+            UndoManager.undo(obj.name)
+            return False
+    
+    @classmethod
+    def apply_body_type(cls, obj: bpy.types.Object, params: BodyTypeParams, use_lattice: bool = False) -> bool:
+        """
+        Apply body type deformation to mesh.
+        
+        Args:
+            obj: Target mesh object
+            params: Body type parameters
+            use_lattice: If True, use lattice deformation (smoother but requires modifier apply)
+        """
+        if use_lattice:
+            # Create and deform lattice
+            lattice = cls.create_lattice_for_mesh(obj, resolution=(4, 4, 8))
+            if lattice:
+                cls.deform_lattice(lattice, params)
+                # Apply lattice modifier
+                MeshTools.apply_modifier_via_depsgraph(obj, "AkkuLattice")
+                # Remove lattice object
+                bpy.data.objects.remove(lattice, do_unlink=True)
+                return True
+            return False
+        else:
+            # Direct vertex manipulation (faster, context-independent)
+            return cls.apply_body_type_direct(obj, params)
+
+
+# ========================================
 # MATERIAL SYSTEM
 # ========================================
 
@@ -1108,6 +1488,59 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
     }
 
 
+@tool("apply_body_type", "Apply body type deformation to character mesh")
+def apply_body_type_tool(
+    body_type: str = "default",
+    muscular: float = None,
+    fat: float = None,
+    height: float = None,
+    shoulder_width: float = None,
+    hip_width: float = None,
+    use_lattice: bool = False
+) -> Dict[str, Any]:
+    """
+    Apply body type deformation to all mesh objects.
+    
+    Args:
+        body_type: Preset name (muscular, thin, fat, tall, athletic, chibi, etc.)
+        muscular/fat/height/etc: Override individual parameters (-1.0 to 1.0)
+        use_lattice: Use lattice deformation (smoother but slower)
+    """
+    # Get preset or default
+    params = BodyTypePresets.get_preset(body_type)
+    
+    # Override with individual parameters if provided
+    if muscular is not None:
+        params.muscular = muscular
+    if fat is not None:
+        params.fat = fat
+    if height is not None:
+        params.height = height
+    if shoulder_width is not None:
+        params.shoulder_width = shoulder_width
+    if hip_width is not None:
+        params.hip_width = hip_width
+    
+    AkkuLogger.info("Applying body type", {
+        "preset": body_type,
+        "params": asdict(params)
+    })
+    
+    mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+    success_count = 0
+    
+    for obj in mesh_objects:
+        if BodyTypeSystem.apply_body_type(obj, params, use_lattice):
+            success_count += 1
+    
+    return {
+        "success": success_count > 0,
+        "body_type": body_type,
+        "params": asdict(params),
+        "meshes_modified": success_count
+    }
+
+
 @tool("union_and_smooth", "Apply Boolean Union + Voxel Remesh + Smooth workflow")
 def union_and_smooth_tool(voxel_size: float = 0.02, smooth_iterations: int = 2) -> Dict[str, Any]:
     """Combine all meshes with organic smoothing for low-poly style"""
@@ -1151,16 +1584,29 @@ def generate_character(
     poly_level: str = "medium",
     output_path: str = None,
     gender: str = "male",
+    body_type: str = "auto",
     use_remesh: bool = False
 ) -> Dict[str, Any]:
-    """Generate a complete low-poly character from prompt"""
+    """
+    Generate a complete low-poly character from prompt.
+    
+    Args:
+        prompt: Character description (supports Korean)
+        style: Proportion style (stylized, chibi, sd, mobile, minifig, cartoon, realistic)
+        poly_level: Polygon detail (ultra_low, low, medium, high)
+        output_path: GLB output file path
+        gender: Base mesh gender (male, female)
+        body_type: Body type preset or "auto" to detect from prompt
+        use_remesh: Apply voxel remesh for organic look
+    """
     
     print(f"\n{'='*60}")
-    print(f"[Akku SDK v3.2] Character Generation")
+    print(f"[Akku SDK v3.3] Character Generation")
     print(f"{'='*60}")
     print(f"Prompt: {prompt}")
     print(f"Style: {style}, Poly Level: {poly_level}")
-    print(f"Gender: {gender}, Use Remesh: {use_remesh}")
+    print(f"Gender: {gender}, Body Type: {body_type}")
+    print(f"Use Remesh: {use_remesh}")
     print(f"{'='*60}\n")
     
     # Step 1: Load base mesh
@@ -1168,7 +1614,28 @@ def generate_character(
     if load_result["status"] == "error":
         raise RuntimeError(f"Load failed: {load_result['message']}")
     
-    # Step 2: Apply style
+    # Step 2: Apply body type deformation (BEFORE style/decimation)
+    body_type_result = None
+    if body_type != "default":
+        # Auto-detect from prompt if set to "auto"
+        if body_type == "auto":
+            detected_params = BodyTypePresets.detect_from_prompt(prompt)
+            # Only apply if non-default params detected
+            if detected_params != BodyTypePresets.PRESETS["default"]:
+                body_type_result = ToolRegistry.execute("apply_body_type", {
+                    "body_type": "default",  # Use detected params directly
+                    "muscular": detected_params.muscular,
+                    "fat": detected_params.fat,
+                    "height": detected_params.height,
+                    "shoulder_width": detected_params.shoulder_width,
+                    "hip_width": detected_params.hip_width
+                })
+        else:
+            body_type_result = ToolRegistry.execute("apply_body_type", {
+                "body_type": body_type
+            })
+    
+    # Step 3: Apply style (color, material, decimation)
     style_result = ToolRegistry.execute("apply_style", {
         "prompt": prompt,
         "style": style,
@@ -1177,7 +1644,7 @@ def generate_character(
     if style_result["status"] == "error":
         raise RuntimeError(f"Style failed: {style_result['message']}")
     
-    # Step 3: Optional - Union and Smooth for organic look
+    # Step 4: Optional - Union and Smooth for organic look
     remesh_result = None
     if use_remesh:
         poly_settings = StyleAnalyzer.get_poly_settings(poly_level)
@@ -1186,7 +1653,7 @@ def generate_character(
             "smooth_iterations": 2
         })
     
-    # Step 4: Export
+    # Step 5: Export
     if output_path is None:
         output_path = os.path.join(AkkuConfig.OUTPUT_DIR, "character.glb")
     
@@ -1198,8 +1665,10 @@ def generate_character(
         "prompt": prompt,
         "style": style,
         "poly_level": poly_level,
+        "body_type": body_type,
         "output_path": output_path,
         "load_info": load_result["result"],
+        "body_type_info": body_type_result["result"] if body_type_result else None,
         "style_info": style_result["result"],
         "remesh_info": remesh_result["result"] if remesh_result else None,
         "export_info": export_result["result"]
@@ -1215,7 +1684,9 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     
     if len(args) < 4:
-        print("Usage: blender --background --python akku-sdk.py -- <prompt> <style> <poly_level> <output_path> [gender] [use_remesh]")
+        print("Usage: blender --background --python akku-sdk.py -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh]")
+        print("\nBody Types: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant")
+        print("Korean: 근육질, 마른, 뚱뚱한, 키큰, 키작은, 운동선수, 땅딸막한, 날씬한, 영웅, 치비, 거인")
         sys.exit(1)
     
     prompt = args[0]
@@ -1223,7 +1694,8 @@ def main():
     poly_level = args[2]
     output_path = args[3]
     gender = args[4] if len(args) > 4 else "male"
-    use_remesh = args[5].lower() == "true" if len(args) > 5 else False
+    body_type = args[5] if len(args) > 5 else "auto"
+    use_remesh = args[6].lower() == "true" if len(args) > 6 else False
     
     try:
         result = ToolRegistry.execute("generate_character", {
@@ -1232,6 +1704,7 @@ def main():
             "poly_level": poly_level,
             "output_path": output_path,
             "gender": gender,
+            "body_type": body_type,
             "use_remesh": use_remesh
         })
         
