@@ -150,28 +150,28 @@ class PolyLevelPresets:
             target_tris=300
         ),
         "low": PolyLevelSettings(
-            head_segments=6,
-            torso_segments=5,
-            limb_segments=4,
-            use_subdivision=False,
-            subdivision_level=0,
-            target_tris=800
-        ),
-        "medium": PolyLevelSettings(
-            head_segments=8,
-            torso_segments=6,
-            limb_segments=5,
-            use_subdivision=False,
-            subdivision_level=0,
-            target_tris=1500
-        ),
-        "high": PolyLevelSettings(
-            head_segments=12,
+            head_segments=10,
             torso_segments=8,
             limb_segments=6,
+            use_subdivision=False,
+            subdivision_level=0,
+            target_tris=1200
+        ),
+        "medium": PolyLevelSettings(
+            head_segments=16,
+            torso_segments=12,
+            limb_segments=8,
+            use_subdivision=False,
+            subdivision_level=0,
+            target_tris=2500
+        ),
+        "high": PolyLevelSettings(
+            head_segments=24,
+            torso_segments=16,
+            limb_segments=12,
             use_subdivision=True,
             subdivision_level=1,
-            target_tris=3000
+            target_tris=5000
         ),
     }
     

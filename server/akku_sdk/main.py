@@ -149,13 +149,13 @@ def generate_procedural_base(
 def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"):
     """Apply style transformations based on prompt analysis"""
     
-    color = StyleAnalyzer.detect_color(prompt)
+    base_color = StyleAnalyzer.detect_color(prompt)
     archetype = StyleAnalyzer.detect_archetype(prompt)
     proportion_scale = StyleAnalyzer.get_proportion_scale(style)
     poly_settings = StyleAnalyzer.get_poly_settings(poly_level)
     
     AkkuLogger.info("Style Analysis", {
-        "color": color,
+        "color": base_color,
         "archetype": archetype,
         "proportion_scale": proportion_scale,
         "poly_level": poly_level
@@ -163,8 +163,33 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
     
     mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
     
+    PART_COLOR_VARIATIONS = {
+        "Head": (1.1, 1.05, 1.0),
+        "Neck": (0.95, 0.95, 0.95),
+        "Torso": (1.0, 1.0, 1.0),
+        "Arm_L_Upper": (0.9, 0.95, 1.0),
+        "Arm_L_Lower": (0.85, 0.9, 0.95),
+        "Arm_R_Upper": (0.9, 0.95, 1.0),
+        "Arm_R_Lower": (0.85, 0.9, 0.95),
+        "Hand_L": (1.15, 1.1, 1.05),
+        "Hand_R": (1.15, 1.1, 1.05),
+        "Leg_L_Upper": (0.85, 0.85, 0.9),
+        "Leg_L_Lower": (0.8, 0.8, 0.85),
+        "Leg_R_Upper": (0.85, 0.85, 0.9),
+        "Leg_R_Lower": (0.8, 0.8, 0.85),
+        "Foot_L": (0.7, 0.7, 0.75),
+        "Foot_R": (0.7, 0.7, 0.75),
+    }
+    
     for obj in mesh_objects:
-        StylizedShaderSystem.apply_stylized_shader(obj, color, style)
+        variation = PART_COLOR_VARIATIONS.get(obj.name, (1.0, 1.0, 1.0))
+        part_color = (
+            min(1.0, base_color[0] * variation[0]),
+            min(1.0, base_color[1] * variation[1]),
+            min(1.0, base_color[2] * variation[2])
+        )
+        
+        StylizedShaderSystem.apply_stylized_shader(obj, part_color, style)
         
         if proportion_scale != 1.0:
             bm = bmesh.new()
@@ -179,16 +204,14 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
             bm.free()
             obj.data.update()
         
-        MeshTools.decimate_mesh(obj, poly_settings["decimate_ratio"])
         MeshTools.triangulate_mesh(obj)
     
     total_tris = sum(MeshTools.get_triangle_count(obj) for obj in mesh_objects)
     
     return {
-        "color": color,
+        "color": base_color,
         "archetype": archetype,
         "proportion_scale": proportion_scale,
-        "decimate_ratio": poly_settings["decimate_ratio"],
         "total_triangles": total_tris
     }
 
