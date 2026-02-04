@@ -192,9 +192,52 @@ export async function registerRoutes(
     res.json({
       mode: "GCP Worker",
       workerUrl: GCP_WORKER_URL,
-      sdkVersion: "Akku Low-poly SDK v1.0 (Remote)",
+      sdkVersion: "Akku SDK v2.0 (Remote)",
       modelsDir: existsSync(MODELS_DIR),
     });
+  });
+
+  // Deploy SDK to GCP
+  app.post("/api/deploy", async (req, res) => {
+    try {
+      const { deployAndRestart } = await import("./gcp-deploy");
+      const { readFileSync } = await import("fs");
+      
+      // Read SDK and app files
+      const sdkContent = readFileSync(path.join(process.cwd(), "server", "akku-sdk.py"), "utf-8");
+      const appContent = readFileSync(path.join(process.cwd(), "server", "gcp-app.py"), "utf-8");
+      
+      const result = await deployAndRestart([
+        { name: "akku-sdk.py", content: sdkContent },
+        { name: "app.py", content: appContent }
+      ]);
+      
+      if (result.success) {
+        res.json({ success: true, message: result.message });
+      } else {
+        res.status(500).json({ success: false, error: result.message });
+      }
+    } catch (error) {
+      console.error("Deploy error:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "Deployment failed" 
+      });
+    }
+  });
+
+  // Test GCP connection
+  app.get("/api/gcp-test", async (req, res) => {
+    try {
+      const { testConnection } = await import("./gcp-deploy");
+      const result = await testConnection();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "Connection test failed" 
+      });
+    }
   });
 
   return httpServer;
