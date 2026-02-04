@@ -1,7 +1,13 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { BlenderMCPClient, executeGenerationPlan, CharacterGenerationPlan } from './blender-mcp-client';
+import { 
+  BlenderMCPClient, 
+  executeAkkuPlan,
+  executeGenerationPlan, 
+  CharacterGenerationPlan,
+  AkkuGenerationPlan
+} from './blender-mcp-client';
 
 // ESM compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -108,6 +114,38 @@ export class MCPManager {
     console.log('Connected to Blender MCP. Scene info:', info);
   }
 
+  /**
+   * Generate character using Akku Low-poly SDK plan
+   */
+  async generateWithAkkuSDK(
+    plan: AkkuGenerationPlan,
+    outputPath: string
+  ): Promise<{ success: boolean; modelPath?: string; error?: string; log: string[] }> {
+    try {
+      await this.ensureBlenderRunning();
+      
+      if (!this.client) {
+        throw new Error('MCP client not initialized');
+      }
+
+      console.log(`Executing Akku SDK plan: ${plan.description}`);
+      console.log(`Steps: ${plan.steps.map(s => s.action).join(' -> ')}`);
+
+      const result = await executeAkkuPlan(this.client, plan, outputPath);
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: `Akku SDK generation failed: ${errorMessage}`,
+        log: [`Error: ${errorMessage}`]
+      };
+    }
+  }
+
+  /**
+   * Legacy: Generate character using old plan format
+   */
   async generateCharacter(
     plan: CharacterGenerationPlan,
     outputPath: string

@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import type { CharacterGenerationPlan, CharacterGenerationStep } from "./blender-mcp-client";
+import type { AkkuGenerationPlan, CharacterGenerationPlan } from "./blender-mcp-client";
 
 // Use custom API key from secrets, fallback to Replit AI Integrations
 const apiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
@@ -17,6 +17,191 @@ const ai = new GoogleGenAI({
   }),
 });
 
+// ============================================================
+// AKKU LOW-POLY SDK SYSTEM PROMPT
+// ============================================================
+
+const AKKU_SDK_PROMPT = `You are the Akku Engine procedural artist AI. You convert natural language character descriptions into structured generation plans using the Akku Low-poly SDK.
+
+## Akku SDK API Reference
+
+You can ONLY use these 8 tools organized in 4 categories:
+
+### Category 1: Base Generation (구조적 안정성)
+
+#### spawn_humanoid_base
+Create a clean topology humanoid base with optimized UV.
+{
+  "action": "spawn_humanoid_base",
+  "params": { "proportion_type": "sd|stylized|realistic|chibi" },
+  "description": "Spawn SD humanoid base"
+}
+
+Proportion types:
+- "sd": Super-deformed (2-3 heads tall), cute style
+- "stylized": Stylized proportions (5-6 heads), versatile
+- "realistic": 8-head proportions, human-like
+- "chibi": Ultra-cute (1.5-2 heads), big head
+
+#### deform_body
+Adjust specific body parts (using Lattice/Shape Key).
+{
+  "action": "deform_body",
+  "params": { 
+    "part": "head|torso|arms|legs|hands|feet|shoulders|hips",
+    "strength": 0.5,  // -1.0 to 1.0
+    "deform_type": "scale|stretch_vertical|stretch_horizontal|bulge"
+  },
+  "description": "Make shoulders broader"
+}
+
+### Category 2: Hard-Surface Kitbashing (디테일 상향)
+
+#### attach_armor_plate
+Attach armor/accessory parts at key locations.
+{
+  "action": "attach_armor_plate",
+  "params": {
+    "location": "left_shoulder|right_shoulder|chest|back|left_knee|right_knee|left_gauntlet|right_gauntlet|helmet|belt|left_boot|right_boot",
+    "style": "shoulder_pad|chest_plate|knee_guard|gauntlet|helmet_visor|belt_buckle|boot_plate",
+    "scale": 1.0  // Size multiplier
+  },
+  "description": "Attach shoulder armor"
+}
+
+#### add_scifi_detail
+Add procedural panel lines and sci-fi details.
+{
+  "action": "add_scifi_detail",
+  "params": {
+    "target_obj": "ObjectName",  // e.g., "Armor_chest_chest_plate"
+    "detail_level": "low|medium|high"
+  },
+  "description": "Add panel details to chest plate"
+}
+
+### Category 3: Game-Ready PBR Shading (질감 완성)
+
+#### apply_akku_pbr
+Apply a PBR material preset.
+{
+  "action": "apply_akku_pbr",
+  "params": {
+    "object_name": "ObjectName",
+    "preset_name": "metal|brushed_metal|plastic|rubber|cloth|leather|skin|glow|chrome|gold",
+    "base_color": [R, G, B]  // Optional, 0-1 range
+  },
+  "description": "Apply chrome material to armor"
+}
+
+PBR Presets:
+- "metal": Standard metallic, semi-reflective
+- "brushed_metal": Matte metal with directional grain
+- "plastic": Shiny non-metal, colored
+- "rubber": Matte, soft feel
+- "cloth": Fabric texture, diffuse
+- "leather": Organic leather look
+- "skin": Character skin with subsurface
+- "glow": Emissive material
+- "chrome": Mirror-like reflection
+- "gold": Warm metallic gold
+
+#### set_material_property
+Fine-tune PBR values on existing material.
+{
+  "action": "set_material_property",
+  "params": {
+    "object_name": "ObjectName",
+    "metallic": 0.9,   // 0.0 to 1.0
+    "roughness": 0.2,  // 0.0 to 1.0
+    "emission": 0      // Emission strength
+  },
+  "description": "Increase metallic value"
+}
+
+### Category 4: Auto-Rig & Animation (플레이 가능)
+
+#### finalize_and_bind
+Join all meshes and auto-rig with armature.
+{
+  "action": "finalize_and_bind",
+  "params": {},
+  "description": "Finalize and bind to armature"
+}
+
+#### test_animation
+Apply test animation clip for verification.
+{
+  "action": "test_animation",
+  "params": { "clip_name": "idle|walk|attack|jump" },
+  "description": "Test walk animation"
+}
+
+### Export (항상 마지막)
+
+{
+  "action": "export",
+  "params": {},
+  "description": "Export GLB model"
+}
+
+## Output Format
+
+Return ONLY valid JSON:
+{
+  "characterType": "robot|warrior|fantasy|creature|chibi|humanoid",
+  "description": "Brief character description",
+  "steps": [ ... step objects ... ]
+}
+
+## Guidelines
+
+### Character Archetypes
+- Robot/Mech: stylized/realistic base + armor plates + metal/chrome materials
+- Warrior/Knight: stylized base + armor (shoulders, chest, gauntlets) + brushed_metal
+- Fantasy/Magic: stylized base + glow materials with emission
+- Creature/Monster: sd/chibi base + deform body parts + organic materials
+- Chibi/Cute: chibi base + minimal armor + plastic/colorful materials
+
+### Korean Color Terms
+- 빨간/빨강: [0.8, 0.2, 0.2]
+- 파란/파랑: [0.2, 0.4, 0.8]
+- 녹색/초록: [0.2, 0.7, 0.3]
+- 노란/노랑: [0.9, 0.8, 0.2]
+- 보라: [0.6, 0.2, 0.8]
+- 주황: [0.9, 0.5, 0.1]
+- 분홍: [0.9, 0.5, 0.7]
+- 검은/검정: [0.1, 0.1, 0.1]
+- 흰/하얀: [0.95, 0.95, 0.95]
+- 금색: [0.85, 0.65, 0.2]
+- 은색: [0.75, 0.75, 0.8]
+- 하늘색: [0.5, 0.8, 1.0]
+- 청록색: [0.2, 0.8, 0.7]
+
+### Object Naming Convention
+After spawn_humanoid_base:
+- AkkuBase_Head, AkkuBase_Torso, AkkuBase_Hips
+- AkkuBase_UpperArm_L, AkkuBase_UpperArm_R
+- AkkuBase_Forearm_L, AkkuBase_Forearm_R
+- AkkuBase_Hand_L, AkkuBase_Hand_R
+- AkkuBase_UpperLeg_L, AkkuBase_UpperLeg_R
+- AkkuBase_LowerLeg_L, AkkuBase_LowerLeg_R
+- AkkuBase_Foot_L, AkkuBase_Foot_R
+
+After attach_armor_plate:
+- Armor_{location}_{style} (e.g., "Armor_chest_chest_plate")
+
+### Best Practices
+1. Always start with spawn_humanoid_base
+2. Apply deform_body BEFORE adding armor
+3. Add armor plates in logical order (body center → extremities)
+4. Apply materials AFTER all geometry is placed
+5. Use finalize_and_bind ONLY if rigging is needed
+6. test_animation is optional, only if user requests animation
+7. ALWAYS end with export
+
+Output ONLY valid JSON, no explanations or markdown.`;
+
 // Legacy interface for backward compatibility
 export interface BlenderParams {
   skinColor: [number, number, number];
@@ -32,7 +217,7 @@ export interface BlenderParams {
   metallic: number;
 }
 
-// New procedural artist system prompt
+// Legacy procedural artist prompt (for backward compatibility)
 const PROCEDURAL_ARTIST_PROMPT = `You are an expert Blender procedural artist AI. Your role is to convert natural language character descriptions into detailed, multi-step generation plans that leverage Blender's advanced features.
 
 You output JSON generation plans with these step types:
@@ -68,12 +253,6 @@ You output JSON generation plans with these step types:
   "description": "Apply subdivision for smooth surface"
 }
 
-Modifier types:
-- SUBSURF: Subdivision surface (levels: 1-3, render_levels: 1-4)
-- SMOOTH: Mesh smoothing (factor: 0.0-1.0, iterations: 1-10)
-- BEVEL: Edge beveling (width: 0.01-0.1, segments: 1-5)
-- SOLIDIFY: Add thickness (thickness: 0.01-0.1)
-
 ### 3. setup_material - Configure PBR materials
 {
   "action": "setup_material",
@@ -82,25 +261,12 @@ Modifier types:
     "name": "MaterialName",
     "color": [R, G, B],
     "metallic": 0.0,
-    "roughness": 0.5,
-    "ior": 1.45,
-    "emission": false,
-    "emission_color": [R, G, B],
-    "emission_strength": 1.0
+    "roughness": 0.5
   },
   "description": "Apply metallic material to torso"
 }
 
-### 4. execute_code - Run custom Blender Python code
-{
-  "action": "execute_code",
-  "params": {
-    "code": "import bpy\\nbpy.ops.mesh.primitive_ico_sphere_add(radius=0.1, location=(0,0,2))"
-  },
-  "description": "Add accessory detail"
-}
-
-### 5. export - Final GLB export (always last step)
+### 4. export - Final GLB export (always last step)
 {
   "action": "export",
   "params": {},
@@ -108,54 +274,24 @@ Modifier types:
 }
 
 ## Output Format
-
-Return ONLY valid JSON in this structure:
 {
   "characterType": "humanoid|robot|fantasy|creature|chibi",
   "description": "Brief description of the character",
-  "steps": [
-    { step objects... }
-  ]
+  "steps": [...]
 }
-
-## Guidelines
-
-### Character Types
-- humanoid: Normal human proportions, organic materials
-- robot: Metallic/chrome, angular shapes, high subdivision
-- fantasy: Unusual colors, magical materials with emission
-- creature: Animal-like features, organic smoothing
-- chibi: Large head (1.5x), short limbs (0.6x)
-
-### Quality Settings
-- Low-poly game asset: Use SUBSURF levels 1, minimal smoothing
-- High-detail: Use SUBSURF levels 2-3, more modifiers
-- Stylized: Less subdivision, sharper bevels
 
 ### Korean Color Terms
 - 빨간/빨강: [0.8, 0.2, 0.2]
 - 파란/파랑: [0.2, 0.4, 0.8]
 - 녹색/초록: [0.2, 0.7, 0.3]
 - 노란/노랑: [0.9, 0.8, 0.2]
-- 보라: [0.6, 0.2, 0.8]
-- 주황: [0.9, 0.5, 0.1]
-- 분홍: [0.9, 0.5, 0.7]
 - 검은/검정: [0.1, 0.1, 0.1]
 - 흰/하얀: [0.95, 0.95, 0.95]
 - 금색: [0.85, 0.65, 0.2]
 - 은색: [0.75, 0.75, 0.8]
 
-### Material Presets
-- Metallic robot: metallic=0.9, roughness=0.2
-- Matte plastic: metallic=0.0, roughness=0.6
-- Glossy ceramic: metallic=0.1, roughness=0.1
-- Organic skin: metallic=0.0, roughness=0.5
-- Chrome: metallic=1.0, roughness=0.0
-- Glowing/magic: emission=true, emission_strength=2-5
-
 ### Object Names for Targeting
-After create_base, these objects exist:
-- Head, Torso, Hips, Arm_L, Arm_R, Leg_L, Leg_R
+After create_base: Head, Torso, Hips, Arm_L, Arm_R, Leg_L, Leg_R
 
 ALWAYS end with the export step.
 Output ONLY valid JSON, no explanations or markdown.`;
@@ -166,31 +302,23 @@ const SIMPLE_PARAMS_PROMPT = `You are an AI assistant that converts natural lang
 Given a character description, output ONLY valid JSON with these parameters:
 
 {
-  "skinColor": [R, G, B],  // RGB values 0.0-1.0 for skin/base color
-  "bodyColor": [R, G, B],  // RGB values 0.0-1.0 for outfit/body color
-  "headScale": [X, Y, Z],  // Head proportions, default [1.0, 1.0, 1.0]
-  "torsoScale": [X, Y, Z], // Torso proportions, default [1.0, 1.0, 1.0]
-  "armLength": 1.0,        // Arm length multiplier 0.5-1.5
-  "legLength": 1.0,        // Leg length multiplier 0.5-1.5
-  "characterType": "human", // Options: human, robot, fantasy, animal, chibi
-  "accessories": [],       // List of accessories: ["helmet", "cape", "wings", etc.]
-  "materialType": "matte", // Options: matte, metallic, glossy
-  "roughness": 0.5,        // Material roughness 0.0-1.0
-  "metallic": 0.0          // Material metallic 0.0-1.0
+  "skinColor": [R, G, B],
+  "bodyColor": [R, G, B],
+  "headScale": [X, Y, Z],
+  "torsoScale": [X, Y, Z],
+  "armLength": 1.0,
+  "legLength": 1.0,
+  "characterType": "human",
+  "accessories": [],
+  "materialType": "matte",
+  "roughness": 0.5,
+  "metallic": 0.0
 }
 
 Korean color terms:
 - 빨간/빨강: [0.8, 0.2, 0.2]
 - 파란/파랑: [0.2, 0.4, 0.8]
 - 녹색/초록: [0.2, 0.7, 0.3]
-- 노란/노랑: [0.9, 0.8, 0.2]
-- 보라: [0.6, 0.2, 0.8]
-- 주황: [0.9, 0.5, 0.1]
-- 분홍: [0.9, 0.5, 0.7]
-- 검은/검정: [0.1, 0.1, 0.1]
-- 흰/하얀: [0.95, 0.95, 0.95]
-- 금색: [0.85, 0.65, 0.2]
-- 은색: [0.75, 0.75, 0.8]
 
 For robots: metallic=0.9, roughness=0.2
 For chibi: headScale=[1.5,1.5,1.5], armLength=0.6, legLength=0.6
@@ -198,7 +326,50 @@ For chibi: headScale=[1.5,1.5,1.5], armLength=0.6, legLength=0.6
 Output ONLY the JSON, no explanations or markdown.`;
 
 /**
- * Generate a multi-step character generation plan using Gemini
+ * Generate an Akku SDK generation plan using Gemini
+ */
+export async function generateAkkuPlan(prompt: string): Promise<AkkuGenerationPlan> {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        { role: "user", parts: [{ text: AKKU_SDK_PROMPT }] },
+        { role: "model", parts: [{ text: "I understand. I will analyze character descriptions and output Akku SDK generation plans using only the 8 approved tools across the 4 categories." }] },
+        { role: "user", parts: [{ text: `Create an Akku SDK generation plan for this character:\n\n${prompt}` }] },
+      ],
+    });
+
+    const text = response.text || "";
+    
+    // Extract JSON from response
+    let jsonStr = extractJSON(text);
+    const plan = JSON.parse(jsonStr) as AkkuGenerationPlan;
+    
+    // Validate steps exist
+    if (!plan.steps || plan.steps.length === 0) {
+      throw new Error("No generation steps in plan");
+    }
+    
+    // Ensure the plan ends with export
+    const lastStep = plan.steps[plan.steps.length - 1];
+    if (lastStep.action !== 'export') {
+      plan.steps.push({
+        action: 'export',
+        params: {},
+        description: 'Export final GLB model'
+      });
+    }
+    
+    console.log(`Generated Akku plan with ${plan.steps.length} steps for: ${plan.description}`);
+    return plan;
+  } catch (error) {
+    console.error("Error generating Akku plan with Gemini:", error);
+    return getDefaultAkkuPlan(prompt);
+  }
+}
+
+/**
+ * Legacy: Generate a multi-step character generation plan using Gemini
  */
 export async function generateCharacterPlan(prompt: string): Promise<CharacterGenerationPlan> {
   try {
@@ -213,16 +384,13 @@ export async function generateCharacterPlan(prompt: string): Promise<CharacterGe
 
     const text = response.text || "";
     
-    // Extract JSON from response
     let jsonStr = extractJSON(text);
     const plan = JSON.parse(jsonStr) as CharacterGenerationPlan;
     
-    // Validate and ensure export step exists
     if (!plan.steps || plan.steps.length === 0) {
       throw new Error("No generation steps in plan");
     }
     
-    // Ensure the plan ends with export
     const lastStep = plan.steps[plan.steps.length - 1];
     if (lastStep.action !== 'export') {
       plan.steps.push({
@@ -324,6 +492,93 @@ function getDefaultParams(): BlenderParams {
     materialType: "matte",
     roughness: 0.5,
     metallic: 0.0,
+  };
+}
+
+function getDefaultAkkuPlan(prompt: string): AkkuGenerationPlan {
+  // Detect character type from prompt
+  const lowerPrompt = prompt.toLowerCase();
+  const isRobot = lowerPrompt.includes('robot') || lowerPrompt.includes('로봇') || lowerPrompt.includes('mech');
+  const isWarrior = lowerPrompt.includes('warrior') || lowerPrompt.includes('knight') || lowerPrompt.includes('전사') || lowerPrompt.includes('기사');
+  const isChibi = lowerPrompt.includes('chibi') || lowerPrompt.includes('치비') || lowerPrompt.includes('cute') || lowerPrompt.includes('귀여');
+  
+  let proportionType = 'stylized';
+  let characterType = 'humanoid';
+  let materialPreset = 'plastic';
+  
+  if (isRobot) {
+    proportionType = 'stylized';
+    characterType = 'robot';
+    materialPreset = 'metal';
+  } else if (isWarrior) {
+    proportionType = 'realistic';
+    characterType = 'warrior';
+    materialPreset = 'brushed_metal';
+  } else if (isChibi) {
+    proportionType = 'chibi';
+    characterType = 'chibi';
+    materialPreset = 'plastic';
+  }
+  
+  // Detect color from prompt
+  let baseColor: [number, number, number] = [0.5, 0.5, 0.6];
+  if (lowerPrompt.includes('파란') || lowerPrompt.includes('blue')) {
+    baseColor = [0.2, 0.4, 0.8];
+  } else if (lowerPrompt.includes('빨간') || lowerPrompt.includes('red')) {
+    baseColor = [0.8, 0.2, 0.2];
+  } else if (lowerPrompt.includes('금') || lowerPrompt.includes('gold')) {
+    baseColor = [0.85, 0.65, 0.2];
+    materialPreset = 'gold';
+  }
+  
+  const steps: AkkuGenerationPlan['steps'] = [
+    {
+      action: 'spawn_humanoid_base',
+      params: { proportion_type: proportionType },
+      description: `Spawn ${proportionType} humanoid base`
+    },
+    {
+      action: 'apply_akku_pbr',
+      params: { object_name: 'AkkuBase_Torso', preset_name: materialPreset, base_color: baseColor },
+      description: `Apply ${materialPreset} material to torso`
+    },
+    {
+      action: 'apply_akku_pbr',
+      params: { object_name: 'AkkuBase_Head', preset_name: 'skin', base_color: [0.85, 0.7, 0.55] },
+      description: 'Apply skin material to head'
+    },
+    {
+      action: 'export',
+      params: {},
+      description: 'Export final GLB model'
+    }
+  ];
+  
+  // Add armor for robot/warrior
+  if (isRobot || isWarrior) {
+    steps.splice(2, 0, 
+      {
+        action: 'attach_armor_plate',
+        params: { location: 'left_shoulder', style: 'shoulder_pad', scale: 1.0 },
+        description: 'Attach left shoulder armor'
+      },
+      {
+        action: 'attach_armor_plate',
+        params: { location: 'right_shoulder', style: 'shoulder_pad', scale: 1.0 },
+        description: 'Attach right shoulder armor'
+      },
+      {
+        action: 'attach_armor_plate',
+        params: { location: 'chest', style: 'chest_plate', scale: 1.0 },
+        description: 'Attach chest armor'
+      }
+    );
+  }
+  
+  return {
+    characterType,
+    description: prompt || "Default humanoid character",
+    steps
   };
 }
 

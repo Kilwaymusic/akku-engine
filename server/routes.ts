@@ -5,7 +5,7 @@ import { insertJobSchema } from "@shared/schema";
 import { spawn } from "child_process";
 import { existsSync, mkdirSync } from "fs";
 import path from "path";
-import { analyzePromptWithGemini, generateCharacterPlan, type BlenderParams } from "./gemini";
+import { analyzePromptWithGemini, generateAkkuPlan, type BlenderParams } from "./gemini";
 import { mcpManager } from "./mcp-manager";
 
 const MODELS_DIR = path.join(process.cwd(), "public", "models");
@@ -72,13 +72,13 @@ async function generateModelCLI(jobId: string, prompt: string): Promise<string> 
 }
 
 /**
- * MCP-based generation with multi-step procedural workflow
+ * Akku SDK MCP-based generation with multi-step procedural workflow
  */
 async function generateModelMCP(jobId: string, prompt: string): Promise<string> {
-  console.log(`[MCP Mode] Generating character plan with Gemini AI for job ${jobId}...`);
+  console.log(`[Akku SDK Mode] Generating plan with Gemini AI for job ${jobId}...`);
   
-  const plan = await generateCharacterPlan(prompt);
-  console.log(`Generation plan:`, JSON.stringify(plan, null, 2));
+  const plan = await generateAkkuPlan(prompt);
+  console.log(`Akku SDK Plan:`, JSON.stringify(plan, null, 2));
   console.log(`Total steps: ${plan.steps.length}`);
 
   if (!existsSync(MODELS_DIR)) {
@@ -87,16 +87,16 @@ async function generateModelMCP(jobId: string, prompt: string): Promise<string> 
 
   const outputPath = path.join(MODELS_DIR, `${jobId}.glb`);
   
-  const result = await mcpManager.generateCharacter(plan, outputPath);
+  const result = await mcpManager.generateWithAkkuSDK(plan, outputPath);
   
-  console.log(`MCP Generation log:`);
+  console.log(`Akku SDK Generation log:`);
   result.log.forEach(line => console.log(`  ${line}`));
   
   if (result.success && existsSync(outputPath)) {
-    console.log(`MCP generation completed successfully for job ${jobId}`);
+    console.log(`Akku SDK generation completed successfully for job ${jobId}`);
     return `/models/${jobId}.glb`;
   } else {
-    throw new Error(result.error || 'MCP generation failed');
+    throw new Error(result.error || 'Akku SDK generation failed');
   }
 }
 
@@ -190,8 +190,15 @@ export async function registerRoutes(
   app.get("/api/status", async (req, res) => {
     res.json({
       mcpMode: useMCPMode,
+      sdkVersion: "Akku Low-poly SDK v1.0",
       blenderReady: mcpManager.isBlenderReady(),
       modelsDir: existsSync(MODELS_DIR),
+      availableTools: {
+        baseGeneration: ["spawn_humanoid_base", "deform_body"],
+        kitbashing: ["attach_armor_plate", "add_scifi_detail"],
+        pbrShading: ["apply_akku_pbr", "set_material_property"],
+        rigging: ["finalize_and_bind", "test_animation"]
+      }
     });
   });
 
