@@ -199,6 +199,75 @@ export async function registerRoutes(
       version: "3.6"
     });
   });
+
+  // Download full SDK as tar.gz for GCP pull
+  app.get("/api/sdk-bundle", async (req, res) => {
+    try {
+      const { execSync } = await import("child_process");
+      const sdkDir = path.join(process.cwd(), "server", "akku_sdk");
+      const gcpAppPath = path.join(process.cwd(), "server", "gcp-app.py");
+      const tempTar = "/tmp/akku_sdk_bundle.tar.gz";
+      
+      // Create tar with SDK folder and gcp-app.py
+      execSync(`tar -czf ${tempTar} -C ${path.join(process.cwd(), "server")} akku_sdk gcp-app.py`);
+      
+      res.setHeader("Content-Type", "application/gzip");
+      res.setHeader("Content-Disposition", "attachment; filename=akku_sdk_bundle.tar.gz");
+      res.send(readFileSync(tempTar));
+    } catch (error) {
+      console.error("SDK bundle error:", error);
+      res.status(500).json({ error: "Failed to create SDK bundle" });
+    }
+  });
+
+  // GCP pull script - run this on GCP to download latest SDK
+  app.get("/api/gcp-pull-script", (req, res) => {
+    const replitUrl = `https://${req.get('host')}`;
+    
+    const script = `#!/bin/bash
+# Akku SDK Pull Script - Run this on GCP Worker
+# Downloads latest SDK from Replit and restarts Flask server
+set -e
+
+REPLIT_URL="${replitUrl}"
+BASE_DIR="/home/composerkil/akku-engine"
+
+echo "=== Akku SDK Pull from Replit ==="
+echo "Downloading SDK bundle from \${REPLIT_URL}..."
+
+cd \${BASE_DIR}
+
+# Backup old SDK
+if [ -d "server/akku_sdk" ]; then
+  mv server/akku_sdk server/akku_sdk.bak.\$(date +%Y%m%d_%H%M%S)
+fi
+
+# Download and extract new SDK
+curl -sL "\${REPLIT_URL}/api/sdk-bundle" -o /tmp/akku_sdk_bundle.tar.gz
+tar -xzf /tmp/akku_sdk_bundle.tar.gz -C server/
+
+# Restart Flask server
+pkill -f "python.*gcp-app.py" || true
+sleep 1
+cd \${BASE_DIR}/server
+nohup python gcp-app.py > /tmp/gcp-worker.log 2>&1 &
+sleep 2
+
+if pgrep -f "python.*gcp-app.py" > /dev/null; then
+  echo "GCP Worker restarted successfully"
+  curl -s http://localhost:5000/health
+else
+  echo "WARNING: GCP Worker may not have started"
+  tail -20 /tmp/gcp-worker.log
+fi
+
+rm -f /tmp/akku_sdk_bundle.tar.gz
+echo ""
+echo "=== Pull Complete ==="
+`;
+    res.setHeader("Content-Type", "text/plain");
+    res.send(script);
+  });
   
   // Get all jobs
   app.get("/api/jobs", async (req, res) => {
