@@ -84,6 +84,21 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `server/routes.ts` | API routes with GCP Worker integration |
 | `server/gemini.ts` | Gemini AI integration for prompt analysis (legacy) |
 | `client/src/components/BabylonViewer.tsx` | 3D model viewer component |
+| `server/akku_sdk/` | Modular Blender SDK package (v3.5) |
+
+### Akku SDK v3.5 Modules
+
+| Module | Lines | Purpose |
+|--------|-------|---------|
+| `core.py` | 163 | AkkuConfig, AkkuLogger, MeshStats, StepResult, ErrorReport |
+| `tools.py` | 241 | ToolRegistry with @tool decorator, StyleAnalyzer, MeshAnalyzer |
+| `mesh.py` | 438 | MeshTools, UndoManager, BooleanRemeshTools |
+| `shader.py` | 328 | MaterialSystem, StylizedShaderParams, StylizedShaderSystem |
+| `body.py` | 321 | BodyTypeParams, BodyTypePresets, BodyTypeSystem |
+| `kitbash.py` | 398 | SocketInfo, SemanticPart, KitbashLibrary, KitbashEquipper |
+| `handlers.py` | 62 | FBXHandler, GLBHandler |
+| `main.py` | 390 | CLI interface and registered tools |
+| `__init__.py` | 96 | Clean API with all exports |
 
 ## API Endpoints
 
@@ -166,6 +181,10 @@ Procedural material system for low-poly characters:
 Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
 
 ## Recent Changes
+- 2026-02-04: **SDK v3.5 Modular Refactoring** - Split 2,706-line monolithic file into 8 focused modules
+  - Improved maintainability with ~2,437 total lines across modules
+  - Clean imports via `from akku_sdk import ...`
+  - All operations remain context-independent (bmesh-based)
 - 2026-02-04: **Added Kitbash 2.0 Semantic Component Library** - AI-driven equipment system
   - 20+ SemanticPart definitions (helmets, shoulders, chest, boots, gauntlets, weapons, shields)
   - Category taxonomy: "armor" → [helmet, shoulder, chest, boots, gauntlet], "weapons" → [weapon, shield]

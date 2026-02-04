@@ -1,0 +1,390 @@
+"""
+Akku SDK v3.5 - Main Entry Point with Registered Tools
+
+This module provides the CLI interface and registered tools for character generation.
+Import from akku_sdk package to use individual components.
+"""
+
+import bpy
+import bmesh
+import sys
+import os
+import json
+import traceback
+from mathutils import Vector, Matrix
+
+from .core import AkkuConfig, AkkuLogger
+from .tools import ToolRegistry, tool, StyleAnalyzer, MeshAnalyzer
+from .mesh import MeshTools, BooleanRemeshTools
+from .shader import StylizedShaderSystem
+from .body import BodyTypePresets, BodyTypeSystem
+from .kitbash import KitbashLibrary, KitbashEquipper
+from .handlers import FBXHandler, GLBHandler
+
+
+# ========================================
+# REGISTERED TOOLS
+# ========================================
+
+@tool("load_base_mesh", "Load Mixamo FBX base mesh")
+def load_base_mesh(gender: str = "male"):
+    """Load and normalize a Mixamo FBX base mesh"""
+    MeshTools.clear_scene()
+    AkkuLogger.clear()
+    
+    mesh_path = AkkuConfig.BASE_MESHES.get(gender, AkkuConfig.BASE_MESHES["male"])
+    new_objects = FBXHandler.import_fbx(mesh_path)
+    
+    mesh_objects = [obj for obj in new_objects if obj.type == 'MESH']
+    
+    if not mesh_objects:
+        raise RuntimeError("No mesh objects found in FBX file")
+    
+    for obj in mesh_objects:
+        MeshTools.normalize_scale(obj, AkkuConfig.TARGET_HEIGHT)
+        MeshAnalyzer.log_stats(obj, "After normalization")
+    
+    return {
+        "mesh_count": len(mesh_objects),
+        "mesh_names": [obj.name for obj in mesh_objects],
+        "target_height": AkkuConfig.TARGET_HEIGHT
+    }
+
+
+@tool("apply_style", "Apply style-based transformations")
+def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"):
+    """Apply style transformations based on prompt analysis"""
+    
+    color = StyleAnalyzer.detect_color(prompt)
+    archetype = StyleAnalyzer.detect_archetype(prompt)
+    proportion_scale = StyleAnalyzer.get_proportion_scale(style)
+    poly_settings = StyleAnalyzer.get_poly_settings(poly_level)
+    
+    AkkuLogger.info("Style Analysis", {
+        "color": color,
+        "archetype": archetype,
+        "proportion_scale": proportion_scale,
+        "poly_level": poly_level
+    })
+    
+    mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+    
+    for obj in mesh_objects:
+        StylizedShaderSystem.apply_stylized_shader(obj, color, style)
+        
+        if proportion_scale != 1.0:
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+            bmesh.ops.scale(
+                bm,
+                vec=Vector((proportion_scale, proportion_scale, proportion_scale)),
+                space=Matrix.Identity(4),
+                verts=bm.verts
+            )
+            bm.to_mesh(obj.data)
+            bm.free()
+            obj.data.update()
+        
+        MeshTools.decimate_mesh(obj, poly_settings["decimate_ratio"])
+        MeshTools.triangulate_mesh(obj)
+    
+    total_tris = sum(MeshTools.get_triangle_count(obj) for obj in mesh_objects)
+    
+    return {
+        "color": color,
+        "archetype": archetype,
+        "proportion_scale": proportion_scale,
+        "decimate_ratio": poly_settings["decimate_ratio"],
+        "total_triangles": total_tris
+    }
+
+
+@tool("apply_body_type", "Apply body type deformation to character mesh")
+def apply_body_type_tool(
+    body_type: str = "default",
+    muscular: float = None,
+    fat: float = None,
+    height: float = None,
+    shoulder_width: float = None,
+    hip_width: float = None,
+    use_lattice: bool = False
+):
+    """Apply body type deformation to all mesh objects."""
+    from dataclasses import asdict
+    
+    params = BodyTypePresets.get_preset(body_type)
+    
+    if muscular is not None:
+        params.muscular = muscular
+    if fat is not None:
+        params.fat = fat
+    if height is not None:
+        params.height = height
+    if shoulder_width is not None:
+        params.shoulder_width = shoulder_width
+    if hip_width is not None:
+        params.hip_width = hip_width
+    
+    AkkuLogger.info("Applying body type", {
+        "preset": body_type,
+        "params": asdict(params)
+    })
+    
+    mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+    success_count = 0
+    
+    for obj in mesh_objects:
+        if BodyTypeSystem.apply_body_type(obj, params, use_lattice):
+            success_count += 1
+    
+    return {
+        "success": success_count > 0,
+        "body_type": body_type,
+        "params": asdict(params),
+        "meshes_modified": success_count
+    }
+
+
+@tool("union_and_smooth", "Apply Boolean Union + Voxel Remesh + Smooth workflow")
+def union_and_smooth_tool(voxel_size: float = 0.02, smooth_iterations: int = 2):
+    """Combine all meshes with organic smoothing for low-poly style"""
+    
+    result = BooleanRemeshTools.union_and_smooth(voxel_size, smooth_iterations)
+    
+    if result:
+        stats = MeshAnalyzer.get_stats(result)
+        return {
+            "success": True,
+            "result_object": result.name,
+            "vertex_count": stats.vertex_count,
+            "face_count": stats.face_count,
+            "triangle_count": stats.triangle_count
+        }
+    else:
+        return {"success": False, "message": "Union and smooth failed"}
+
+
+@tool("apply_stylized_shader", "Apply Akku Stylized Shader with edge highlighting and cavity darkening")
+def tool_apply_stylized_shader(params: dict):
+    """Apply stylized shader to character mesh"""
+    obj_name = params.get("object_name")
+    color = tuple(params.get("color", (0.8, 0.2, 0.2)))
+    style = params.get("style", "stylized")
+    
+    obj = bpy.data.objects.get(obj_name)
+    if not obj:
+        return {"status": "error", "message": f"Object not found: {obj_name}"}
+    
+    material = StylizedShaderSystem.apply_stylized_shader(obj, color, style)
+    
+    return {
+        "status": "success",
+        "material_name": material.name,
+        "style": style,
+        "color": color
+    }
+
+
+@tool("equip_item", "Equip semantic parts from Kitbash library to character")
+def tool_equip_item(params: dict):
+    """Equip items from Kitbash library to character"""
+    category = params.get("category")
+    style = params.get("style")
+    part_name = params.get("part_name")
+    color = tuple(params.get("color", (0.6, 0.6, 0.6)))
+    shader_style = params.get("shader_style", "stylized")
+    
+    equipped = []
+    
+    if part_name:
+        part = KitbashLibrary.get_part(part_name)
+        if part:
+            obj = KitbashEquipper.equip_part(part, color, shader_style)
+            if obj:
+                equipped.append(part.name)
+    else:
+        parts = KitbashLibrary.query_parts(category=category, style=style)
+        for part in parts:
+            obj = KitbashEquipper.equip_part(part, color, shader_style)
+            if obj:
+                equipped.append(part.name)
+    
+    return {
+        "status": "success" if equipped else "no_parts_found",
+        "equipped": equipped,
+        "count": len(equipped)
+    }
+
+
+@tool("list_kitbash_parts", "List available parts in Kitbash library")
+def tool_list_kitbash_parts(params: dict):
+    """List available semantic parts"""
+    category = params.get("category")
+    style = params.get("style")
+    
+    parts = KitbashLibrary.query_parts(category=category, style=style)
+    
+    return {
+        "status": "success",
+        "parts": [
+            {
+                "name": p.name,
+                "category": p.category,
+                "style": p.style,
+                "tags": p.tags
+            }
+            for p in parts
+        ],
+        "categories": KitbashLibrary.list_categories(),
+        "styles": KitbashLibrary.list_styles()
+    }
+
+
+@tool("export_glb", "Export scene as GLB file")
+def export_glb(output_path: str):
+    """Export scene to GLB format"""
+    success = GLBHandler.export_glb(output_path)
+    
+    if success:
+        file_size = os.path.getsize(output_path)
+        return {
+            "path": output_path,
+            "size_bytes": file_size,
+            "success": True,
+            "log_report": AkkuLogger.get_json_report()
+        }
+    else:
+        raise RuntimeError(f"GLB export failed: {output_path}")
+
+
+@tool("generate_character", "Complete character generation pipeline")
+def generate_character(
+    prompt: str,
+    style: str = "stylized",
+    poly_level: str = "medium",
+    output_path: str = None,
+    gender: str = "male",
+    body_type: str = "auto",
+    use_remesh: bool = False
+):
+    """Generate a complete low-poly character from prompt."""
+    
+    print(f"\n{'='*60}")
+    print(f"[Akku SDK v3.5] Character Generation")
+    print(f"{'='*60}")
+    print(f"Prompt: {prompt}")
+    print(f"Style: {style}, Poly Level: {poly_level}")
+    print(f"Gender: {gender}, Body Type: {body_type}")
+    print(f"Use Remesh: {use_remesh}")
+    print(f"{'='*60}\n")
+    
+    load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
+    if load_result["status"] == "error":
+        raise RuntimeError(f"Load failed: {load_result['message']}")
+    
+    body_type_result = None
+    if body_type != "default":
+        if body_type == "auto":
+            detected_params = BodyTypePresets.detect_from_prompt(prompt)
+            if detected_params != BodyTypePresets.PRESETS["default"]:
+                from dataclasses import asdict
+                body_type_result = ToolRegistry.execute("apply_body_type", {
+                    "body_type": "default",
+                    "muscular": detected_params.muscular,
+                    "fat": detected_params.fat,
+                    "height": detected_params.height,
+                    "shoulder_width": detected_params.shoulder_width,
+                    "hip_width": detected_params.hip_width
+                })
+        else:
+            body_type_result = ToolRegistry.execute("apply_body_type", {
+                "body_type": body_type
+            })
+    
+    style_result = ToolRegistry.execute("apply_style", {
+        "prompt": prompt,
+        "style": style,
+        "poly_level": poly_level
+    })
+    if style_result["status"] == "error":
+        raise RuntimeError(f"Style failed: {style_result['message']}")
+    
+    remesh_result = None
+    if use_remesh:
+        poly_settings = StyleAnalyzer.get_poly_settings(poly_level)
+        remesh_result = ToolRegistry.execute("union_and_smooth", {
+            "voxel_size": poly_settings.get("voxel_size", 0.02),
+            "smooth_iterations": 2
+        })
+    
+    if output_path is None:
+        output_path = os.path.join(AkkuConfig.OUTPUT_DIR, "character.glb")
+    
+    export_result = ToolRegistry.execute("export_glb", {"output_path": output_path})
+    if export_result["status"] == "error":
+        raise RuntimeError(f"Export failed: {export_result['message']}")
+    
+    return {
+        "prompt": prompt,
+        "style": style,
+        "poly_level": poly_level,
+        "body_type": body_type,
+        "output_path": output_path,
+        "load_info": load_result["result"],
+        "body_type_info": body_type_result["result"] if body_type_result else None,
+        "style_info": style_result["result"],
+        "remesh_info": remesh_result["result"] if remesh_result else None,
+        "export_info": export_result["result"]
+    }
+
+
+# ========================================
+# CLI INTERFACE
+# ========================================
+
+def main():
+    """Main entry point for CLI execution"""
+    args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    
+    if len(args) < 4:
+        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh]")
+        print("\nBody Types: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant")
+        print("Korean: 근육질, 마른, 뚱뚱한, 키큰, 키작은, 운동선수, 땅딸막한, 날씬한, 영웅, 치비, 거인")
+        sys.exit(1)
+    
+    prompt = args[0]
+    style = args[1]
+    poly_level = args[2]
+    output_path = args[3]
+    gender = args[4] if len(args) > 4 else "male"
+    body_type = args[5] if len(args) > 5 else "auto"
+    use_remesh = args[6].lower() == "true" if len(args) > 6 else False
+    
+    try:
+        result = ToolRegistry.execute("generate_character", {
+            "prompt": prompt,
+            "style": style,
+            "poly_level": poly_level,
+            "output_path": output_path,
+            "gender": gender,
+            "body_type": body_type,
+            "use_remesh": use_remesh
+        })
+        
+        if result["status"] == "success":
+            print(f"\n[Akku SDK] Generation completed successfully!")
+            print(json.dumps(result["result"], indent=2, ensure_ascii=False, default=str))
+        else:
+            print(f"\n[Akku SDK] Generation failed: {result['message']}")
+            if "error_report" in result:
+                print(json.dumps(result["error_report"], indent=2, ensure_ascii=False))
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"\n[Akku SDK] Error: {str(e)}")
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
