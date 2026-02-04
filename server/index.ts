@@ -20,6 +20,18 @@ app.get("/akku_sdk_v3.6.tar.gz", (req, res) => {
   }
 });
 
+// API endpoint for SDK download (alternative)
+app.get("/api/sdk-download", (req, res) => {
+  const filePath = path.join(process.cwd(), "public", "akku_sdk_v3.6.tar.gz");
+  if (fs.existsSync(filePath)) {
+    res.setHeader("Content-Type", "application/gzip");
+    res.setHeader("Content-Disposition", "attachment; filename=akku_sdk_v3.6.tar.gz");
+    fs.createReadStream(filePath).pipe(res);
+  } else {
+    res.status(404).json({ error: "SDK file not found" });
+  }
+});
+
 const httpServer = createServer(app);
 
 declare module "http" {
