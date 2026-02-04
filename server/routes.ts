@@ -5,13 +5,19 @@ import { insertJobSchema } from "@shared/schema";
 import { spawn } from "child_process";
 import { existsSync, mkdirSync } from "fs";
 import path from "path";
-import { analyzePromptWithGemini, type BlenderParams } from "./gemini";
+import { analyzePromptWithGemini, generateCharacterPlan, type BlenderParams } from "./gemini";
+import { mcpManager } from "./mcp-manager";
 
 const MODELS_DIR = path.join(process.cwd(), "public", "models");
 
-async function generateModel(jobId: string, prompt: string): Promise<string> {
-  // First, analyze the prompt with Gemini AI
-  console.log(`Analyzing prompt with Gemini AI for job ${jobId}...`);
+// Configuration: Use MCP if available, fallback to CLI
+let useMCPMode = true;
+
+/**
+ * Legacy CLI-based generation
+ */
+async function generateModelCLI(jobId: string, prompt: string): Promise<string> {
+  console.log(`[CLI Mode] Analyzing prompt with Gemini AI for job ${jobId}...`);
   const blenderParams = await analyzePromptWithGemini(prompt);
   console.log(`Gemini AI generated parameters:`, JSON.stringify(blenderParams, null, 2));
 
@@ -24,9 +30,7 @@ async function generateModel(jobId: string, prompt: string): Promise<string> {
     const scriptPath = path.join(process.cwd(), "scripts", "generate_humanoid.py");
     const paramsJson = JSON.stringify(blenderParams);
 
-    console.log(`Starting Blender generation for job ${jobId}`);
-    console.log(`Script path: ${scriptPath}`);
-    console.log(`Output path: ${outputPath}`);
+    console.log(`Starting Blender CLI generation for job ${jobId}`);
 
     const blenderProcess = spawn("blender", [
       "--background",
@@ -52,7 +56,7 @@ async function generateModel(jobId: string, prompt: string): Promise<string> {
 
     blenderProcess.on("close", (code) => {
       if (code === 0 && existsSync(outputPath)) {
-        console.log(`Blender completed successfully for job ${jobId}`);
+        console.log(`Blender CLI completed successfully for job ${jobId}`);
         resolve(`/models/${jobId}.glb`);
       } else {
         console.error(`Blender failed with code ${code}`);
@@ -65,6 +69,51 @@ async function generateModel(jobId: string, prompt: string): Promise<string> {
       reject(err);
     });
   });
+}
+
+/**
+ * MCP-based generation with multi-step procedural workflow
+ */
+async function generateModelMCP(jobId: string, prompt: string): Promise<string> {
+  console.log(`[MCP Mode] Generating character plan with Gemini AI for job ${jobId}...`);
+  
+  const plan = await generateCharacterPlan(prompt);
+  console.log(`Generation plan:`, JSON.stringify(plan, null, 2));
+  console.log(`Total steps: ${plan.steps.length}`);
+
+  if (!existsSync(MODELS_DIR)) {
+    mkdirSync(MODELS_DIR, { recursive: true });
+  }
+
+  const outputPath = path.join(MODELS_DIR, `${jobId}.glb`);
+  
+  const result = await mcpManager.generateCharacter(plan, outputPath);
+  
+  console.log(`MCP Generation log:`);
+  result.log.forEach(line => console.log(`  ${line}`));
+  
+  if (result.success && existsSync(outputPath)) {
+    console.log(`MCP generation completed successfully for job ${jobId}`);
+    return `/models/${jobId}.glb`;
+  } else {
+    throw new Error(result.error || 'MCP generation failed');
+  }
+}
+
+/**
+ * Main generation function - tries MCP first, falls back to CLI
+ */
+async function generateModel(jobId: string, prompt: string): Promise<string> {
+  if (useMCPMode) {
+    try {
+      return await generateModelMCP(jobId, prompt);
+    } catch (error) {
+      console.warn(`MCP generation failed, falling back to CLI:`, error);
+      return await generateModelCLI(jobId, prompt);
+    }
+  } else {
+    return await generateModelCLI(jobId, prompt);
+  }
 }
 
 export async function registerRoutes(
@@ -134,6 +183,26 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating job:", error);
       res.status(500).json({ error: "Failed to create job" });
+    }
+  });
+
+  // Get system status
+  app.get("/api/status", async (req, res) => {
+    res.json({
+      mcpMode: useMCPMode,
+      blenderReady: mcpManager.isBlenderReady(),
+      modelsDir: existsSync(MODELS_DIR),
+    });
+  });
+
+  // Toggle generation mode
+  app.post("/api/mode", async (req, res) => {
+    const { useMCP } = req.body;
+    if (typeof useMCP === 'boolean') {
+      useMCPMode = useMCP;
+      res.json({ mcpMode: useMCPMode });
+    } else {
+      res.status(400).json({ error: "Invalid mode setting" });
     }
   });
 
