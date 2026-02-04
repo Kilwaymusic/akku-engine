@@ -1,0 +1,74 @@
+composerkil@blender-worker:~/akku-engine$ blender --background --python ~/akku-engine/akku_sdk/run.py -- "test warrior" stylized medium /tmp/test.glb male '{"preset":"muscular","muscular":1.0,"shoulderWidth":1.5}' false
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+[Akku SDK][INFO] Akku SDK v3.6.0 loaded
+
+============================================================
+[Akku SDK v3.6] Character Generation
+Prompt: test warrior, Style: stylized, Poly: medium
+Body params: {'preset': 'muscular', 'muscular': 1.0, 'shoulderWidth': 1.5}
+============================================================
+
+[Akku SDK][INFO] Executing tool: clear_scene
+DEBUG: Starting clear_scene
+[Akku SDK][INFO] Step 'clear_scene': SUCCESS
+  Data: {
+  "duration_ms": 0.26416778564453125,
+  "mesh_stats": null
+}
+[Step 1] Clear scene: OK
+[Akku SDK][INFO] Executing tool: import_base_mesh
+DEBUG: Starting import_base_mesh
+[Akku SDK][INFO] Step 'import_base_mesh': SUCCESS
+  Data: {
+  "duration_ms": 0.05269050598144531,
+  "mesh_stats": null
+}
+[Step 2] Import mesh: success
+[Akku SDK][INFO] Executing tool: apply_body_type
+DEBUG: Starting apply_body_type
+[Akku SDK][INFO] Step 'apply_body_type': SUCCESS
+  Data: {
+  "duration_ms": 0.04220008850097656,
+  "mesh_stats": null
+}
+[Step 3] Body type: success
+[Akku SDK][INFO] Executing tool: apply_shader
+DEBUG: Starting apply_shader
+[Akku SDK][INFO] Step 'apply_shader': SUCCESS
+  Data: {
+  "duration_ms": 0.025033950805664062,
+  "mesh_stats": null
+}
+[Step 4] Shader: success
+[Akku SDK][INFO] Executing tool: finalize
+DEBUG: Starting finalize
+[Akku SDK][INFO] Finalized for mobile
+  Data: {
+  "platform": "mobile",
+  "objects_processed": 0,
+  "total_tris": 0
+}
+[Akku SDK][INFO] Step 'finalize': SUCCESS
+  Data: {
+  "duration_ms": 0.08845329284667969,
+  "mesh_stats": null
+}
+[Step 5] Finalize: success
+[Akku SDK][INFO] Executing tool: export_glb
+DEBUG: Starting export_glb
+16:02:48 | ERROR: Draco mesh compression is not available because library could not be found at /usr/bin/3.4/python/lib/python3.11/site-packages/libextern_draco.so
+16:02:48 | INFO: Starting glTF 2.0 export
+16:02:48 | INFO: Finished glTF 2.0 export in 0.0009703636169433594 s
+
+[Akku SDK][INFO] Exported GLB: /tmp/test.glb
+[Akku SDK][INFO] Step 'export_glb': SUCCESS
+  Data: {
+  "duration_ms": 264.5754814147949,
+  "mesh_stats": null
+}
+[Step 6] Export: success
+
+[SUCCESS] Generated /tmp/test.glb (132 bytes)
+
+Blender quit
