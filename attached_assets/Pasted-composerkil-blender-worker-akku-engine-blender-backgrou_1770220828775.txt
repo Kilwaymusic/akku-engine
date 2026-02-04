@@ -1,0 +1,64 @@
+composerkil@blender-worker:~/akku-engine$ blender --background --python ~/akku-engine/akku_sdk/run.py -- "test warrior" stylized medium /tmp/test.glb male '{"preset":"muscular","muscular":1.0,"shoulderWidth":1.5}' false
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+[Akku SDK][INFO] Akku SDK v3.6.0 loaded
+
+============================================================
+[Akku SDK v3.6] Character Generation
+============================================================
+Prompt: test warrior
+Style: stylized, Poly: medium
+Body params: {'preset': 'muscular', 'muscular': 1.0, 'shoulderWidth': 1.5}
+============================================================
+
+[Akku SDK][INFO] Executing tool: clear_scene
+DEBUG: Starting clear_scene
+[Akku SDK][INFO] Step 'clear_scene': SUCCESS
+  Data: {
+  "duration_ms": 0.43201446533203125,
+  "mesh_stats": null
+}
+[Akku SDK][INFO] Executing tool: import_base_mesh
+DEBUG: Starting import_base_mesh
+[Akku SDK][INFO] Step 'import_base_mesh': FAILED
+  Data: {
+  "duration_ms": 0.03790855407714844,
+  "mesh_stats": null
+}
+[Step 2] Import mesh: error
+[Akku SDK][INFO] Executing tool: apply_body_type
+DEBUG: Starting apply_body_type
+[Akku SDK][INFO] Step 'apply_body_type': FAILED
+  Data: {
+  "duration_ms": 0.026702880859375,
+  "mesh_stats": null
+}
+[Step 3] Body type: error
+[Akku SDK][INFO] Executing tool: apply_shader
+DEBUG: Starting apply_shader
+[Akku SDK][INFO] Step 'apply_shader': FAILED
+  Data: {
+  "duration_ms": 0.027179718017578125,
+  "mesh_stats": null
+}
+[Step 4] Shader: error
+[Akku SDK][INFO] Executing tool: finalize
+DEBUG: Starting finalize
+[Akku SDK][INFO] Step 'finalize': FAILED
+  Data: {
+  "duration_ms": 0.03933906555175781,
+  "mesh_stats": null
+}
+[Step 5] Finalize: error
+[Akku SDK][INFO] Executing tool: export_glb
+DEBUG: Starting export_glb
+[Akku SDK][INFO] Step 'export_glb': FAILED
+  Data: {
+  "duration_ms": 0.04220008850097656,
+  "mesh_stats": null
+}
+[Step 6] Export: error
+
+[FAILED] Output not created
+
+Blender quit
