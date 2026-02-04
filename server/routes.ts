@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import express from "express";
 import { storage } from "./storage";
 import { insertJobSchema } from "@shared/schema";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import path from "path";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
@@ -127,8 +127,7 @@ export async function registerRoutes(
   app.get("/api/sdk-base64", (req, res) => {
     const filePath = path.join(PUBLIC_DIR, "akku_sdk_v3.6.tar.gz");
     if (existsSync(filePath)) {
-      const fs = require("fs");
-      const fileData = fs.readFileSync(filePath);
+      const fileData = readFileSync(filePath);
       const base64Data = fileData.toString("base64");
       res.json({ 
         filename: "akku_sdk_v3.6.tar.gz",
