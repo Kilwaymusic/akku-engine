@@ -1,0 +1,57 @@
+composerkil@blender-worker:~/akku-engine$ cd /home/composerkil/akku-engine
+
+# 백업
+mv akku_sdk akku_sdk_backup_$(date +%Y%m%d) 2>/dev/null || true
+mkdir -p akku_sdk
+
+# 모든 SDK 파일 다운로드
+BASE_URL="https://akku-engine-composerkil.replit.app/api/sdk-file"
+for file in core.py tools.py mesh.py shader.py body.py kitbash.py rigging.py finalize.py handlers.py main.py run.py __init__.py; do
+  echo "Downloading $file..."
+  curl -s "$BASE_URL/$file" -o "akku_sdk/$file"
+done
+
+# 확인
+ls -la akku_sdk/
+wc -l akku_sdk/*.py
+Downloading core.py...
+Downloading tools.py...
+Downloading mesh.py...
+Downloading shader.py...
+Downloading body.py...
+Downloading kitbash.py...
+Downloading rigging.py...
+Downloading finalize.py...
+Downloading handlers.py...
+Downloading main.py...
+Downloading run.py...
+Downloading __init__.py...
+total 56
+drwxr-xr-x  2 composerkil composerkil 4096 Feb  4 14:27 .
+drwxr-xr-x 15 composerkil composerkil 4096 Feb  4 14:27 ..
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 __init__.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 body.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 core.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 finalize.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 handlers.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 kitbash.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 main.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 mesh.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 rigging.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 run.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 shader.py
+-rw-r--r--  1 composerkil composerkil    9 Feb  4 14:27 tools.py
+  0 akku_sdk/__init__.py
+  0 akku_sdk/body.py
+  0 akku_sdk/core.py
+  0 akku_sdk/finalize.py
+  0 akku_sdk/handlers.py
+  0 akku_sdk/kitbash.py
+  0 akku_sdk/main.py
+  0 akku_sdk/mesh.py
+  0 akku_sdk/rigging.py
+  0 akku_sdk/run.py
+  0 akku_sdk/shader.py
+  0 akku_sdk/tools.py
+  0 total
+composerkil@blender-worker:~/akku-engine$ 
