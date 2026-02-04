@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Configuration
 BASE_DIR = "/home/composerkil/akku-engine"
-SDK_SCRIPT = os.path.join(BASE_DIR, "akku-sdk.py")
+SDK_SCRIPT = os.path.join(BASE_DIR, "akku-sdk-v3.py")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 BLENDER_PATH = "blender"
 
