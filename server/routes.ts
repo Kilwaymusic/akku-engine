@@ -12,7 +12,7 @@ const PUBLIC_DIR = path.join(process.cwd(), "public");
 const MODELS_DIR = path.join(process.cwd(), "public", "models");
 
 // GCP Worker server for Blender operations
-const GCP_WORKER_URL = "http://34.134.82.224:5000/generate";
+const GCP_WORKER_URL = process.env.GCP_WORKER_URL || "http://localhost:5000";
 
 interface BodyTypeParams {
   preset?: string;
@@ -58,7 +58,7 @@ async function generateModelRemote(jobId: string, options: GenerationOptions): P
   const timeoutId = setTimeout(() => controller.abort(), GCP_WORKER_TIMEOUT);
 
   try {
-    const response = await fetch(GCP_WORKER_URL, {
+    const response = await fetch(`${GCP_WORKER_URL}/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
