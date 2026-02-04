@@ -1353,6 +1353,335 @@ class MaterialSystem:
 
 
 # ========================================
+# STYLIZED SHADER SYSTEM (Category 3)
+# ========================================
+
+@dataclass
+class StylizedShaderParams:
+    """Parameters for stylized low-poly shader"""
+    base_color: Tuple[float, float, float] = (0.8, 0.2, 0.2)  # Base color
+    edge_brightness: float = 0.3       # Edge highlight intensity (0-1)
+    cavity_darkness: float = 0.4       # Cavity darkening intensity (0-1)
+    ao_distance: float = 0.5           # Ambient Occlusion distance
+    metallic: float = 0.0              # Metallic value
+    roughness: float = 0.6             # Roughness value
+    emission_strength: float = 0.0     # Emission strength
+    use_fresnel: bool = True           # Add fresnel rim light
+    fresnel_strength: float = 0.2      # Fresnel intensity
+
+
+class StylizedShaderSystem:
+    """
+    Akku Stylized Shader System
+    
+    Creates procedural materials optimized for low-poly characters:
+    - Edge highlighting using Geometry (Pointiness) node
+    - Cavity darkening using Ambient Occlusion
+    - Optional fresnel rim lighting
+    - PBR compatible for game engines
+    """
+    
+    @staticmethod
+    def create_stylized_material(
+        name: str,
+        params: StylizedShaderParams = None
+    ) -> bpy.types.Material:
+        """
+        Create Akku_Stylized_Shader material
+        
+        Node graph structure:
+        - Geometry (Pointiness) -> ColorRamp -> Mix for edge highlighting
+        - Ambient Occlusion -> ColorRamp -> Mix for cavity darkening
+        - Fresnel -> Mix for rim lighting (optional)
+        - All mixed into Principled BSDF
+        """
+        if params is None:
+            params = StylizedShaderParams()
+        
+        mat_name = f"Akku_Stylized_{name}"
+        mat = bpy.data.materials.new(name=mat_name)
+        mat.use_nodes = True
+        
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        nodes.clear()
+        
+        # ===== OUTPUT NODE =====
+        output = nodes.new('ShaderNodeOutputMaterial')
+        output.location = (800, 0)
+        
+        # ===== PRINCIPLED BSDF =====
+        principled = nodes.new('ShaderNodeBsdfPrincipled')
+        principled.location = (500, 0)
+        principled.inputs['Metallic'].default_value = params.metallic
+        principled.inputs['Roughness'].default_value = params.roughness
+        
+        if params.emission_strength > 0:
+            for emission_input in ['Emission', 'Emission Color']:
+                try:
+                    principled.inputs[emission_input].default_value = (*params.base_color, 1.0)
+                    break
+                except KeyError:
+                    continue
+            try:
+                principled.inputs['Emission Strength'].default_value = params.emission_strength
+            except KeyError:
+                pass
+        
+        links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+        
+        # ===== BASE COLOR =====
+        base_color_node = nodes.new('ShaderNodeRGB')
+        base_color_node.location = (-600, 200)
+        base_color_node.outputs[0].default_value = (*params.base_color, 1.0)
+        base_color_node.label = "Base Color"
+        
+        # ===== EDGE HIGHLIGHTING (Geometry Pointiness) =====
+        geometry = nodes.new('ShaderNodeNewGeometry')
+        geometry.location = (-600, -100)
+        
+        # Pointiness ColorRamp - converts pointiness to edge mask
+        edge_ramp = nodes.new('ShaderNodeValToRGB')
+        edge_ramp.location = (-400, -100)
+        edge_ramp.label = "Edge Ramp"
+        edge_ramp.color_ramp.elements[0].position = 0.4
+        edge_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
+        edge_ramp.color_ramp.elements[1].position = 0.6
+        edge_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+        
+        links.new(geometry.outputs['Pointiness'], edge_ramp.inputs['Fac'])
+        
+        # Edge highlight color (brighter version of base color)
+        edge_color = nodes.new('ShaderNodeRGB')
+        edge_color.location = (-400, 50)
+        bright_factor = 1.0 + params.edge_brightness
+        edge_color.outputs[0].default_value = (
+            min(1.0, params.base_color[0] * bright_factor),
+            min(1.0, params.base_color[1] * bright_factor),
+            min(1.0, params.base_color[2] * bright_factor),
+            1.0
+        )
+        edge_color.label = "Edge Highlight"
+        
+        # Mix base with edge highlight
+        edge_mix = nodes.new('ShaderNodeMixRGB')
+        edge_mix.location = (-200, 100)
+        edge_mix.blend_type = 'MIX'
+        edge_mix.label = "Edge Mix"
+        
+        links.new(edge_ramp.outputs['Color'], edge_mix.inputs['Fac'])
+        links.new(base_color_node.outputs[0], edge_mix.inputs['Color1'])
+        links.new(edge_color.outputs[0], edge_mix.inputs['Color2'])
+        
+        # ===== CAVITY DARKENING (Ambient Occlusion) =====
+        ao = nodes.new('ShaderNodeAmbientOcclusion')
+        ao.location = (-600, -350)
+        ao.inputs['Distance'].default_value = params.ao_distance
+        ao.samples = 16
+        
+        # AO ColorRamp - converts AO to cavity mask
+        ao_ramp = nodes.new('ShaderNodeValToRGB')
+        ao_ramp.location = (-400, -350)
+        ao_ramp.label = "Cavity Ramp"
+        ao_ramp.color_ramp.elements[0].position = 0.0
+        ao_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
+        ao_ramp.color_ramp.elements[1].position = 0.8
+        ao_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+        
+        links.new(ao.outputs['AO'], ao_ramp.inputs['Fac'])
+        
+        # Cavity color (darker version of base color)
+        cavity_color = nodes.new('ShaderNodeRGB')
+        cavity_color.location = (-400, -200)
+        dark_factor = 1.0 - params.cavity_darkness
+        cavity_color.outputs[0].default_value = (
+            params.base_color[0] * dark_factor,
+            params.base_color[1] * dark_factor,
+            params.base_color[2] * dark_factor,
+            1.0
+        )
+        cavity_color.label = "Cavity Dark"
+        
+        # Mix edge result with cavity darkening
+        cavity_mix = nodes.new('ShaderNodeMixRGB')
+        cavity_mix.location = (0, 0)
+        cavity_mix.blend_type = 'MIX'
+        cavity_mix.label = "Cavity Mix"
+        
+        links.new(ao_ramp.outputs['Color'], cavity_mix.inputs['Fac'])
+        links.new(cavity_color.outputs[0], cavity_mix.inputs['Color1'])
+        links.new(edge_mix.outputs['Color'], cavity_mix.inputs['Color2'])
+        
+        # ===== FRESNEL RIM LIGHT (Optional) =====
+        if params.use_fresnel and params.fresnel_strength > 0:
+            fresnel = nodes.new('ShaderNodeFresnel')
+            fresnel.location = (-200, -200)
+            fresnel.inputs['IOR'].default_value = 1.45
+            
+            # Rim color (slightly brighter and shifted)
+            rim_color = nodes.new('ShaderNodeRGB')
+            rim_color.location = (0, -350)
+            rim_color.outputs[0].default_value = (
+                min(1.0, params.base_color[0] + 0.2),
+                min(1.0, params.base_color[1] + 0.2),
+                min(1.0, params.base_color[2] + 0.2),
+                1.0
+            )
+            rim_color.label = "Rim Color"
+            
+            # Multiply fresnel with rim color for colored rim effect
+            rim_multiply = nodes.new('ShaderNodeMixRGB')
+            rim_multiply.location = (100, -280)
+            rim_multiply.blend_type = 'MULTIPLY'
+            rim_multiply.inputs['Fac'].default_value = 1.0
+            rim_multiply.label = "Rim Multiply"
+            
+            links.new(fresnel.outputs['Fac'], rim_multiply.inputs['Color1'])
+            links.new(rim_color.outputs[0], rim_multiply.inputs['Color2'])
+            
+            # Final mix with fresnel (add rim to base)
+            final_mix = nodes.new('ShaderNodeMixRGB')
+            final_mix.location = (250, 0)
+            final_mix.blend_type = 'ADD'
+            final_mix.inputs['Fac'].default_value = params.fresnel_strength
+            final_mix.label = "Fresnel Mix"
+            
+            links.new(cavity_mix.outputs['Color'], final_mix.inputs['Color1'])
+            links.new(rim_multiply.outputs['Color'], final_mix.inputs['Color2'])
+            
+            links.new(final_mix.outputs['Color'], principled.inputs['Base Color'])
+        else:
+            links.new(cavity_mix.outputs['Color'], principled.inputs['Base Color'])
+        
+        AkkuLogger.info(f"Created stylized material: {mat_name}", {
+            "edge_brightness": params.edge_brightness,
+            "cavity_darkness": params.cavity_darkness,
+            "use_fresnel": params.use_fresnel
+        })
+        
+        return mat
+    
+    @staticmethod
+    def apply_stylized_shader(
+        obj,
+        color: Tuple[float, float, float],
+        style: str = "stylized"
+    ) -> bpy.types.Material:
+        """
+        Apply stylized shader to object based on style preset
+        
+        Style presets:
+        - stylized: Balanced edge/cavity (default)
+        - chibi: Softer shadows, more edge highlight
+        - heroic: Strong edge definition
+        - cartoon: High contrast, minimal AO
+        - realistic: Subtle effects
+        """
+        style_presets = {
+            "stylized": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.3,
+                cavity_darkness=0.35,
+                fresnel_strength=0.15
+            ),
+            "chibi": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.4,
+                cavity_darkness=0.2,
+                ao_distance=0.3,
+                fresnel_strength=0.25,
+                roughness=0.7
+            ),
+            "sd": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.35,
+                cavity_darkness=0.25,
+                fresnel_strength=0.2
+            ),
+            "heroic": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.45,
+                cavity_darkness=0.4,
+                ao_distance=0.6,
+                fresnel_strength=0.2,
+                roughness=0.5
+            ),
+            "cartoon": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.5,
+                cavity_darkness=0.15,
+                ao_distance=0.3,
+                use_fresnel=False,
+                roughness=0.8
+            ),
+            "realistic": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.15,
+                cavity_darkness=0.25,
+                ao_distance=0.4,
+                fresnel_strength=0.1,
+                roughness=0.55
+            ),
+            "mobile": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.2,
+                cavity_darkness=0.2,
+                use_fresnel=False,
+                roughness=0.7
+            ),
+            "minifig": StylizedShaderParams(
+                base_color=color,
+                edge_brightness=0.35,
+                cavity_darkness=0.3,
+                ao_distance=0.25,
+                fresnel_strength=0.1,
+                roughness=0.65
+            )
+        }
+        
+        params = style_presets.get(style, style_presets["stylized"])
+        params.base_color = color  # Ensure color is applied
+        
+        mat = StylizedShaderSystem.create_stylized_material(obj.name, params)
+        
+        if obj.type == 'MESH':
+            obj.data.materials.clear()
+            obj.data.materials.append(mat)
+            AkkuLogger.info(f"Applied stylized shader to {obj.name}", {"style": style})
+        
+        return mat
+
+
+# Register shader tool
+@tool("apply_stylized_shader", "Apply Akku Stylized Shader with edge highlighting and cavity darkening")
+def tool_apply_stylized_shader(params: Dict) -> Dict:
+    """
+    Apply stylized shader to character mesh
+    
+    Params:
+        object_name: Name of object to apply shader to
+        color: RGB tuple (0-1 range)
+        style: Shader style preset (stylized, chibi, heroic, cartoon, realistic)
+    """
+    obj_name = params.get("object_name")
+    color = tuple(params.get("color", (0.8, 0.2, 0.2)))
+    style = params.get("style", "stylized")
+    
+    obj = bpy.data.objects.get(obj_name)
+    if not obj:
+        return {"status": "error", "message": f"Object not found: {obj_name}"}
+    
+    material = StylizedShaderSystem.apply_stylized_shader(obj, color, style)
+    
+    return {
+        "status": "success",
+        "material_name": material.name,
+        "style": style,
+        "color": color
+    }
+
+
+# ========================================
 # FBX & GLB HANDLERS
 # ========================================
 
@@ -1448,18 +1777,11 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
         "poly_level": poly_level
     })
     
-    material = MaterialSystem.create_material(
-        name="AkkuCharacterMat",
-        color=color,
-        metallic=archetype.get("metallic", 0.3),
-        roughness=archetype.get("roughness", 0.5),
-        emission=archetype.get("emission", 0.0)
-    )
-    
     mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
     
     for obj in mesh_objects:
-        MaterialSystem.apply_material(obj, material)
+        # Apply Stylized Shader with edge highlighting and cavity darkening
+        StylizedShaderSystem.apply_stylized_shader(obj, color, style)
         
         if proportion_scale != 1.0:
             bm = bmesh.new()
