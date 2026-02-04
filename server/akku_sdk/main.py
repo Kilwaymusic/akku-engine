@@ -378,6 +378,46 @@ def generate_character(
     if style_result["status"] == "error":
         raise RuntimeError(f"Style failed: {style_result['message']}")
     
+    style_info = style_result.get("result", {}) if style_result.get("status") == "success" else {}
+    archetype = style_info.get("archetype", "warrior")
+    color = style_info.get("color", (0.6, 0.6, 0.6))
+    
+    ARCHETYPE_STYLE_MAP = {
+        "warrior": "heavy",
+        "knight": "heavy",
+        "mage": "magic",
+        "wizard": "magic",
+        "rogue": "light",
+        "assassin": "light",
+        "robot": "scifi",
+        "sci-fi": "scifi",
+        "scifi": "scifi",
+    }
+    equipment_style = ARCHETYPE_STYLE_MAP.get(archetype, "heavy")
+    
+    AkkuLogger.info(f"Equipping kitbash parts", {
+        "archetype": archetype,
+        "equipment_style": equipment_style,
+        "color": color
+    })
+    
+    equip_result = ToolRegistry.execute("equip_item", {
+        "category": "armor",
+        "style": equipment_style,
+        "color": list(color) if isinstance(color, tuple) else color,
+        "shader_style": style
+    })
+    
+    if equip_result.get("status") == "success" and equip_result.get("result", {}).get("count", 0) > 0:
+        AkkuLogger.info(f"Equipped {equip_result['result']['count']} parts, running auto weight transfer")
+        weight_result = ToolRegistry.execute("auto_weight_transfer", {})
+        if weight_result.get("status") != "success":
+            AkkuLogger.warning(f"Weight transfer had issues: {weight_result.get('message', 'unknown')}")
+    elif equip_result.get("status") == "error":
+        AkkuLogger.warning(f"Equip failed: {equip_result.get('message', 'unknown')}")
+    else:
+        AkkuLogger.info("No kitbash parts equipped (style not found or no matching parts)")
+    
     remesh_result = None
     if use_remesh:
         poly_settings = StyleAnalyzer.get_poly_settings(poly_level)

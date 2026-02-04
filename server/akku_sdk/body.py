@@ -33,17 +33,17 @@ class BodyTypePresets:
     
     PRESETS: Dict[str, BodyTypeParams] = {
         "default": BodyTypeParams(),
-        "muscular": BodyTypeParams(muscular=0.6, shoulder_width=0.4, fat=-0.1),
-        "thin": BodyTypeParams(muscular=-0.4, fat=-0.3, shoulder_width=-0.2),
-        "fat": BodyTypeParams(fat=0.5, muscular=-0.1, hip_width=0.3),
-        "tall": BodyTypeParams(height=0.3, leg_length=0.2, arm_length=0.15),
-        "short": BodyTypeParams(height=-0.3, leg_length=-0.15),
-        "athletic": BodyTypeParams(muscular=0.35, fat=-0.2, shoulder_width=0.25, leg_length=0.1),
-        "stocky": BodyTypeParams(height=-0.15, muscular=0.3, shoulder_width=0.3, fat=0.15),
-        "slim": BodyTypeParams(muscular=-0.2, fat=-0.25, shoulder_width=-0.15, hip_width=-0.15),
-        "heroic": BodyTypeParams(muscular=0.5, height=0.2, shoulder_width=0.4, hip_width=-0.1),
-        "chibi": BodyTypeParams(height=-0.4, head_size=0.6, leg_length=-0.3, arm_length=-0.2),
-        "giant": BodyTypeParams(height=0.6, muscular=0.3, shoulder_width=0.25),
+        "muscular": BodyTypeParams(muscular=1.0, shoulder_width=0.8, fat=-0.2),
+        "thin": BodyTypeParams(muscular=-0.6, fat=-0.5, shoulder_width=-0.4),
+        "fat": BodyTypeParams(fat=1.0, muscular=-0.2, hip_width=0.6),
+        "tall": BodyTypeParams(height=0.6, leg_length=0.4, arm_length=0.3),
+        "short": BodyTypeParams(height=-0.5, leg_length=-0.3),
+        "athletic": BodyTypeParams(muscular=0.7, fat=-0.4, shoulder_width=0.5, leg_length=0.2),
+        "stocky": BodyTypeParams(height=-0.3, muscular=0.6, shoulder_width=0.5, fat=0.3),
+        "slim": BodyTypeParams(muscular=-0.4, fat=-0.5, shoulder_width=-0.3, hip_width=-0.3),
+        "heroic": BodyTypeParams(muscular=0.9, height=0.4, shoulder_width=0.7, hip_width=-0.2),
+        "chibi": BodyTypeParams(height=-0.6, head_size=1.0, leg_length=-0.5, arm_length=-0.4),
+        "giant": BodyTypeParams(height=1.0, muscular=0.6, shoulder_width=0.5),
     }
     
     KOREAN_ALIASES: Dict[str, str] = {
@@ -158,55 +158,61 @@ class DirectMeshDeformer:
                 scale_x, scale_y, scale_z = 1.0, 1.0, 1.0
                 offset_z = 0.0
                 
+                MIN_SCALE = 0.4
+                MAX_SCALE = 2.0
+                
                 if params.height != 0:
-                    offset_z = params.height * 0.12 * height * z_norm
+                    offset_z = params.height * 0.25 * height * z_norm
                 
                 if z_norm > 0.85:
-                    head_scale = 1.0 + params.head_size * 0.25
+                    head_scale = 1.0 + params.head_size * 0.45
                     scale_x = head_scale
                     scale_y = head_scale
-                    offset_z += params.head_size * 0.08 * height
+                    offset_z += params.head_size * 0.15 * height
                 
                 elif 0.70 < z_norm <= 0.85:
-                    shoulder_scale = 1.0 + params.shoulder_width * 0.20 + params.muscular * 0.15
+                    shoulder_scale = 1.0 + params.shoulder_width * 0.45 + params.muscular * 0.35
                     scale_x = shoulder_scale
-                    scale_y = 1.0 + params.muscular * 0.12 + params.fat * 0.15
+                    scale_y = 1.0 + params.muscular * 0.30 + params.fat * 0.35
                 
                 elif 0.55 < z_norm <= 0.70:
-                    chest_scale = 1.0 + params.muscular * 0.18 + params.fat * 0.20
+                    chest_scale = 1.0 + params.muscular * 0.40 + params.fat * 0.45
                     scale_x = chest_scale
                     scale_y = chest_scale
                 
                 elif 0.45 < z_norm <= 0.55:
-                    waist_scale = 1.0 - params.muscular * 0.10 + params.fat * 0.25
+                    waist_scale = 1.0 - params.muscular * 0.20 + params.fat * 0.50
                     scale_x = waist_scale
                     scale_y = waist_scale
                 
                 elif 0.35 < z_norm <= 0.45:
-                    hip_scale = 1.0 + params.hip_width * 0.18 + params.fat * 0.20
+                    hip_scale = 1.0 + params.hip_width * 0.40 + params.fat * 0.45
                     scale_x = hip_scale
                     scale_y = hip_scale
                 
                 elif z_norm <= 0.35:
                     if params.leg_length != 0:
-                        leg_factor = 1.0 + params.leg_length * 0.25
+                        leg_factor = 1.0 + params.leg_length * 0.40
                         new_z = z_min + (vert.co.z - z_min) * leg_factor
                         offset_z = new_z - vert.co.z
                     
-                    leg_thickness = 1.0 + params.muscular * 0.12 + params.fat * 0.18
+                    leg_thickness = 1.0 + params.muscular * 0.28 + params.fat * 0.40
                     scale_x = leg_thickness
                     scale_y = leg_thickness
                 
                 if x_abs > cls.ARM_X_THRESHOLD and 0.50 < z_norm < 0.80:
                     if params.arm_length != 0:
-                        arm_extend = params.arm_length * 0.15 * height
+                        arm_extend = params.arm_length * 0.30 * height
                         if vert.co.x > 0:
-                            vert.co.x += arm_extend * 0.3
+                            vert.co.x += arm_extend * 0.5
                         else:
-                            vert.co.x -= arm_extend * 0.3
+                            vert.co.x -= arm_extend * 0.5
                     
-                    arm_scale = 1.0 + params.muscular * 0.15 + params.fat * 0.12
+                    arm_scale = 1.0 + params.muscular * 0.35 + params.fat * 0.28
                     scale_y = arm_scale
+                
+                scale_x = max(MIN_SCALE, min(MAX_SCALE, scale_x))
+                scale_y = max(MIN_SCALE, min(MAX_SCALE, scale_y))
                 
                 vert.co.x *= scale_x
                 vert.co.y *= scale_y
