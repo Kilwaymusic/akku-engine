@@ -5,10 +5,16 @@ import { insertJobSchema } from "@shared/schema";
 import { spawn } from "child_process";
 import { existsSync, mkdirSync } from "fs";
 import path from "path";
+import { analyzePromptWithGemini, type BlenderParams } from "./gemini";
 
 const MODELS_DIR = path.join(process.cwd(), "public", "models");
 
 async function generateModel(jobId: string, prompt: string): Promise<string> {
+  // First, analyze the prompt with Gemini AI
+  console.log(`Analyzing prompt with Gemini AI for job ${jobId}...`);
+  const blenderParams = await analyzePromptWithGemini(prompt);
+  console.log(`Gemini AI generated parameters:`, JSON.stringify(blenderParams, null, 2));
+
   return new Promise((resolve, reject) => {
     if (!existsSync(MODELS_DIR)) {
       mkdirSync(MODELS_DIR, { recursive: true });
@@ -16,6 +22,7 @@ async function generateModel(jobId: string, prompt: string): Promise<string> {
 
     const outputPath = path.join(MODELS_DIR, `${jobId}.glb`);
     const scriptPath = path.join(process.cwd(), "scripts", "generate_humanoid.py");
+    const paramsJson = JSON.stringify(blenderParams);
 
     console.log(`Starting Blender generation for job ${jobId}`);
     console.log(`Script path: ${scriptPath}`);
@@ -27,7 +34,7 @@ async function generateModel(jobId: string, prompt: string): Promise<string> {
       scriptPath,
       "--",
       outputPath,
-      prompt,
+      paramsJson,
     ]);
 
     let stdout = "";
