@@ -22,18 +22,56 @@ async function setupSSHKey(): Promise<string> {
 
   let sshKey: string;
   
-  // Check if it's Base64 encoded (starts with typical OpenSSH base64 chars)
-  if (sshKeyData.startsWith('b3BlbnNzaC') || !sshKeyData.includes('-----BEGIN')) {
-    // Remove all whitespace from base64 before decoding
+  // Check if the key is in proper PEM format or needs reformatting
+  if (sshKeyData.includes('-----BEGIN') && sshKeyData.includes('-----END')) {
+    // Key has PEM headers but might be on one line
+    // Need to properly format with newlines
+    
+    // Extract header, body, and footer
+    const beginMatch = sshKeyData.match(/(-----BEGIN [A-Z ]+-----)/);
+    const endMatch = sshKeyData.match(/(-----END [A-Z ]+-----)/);
+    
+    if (beginMatch && endMatch) {
+      const header = beginMatch[1];
+      const footer = endMatch[1];
+      
+      // Extract the body between header and footer
+      const headerIdx = sshKeyData.indexOf(header) + header.length;
+      const footerIdx = sshKeyData.indexOf(footer);
+      let body = sshKeyData.substring(headerIdx, footerIdx).trim();
+      
+      // Remove any existing whitespace from body
+      body = body.replace(/\s+/g, '');
+      
+      // Split body into 64-char lines (standard PEM format)
+      const lines: string[] = [];
+      for (let i = 0; i < body.length; i += 64) {
+        lines.push(body.substring(i, i + 64));
+      }
+      
+      // Reconstruct properly formatted key
+      sshKey = header + '\n' + lines.join('\n') + '\n' + footer + '\n';
+    } else {
+      sshKey = sshKeyData;
+    }
+  } else if (sshKeyData.startsWith('b3BlbnNzaC')) {
+    // Pure base64 encoded binary - this is the raw key file content
     const cleanBase64 = sshKeyData.replace(/\s+/g, '');
-    // Decode base64
-    sshKey = Buffer.from(cleanBase64, 'base64').toString('utf-8');
+    const decoded = Buffer.from(cleanBase64, 'base64');
+    
+    // Write as binary
+    const sshDir = path.join(os.tmpdir(), '.ssh');
+    if (!fs.existsSync(sshDir)) {
+      fs.mkdirSync(sshDir, { mode: 0o700 });
+    }
+    const keyPath = path.join(sshDir, 'gcp_key');
+    fs.writeFileSync(keyPath, decoded, { mode: 0o600 });
+    return keyPath;
   } else {
-    // Already plain text
     sshKey = sshKeyData;
   }
   
-  // Ensure proper line endings and format
+  // Ensure proper line endings
   if (!sshKey.endsWith('\n')) {
     sshKey += '\n';
   }
