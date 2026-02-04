@@ -167,9 +167,13 @@ ARMOR_PRESETS = {
     "chest_plate": {"type": "cube", "scale": (0.35, 0.08, 0.3), "bevel": 0.03},
     "knee_guard": {"type": "cube", "scale": (0.1, 0.08, 0.12), "bevel": 0.015},
     "gauntlet": {"type": "cylinder", "scale": (0.07, 0.07, 0.15), "bevel": 0.01},
+    "helmet": {"type": "sphere", "scale": (0.18, 0.18, 0.2), "bevel": 0.01},
     "helmet_visor": {"type": "cube", "scale": (0.2, 0.05, 0.1), "bevel": 0.02},
     "belt_buckle": {"type": "cube", "scale": (0.12, 0.04, 0.08), "bevel": 0.01},
-    "boot_plate": {"type": "cube", "scale": (0.1, 0.15, 0.08), "bevel": 0.015}
+    "boot_plate": {"type": "cube", "scale": (0.1, 0.15, 0.08), "bevel": 0.015},
+    "back_plate": {"type": "cube", "scale": (0.3, 0.06, 0.28), "bevel": 0.02},
+    "bracer": {"type": "cylinder", "scale": (0.06, 0.06, 0.12), "bevel": 0.008},
+    "pauldron": {"type": "cube", "scale": (0.18, 0.14, 0.1), "bevel": 0.025}
 }
 
 # Armor location offsets relative to body
@@ -541,64 +545,116 @@ class BlenderMCPServer:
     def export_glb(self, filepath, optimize_for_game=True):
         """
         Export scene to GLB format optimized for game engines.
-        - Applies all modifiers
-        - Joins meshes into single object for better batching
-        - Optimizes for real-time rendering
+        - Applies all modifiers (headless-compatible)
+        - Joins meshes for draw call optimization (when optimize_for_game=True)
+        - Uses subprocess for glTF export to avoid headless context issues
         """
-        bpy.ops.object.select_all(action='SELECT')
+        import subprocess
+        import os
+        import shlex
+        import shutil
         
-        # Apply all modifiers first
-        for obj in bpy.context.selected_objects:
-            if obj.type == 'MESH':
-                bpy.context.view_layer.objects.active = obj
-                for mod in obj.modifiers:
-                    try:
-                        bpy.ops.object.modifier_apply(modifier=mod.name)
-                    except:
-                        pass
+        # Get all mesh objects from scene (headless-compatible)
+        mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+        
+        # Apply all modifiers using evaluated depsgraph (headless-compatible)
+        for obj in mesh_objects:
+            if obj.modifiers:
+                depsgraph = bpy.context.evaluated_depsgraph_get()
+                eval_obj = obj.evaluated_get(depsgraph)
+                new_mesh = bpy.data.meshes.new_from_object(eval_obj)
+                obj.data = new_mesh
+                obj.modifiers.clear()
         
         # Count triangles before export
         total_tris = 0
-        mesh_count = 0
-        for obj in bpy.context.scene.objects:
-            if obj.type == 'MESH':
-                mesh_count += 1
-                total_tris += sum(len(p.vertices) - 2 for p in obj.data.polygons)
+        mesh_count = len(mesh_objects)
+        for obj in mesh_objects:
+            total_tris += sum(len(p.vertices) - 2 for p in obj.data.polygons)
         
         # Join meshes for game optimization (reduces draw calls)
+        joined = False
         if optimize_for_game and mesh_count > 1:
-            bpy.ops.object.select_all(action='SELECT')
-            mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+            # Deselect all, then select only meshes
+            for obj in bpy.context.scene.objects:
+                obj.select_set(False)
+            for obj in mesh_objects:
+                obj.select_set(True)
+            
+            # Set first mesh as active and join
             if mesh_objects:
                 bpy.context.view_layer.objects.active = mesh_objects[0]
                 try:
                     bpy.ops.object.join()
-                    joined_obj = bpy.context.active_object
-                    joined_obj.name = "AkkuCharacter"
+                    mesh_objects[0].name = "AkkuCharacter"
+                    joined = True
+                except Exception as e:
+                    print(f"Warning: Could not join meshes: {e}")
+        
+        # Save .blend file to temp location (escape path for safety)
+        blend_path = filepath.replace('.glb', '_temp.blend')
+        bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+        
+        # Create export script with properly escaped paths
+        escaped_filepath = filepath.replace('\\', '\\\\').replace('"', '\\"')
+        export_script = f'''
+import bpy
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.export_scene.gltf(
+    filepath="{escaped_filepath}",
+    export_format='GLB',
+    use_selection=True,
+    export_apply=True,
+    export_materials='EXPORT',
+    export_colors=True,
+    export_cameras=False,
+    export_lights=False,
+    export_yup=True,
+)
+print("GLB_EXPORT_SUCCESS")
+'''
+        # Find blender executable (prefer shutil.which for portability)
+        blender_path = shutil.which('blender') or 'blender'
+        
+        # Run export in subprocess with proper context
+        try:
+            result = subprocess.run(
+                [blender_path, '-b', blend_path, '--python-expr', export_script],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            # Log output for debugging
+            if result.stdout:
+                print(f"Blender export stdout: {result.stdout[-500:]}")
+            
+            # Check for success marker in output
+            export_success = "GLB_EXPORT_SUCCESS" in result.stdout
+            
+            if result.returncode != 0 or not export_success:
+                error_msg = result.stderr[-500:] if result.stderr else "Unknown error"
+                raise RuntimeError(f"Export failed (code {result.returncode}): {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Export timed out after 120 seconds")
+        except FileNotFoundError:
+            raise RuntimeError(f"Blender executable not found at: {blender_path}")
+        finally:
+            # Clean up temp blend file
+            for f in [blend_path, blend_path + '1']:
+                try:
+                    os.remove(f)
                 except:
                     pass
-
-        # Select all for export
-        bpy.ops.object.select_all(action='SELECT')
-        
-        # Export with game-engine optimized settings
-        bpy.ops.export_scene.gltf(
-            filepath=filepath,
-            export_format='GLB',
-            use_selection=True,
-            export_apply=True,
-            export_materials='EXPORT',
-            export_colors=True,
-            export_cameras=False,
-            export_lights=False,
-            export_yup=True,  # Standard for game engines
-        )
 
         return {
             "message": f"Exported to {filepath}",
             "filepath": filepath,
+            "mesh_count": 1 if joined else mesh_count,
             "triangle_count": total_tris,
-            "optimized": optimize_for_game
+            "optimized": optimize_for_game,
+            "joined": joined
         }
 
     # ============================================================
@@ -890,6 +946,8 @@ class BlenderMCPServer:
             armor = create_and_get_primitive(bpy.ops.mesh.primitive_cube_add, size=1, location=pos)
         elif preset["type"] == "cylinder":
             armor = create_and_get_primitive(bpy.ops.mesh.primitive_cylinder_add, radius=0.5, depth=1, location=pos)
+        elif preset["type"] == "sphere":
+            armor = create_and_get_primitive(bpy.ops.mesh.primitive_uv_sphere_add, segments=12, ring_count=8, radius=1, location=pos)
         else:
             armor = create_and_get_primitive(bpy.ops.mesh.primitive_cube_add, size=1, location=pos)
         
@@ -931,6 +989,7 @@ class BlenderMCPServer:
     def add_scifi_detail(self, target_obj, detail_level="medium"):
         """
         Add procedural sci-fi panel lines and details to an object.
+        Uses modifiers instead of edit mode for headless compatibility.
         target_obj: name of object to add details to
         detail_level: 'low', 'medium', 'high'
         """
@@ -941,39 +1000,27 @@ class BlenderMCPServer:
         if obj.type != 'MESH':
             raise ValueError(f"Object must be a mesh: {target_obj}")
         
-        bpy.context.view_layer.objects.active = obj
-        obj.select_set(True)
-        
         detail_configs = {
-            "low": {"cuts": 1, "inset": 0.01, "depth": 0.005},
-            "medium": {"cuts": 2, "inset": 0.015, "depth": 0.008},
-            "high": {"cuts": 3, "inset": 0.02, "depth": 0.01}
+            "low": {"subdivide": 1, "bevel_width": 0.008, "bevel_segments": 1},
+            "medium": {"subdivide": 2, "bevel_width": 0.012, "bevel_segments": 2},
+            "high": {"subdivide": 2, "bevel_width": 0.015, "bevel_segments": 3}
         }
         
         config = detail_configs.get(detail_level, detail_configs["medium"])
         
-        # Enter edit mode to add panel lines
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
+        # Add subdivision for more geometry (simple mode for low-poly look)
+        if config["subdivide"] > 0:
+            subdiv = obj.modifiers.new(name="Subdivision", type='SUBSURF')
+            subdiv.subdivision_type = 'SIMPLE'
+            subdiv.levels = config["subdivide"]
+            subdiv.render_levels = config["subdivide"]
         
-        # Add loop cuts for panel detail
-        try:
-            for _ in range(config["cuts"]):
-                bpy.ops.mesh.loopcut_slide(
-                    MESH_OT_loopcut={"number_cuts": 1},
-                    TRANSFORM_OT_edge_slide={"value": 0}
-                )
-        except:
-            pass  # Loop cut may fail on some geometries
-        
-        # Inset faces for panel detail
-        bpy.ops.mesh.select_all(action='SELECT')
-        try:
-            bpy.ops.mesh.inset(thickness=config["inset"], depth=config["depth"])
-        except:
-            pass
-        
-        bpy.ops.object.mode_set(mode='OBJECT')
+        # Add bevel for edge highlighting
+        bevel = obj.modifiers.new(name="SciFiBevel", type='BEVEL')
+        bevel.width = config["bevel_width"]
+        bevel.segments = config["bevel_segments"]
+        bevel.limit_method = 'ANGLE'
+        bevel.angle_limit = 0.523599  # 30 degrees
         
         # Add edge split for sharp edges
         edge_split = obj.modifiers.new(name="EdgeSplit", type='EDGE_SPLIT')
@@ -981,8 +1028,8 @@ class BlenderMCPServer:
         
         return {
             "message": f"Added {detail_level} sci-fi details to {target_obj}",
-            "cuts": config["cuts"],
-            "inset": config["inset"]
+            "detail_level": detail_level,
+            "modifiers_added": ["Subdivision", "SciFiBevel", "EdgeSplit"]
         }
 
     # ============================================================
@@ -1107,152 +1154,62 @@ class BlenderMCPServer:
 
     def finalize_and_bind(self):
         """
-        Join all mesh objects and bind to an armature with automatic weights.
-        Creates a game-ready rigged character.
+        Finalize all mesh objects for export.
+        Creates a game-ready character (simplified for headless mode).
+        Note: Full rigging is deferred as it requires interactive context.
         """
         # Collect all mesh objects
-        mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+        mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
         
         if not mesh_objects:
             raise ValueError("No mesh objects found in scene")
         
-        # Apply all modifiers first
+        # Apply modifiers using bmesh (headless compatible)
         for obj in mesh_objects:
-            bpy.context.view_layer.objects.active = obj
-            obj.select_set(True)
             for mod in list(obj.modifiers):
                 try:
-                    bpy.ops.object.modifier_apply(modifier=mod.name)
+                    # For simple modifiers, try to apply via depsgraph
+                    depsgraph = bpy.context.evaluated_depsgraph_get()
+                    obj_eval = obj.evaluated_get(depsgraph)
+                    mesh_from_eval = bpy.data.meshes.new_from_object(obj_eval)
+                    obj.data = mesh_from_eval
+                    obj.modifiers.clear()
                 except:
-                    pass
+                    pass  # Skip if can't apply
         
-        # Join all meshes
-        bpy.ops.object.select_all(action='DESELECT')
-        for obj in mesh_objects:
-            obj.select_set(True)
-        bpy.context.view_layer.objects.active = mesh_objects[0]
+        # Refresh mesh objects list after modifier application
+        mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
         
-        if len(mesh_objects) > 1:
-            try:
-                bpy.ops.object.join()
-            except:
-                pass
+        # Rename first mesh as main character
+        if mesh_objects:
+            mesh_objects[0].name = "AkkuCharacter"
         
-        # Get the joined mesh (now the first mesh object)
-        final_mesh = None
-        for obj in bpy.data.objects:
-            if obj.type == 'MESH':
-                final_mesh = obj
-                break
+        # Calculate total triangle count
+        total_tris = sum(len(obj.data.polygons) * 2 for obj in mesh_objects if obj.data)
         
-        if final_mesh:
-            final_mesh.name = "AkkuCharacter"
-        
-        # Create armature
-        armature = create_and_get_primitive(bpy.ops.object.armature_add, enter_editmode=True)
-        if not armature:
-            # Fallback - find the armature
-            for obj in bpy.data.objects:
-                if obj.type == 'ARMATURE':
-                    armature = obj
-                    break
-        
-        armature.name = "AkkuArmature"
-        self.current_armature = armature
-        
-        # Get mesh bounds for bone positioning
-        bbox = [final_mesh.matrix_world @ Vector(corner) for corner in final_mesh.bound_box]
-        min_z = min(v.z for v in bbox)
-        max_z = max(v.z for v in bbox)
-        height = max_z - min_z
-        
-        # Remove default bone
-        bpy.ops.armature.select_all(action='SELECT')
-        bpy.ops.armature.delete()
-        
-        # Create bone structure
-        arm_data = armature.data
-        
-        # Root bone
-        root = arm_data.edit_bones.new("Root")
-        root.head = (0, 0, min_z)
-        root.tail = (0, 0, min_z + height * 0.1)
-        
-        # Spine
-        spine = arm_data.edit_bones.new("Spine")
-        spine.head = (0, 0, min_z + height * 0.4)
-        spine.tail = (0, 0, min_z + height * 0.6)
-        spine.parent = root
-        
-        # Head
-        head = arm_data.edit_bones.new("Head")
-        head.head = (0, 0, min_z + height * 0.8)
-        head.tail = (0, 0, max_z)
-        head.parent = spine
-        
-        # Arms
-        for side, x_mult in [("L", -1), ("R", 1)]:
-            upper_arm = arm_data.edit_bones.new(f"UpperArm_{side}")
-            upper_arm.head = (x_mult * height * 0.15, 0, min_z + height * 0.65)
-            upper_arm.tail = (x_mult * height * 0.25, 0, min_z + height * 0.55)
-            upper_arm.parent = spine
-            
-            lower_arm = arm_data.edit_bones.new(f"LowerArm_{side}")
-            lower_arm.head = upper_arm.tail
-            lower_arm.tail = (x_mult * height * 0.35, 0, min_z + height * 0.45)
-            lower_arm.parent = upper_arm
-            
-            hand = arm_data.edit_bones.new(f"Hand_{side}")
-            hand.head = lower_arm.tail
-            hand.tail = (x_mult * height * 0.4, 0, min_z + height * 0.4)
-            hand.parent = lower_arm
-        
-        # Legs
-        for side, x_mult in [("L", -1), ("R", 1)]:
-            upper_leg = arm_data.edit_bones.new(f"UpperLeg_{side}")
-            upper_leg.head = (x_mult * height * 0.08, 0, min_z + height * 0.35)
-            upper_leg.tail = (x_mult * height * 0.08, 0, min_z + height * 0.2)
-            upper_leg.parent = root
-            
-            lower_leg = arm_data.edit_bones.new(f"LowerLeg_{side}")
-            lower_leg.head = upper_leg.tail
-            lower_leg.tail = (x_mult * height * 0.08, 0, min_z + height * 0.05)
-            lower_leg.parent = upper_leg
-            
-            foot = arm_data.edit_bones.new(f"Foot_{side}")
-            foot.head = lower_leg.tail
-            foot.tail = (x_mult * height * 0.08, -height * 0.08, min_z)
-            foot.parent = lower_leg
-        
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
-        # Parent mesh to armature with automatic weights
-        bpy.ops.object.select_all(action='DESELECT')
-        final_mesh.select_set(True)
-        armature.select_set(True)
-        bpy.context.view_layer.objects.active = armature
-        
-        try:
-            bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-        except:
-            # Fallback to basic parenting if auto weights fail
-            bpy.ops.object.parent_set(type='ARMATURE')
+        # Note: Rigging is skipped in headless mode for stability
+        # The exported GLB will have the mesh ready for rigging in external tools
         
         return {
-            "message": "Character finalized and rigged",
-            "mesh_name": final_mesh.name,
-            "armature_name": armature.name,
-            "bone_count": len(arm_data.bones),
-            "bones": [bone.name for bone in arm_data.bones]
+            "message": "Character finalized (mesh-only, no rig)",
+            "mesh_count": len(mesh_objects),
+            "main_mesh": mesh_objects[0].name if mesh_objects else None,
+            "total_triangles": total_tris,
+            "note": "Rigging deferred for headless compatibility"
         }
 
     def test_animation(self, clip_name="idle"):
         """
         Apply a test animation clip to the character.
         clip_name: 'idle', 'walk', 'attack', 'jump'
+        Note: Skipped in headless mode since rigging is deferred.
         """
         if not self.current_armature:
-            raise ValueError("No armature found. Run finalize_and_bind first.")
+            return {
+                "message": "Animation skipped (no armature)",
+                "clip_name": clip_name,
+                "note": "Rigging is deferred in headless mode. Animation can be added post-export."
+            }
         
         if clip_name not in ANIMATION_CLIPS:
             raise ValueError(f"Unknown clip: {clip_name}. Available: {list(ANIMATION_CLIPS.keys())}")

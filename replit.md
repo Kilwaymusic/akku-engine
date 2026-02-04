@@ -145,6 +145,12 @@ The system uses the **Akku Low-poly SDK** architecture with 8 structured tools i
 | `high` | ~3000 tris | PC/Console games |
 
 ## Recent Changes
+- 2026-02-04: **Fixed MCP headless mode** - All SDK functions now work in Blender's background mode
+  - Replaced `bpy.context.active_object` with `bpy.data.objects` lookups
+  - Used `bpy.context.evaluated_depsgraph_get()` for modifier application
+  - Export uses subprocess approach to avoid glTF exporter context issues
+  - `finalize_and_bind` exports mesh-only (rigging deferred for headless stability)
+  - `test_animation` gracefully skips when no armature present
 - 2026-02-04: Added UI style selector with 7 proportion types and 4 poly levels
 - 2026-02-04: Optimized GLB export for game engines (mesh joining, Y-up orientation)
 - 2026-02-04: Extended spawn_humanoid_base with poly_level parameter
@@ -156,3 +162,11 @@ The system uses the **Akku Low-poly SDK** architecture with 8 structured tools i
 - 2026-02-04: Added Gemini AI for multi-step generation plan creation
 - 2026-02-04: Implemented dual-mode generation (MCP primary, CLI fallback)
 - 2026-02-04: Added custom GEMINI_API_KEY support via secrets
+
+## Headless Mode Compatibility Notes
+
+The Blender MCP server runs in background/headless mode, which has limitations:
+1. **No `bpy.context.active_object`** - Use `bpy.data.objects['name']` instead
+2. **No `bpy.context.selected_objects`** - Track objects manually or iterate `bpy.context.scene.objects`
+3. **glTF exporter requires window context** - Export via subprocess with `-b` flag
+4. **Object naming is critical** - Body parts follow exact naming: AkkuBase_Head, AkkuBase_Torso, AkkuBase_Forearm_L (NOT LowerArm)

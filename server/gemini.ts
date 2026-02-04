@@ -190,15 +190,19 @@ Return ONLY valid JSON:
 - 하늘색: [0.5, 0.8, 1.0]
 - 청록색: [0.2, 0.8, 0.7]
 
-### Object Naming Convention
-After spawn_humanoid_base:
-- AkkuBase_Head, AkkuBase_Torso, AkkuBase_Hips
-- AkkuBase_UpperArm_L, AkkuBase_UpperArm_R
-- AkkuBase_Forearm_L, AkkuBase_Forearm_R
+### Object Naming Convention (CRITICAL - use EXACTLY these names)
+After spawn_humanoid_base, ONLY these 13 objects exist:
+- AkkuBase_Head
+- AkkuBase_Torso
+- AkkuBase_Hips
+- AkkuBase_UpperArm_L, AkkuBase_UpperArm_R (upper arms)
+- AkkuBase_Forearm_L, AkkuBase_Forearm_R (forearms, NOT LowerArm)
 - AkkuBase_Hand_L, AkkuBase_Hand_R
 - AkkuBase_UpperLeg_L, AkkuBase_UpperLeg_R
-- AkkuBase_LowerLeg_L, AkkuBase_LowerLeg_R
+- AkkuBase_LowerLeg_L, AkkuBase_LowerLeg_R (lower legs)
 - AkkuBase_Foot_L, AkkuBase_Foot_R
+
+IMPORTANT: Use "Forearm" not "LowerArm" for arm segments!
 
 After attach_armor_plate:
 - Armor_{location}_{style} (e.g., "Armor_chest_chest_plate")
