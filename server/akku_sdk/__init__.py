@@ -1,5 +1,5 @@
 """
-Akku SDK v3.6 - Modular Low-Poly Character Generation Toolkit
+Akku SDK v3.7 - Modular Low-Poly Character Generation Toolkit
 
 Modules:
 - core: Configuration, Logging, Error Handling
@@ -11,6 +11,8 @@ Modules:
 - rigging: Auto Weight Transfer System
 - finalize: Game Engine Optimization Pipeline
 - handlers: FBX Import, GLB Export, Mesh Freezing
+- procedural: Procedural Humanoid Generation (no Mixamo dependency)
+- bmesh_tools: Low-level BMesh Direct Manipulation Tools
 """
 
 import sys
@@ -96,7 +98,19 @@ from .procedural import (
     ProceduralHumanoid,
 )
 
-__version__ = "3.7.0"
+from .bmesh_tools import (
+    BmeshTools,
+    CharacterBuilder,
+    ExtrudeResult,
+    LoopCutResult,
+    MirrorResult,
+    add_primitive_box,
+    smart_extrude,
+    loop_cut_and_slide,
+    mirror_and_weld,
+)
+
+__version__ = "3.7.1"
 __all__ = [
     # Core
     "AkkuConfig",
@@ -154,4 +168,14 @@ __all__ = [
     "PolyLevelSettings",
     "PolyLevelPresets",
     "ProceduralHumanoid",
+    # BMesh Tools
+    "BmeshTools",
+    "CharacterBuilder",
+    "ExtrudeResult",
+    "LoopCutResult",
+    "MirrorResult",
+    "add_primitive_box",
+    "smart_extrude",
+    "loop_cut_and_slide",
+    "mirror_and_weld",
 ]

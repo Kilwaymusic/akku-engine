@@ -99,9 +99,10 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `kitbash.py` | 419 | SocketInfo, SemanticPart, KitbashLibrary, KitbashEquipper |
 | `rigging.py` | 324 | AutoWeightTransfer, WeightTransferResult (Data Transfer modifier) |
 | `finalize.py` | 1028 | FinalizePipeline, MeshOptimizer, DecimateEngine, MeshJoiner, LOD generation |
-| `procedural.py` | 600+ | ProceduralHumanoid, StyleProportions, PolyLevelPresets (NEW) |
+| `procedural.py` | 600+ | ProceduralHumanoid, StyleProportions, PolyLevelPresets |
+| `bmesh_tools.py` | 550+ | BmeshTools, CharacterBuilder, smart_extrude, mirror_and_weld (NEW) |
 
-### v3.7 New Features (2026-02-04)
+### v3.7.1 New Features (2026-02-04)
 
 #### 1. Procedural Humanoid Generation
 - **No Mixamo dependency**: Characters can now be generated from scratch using bmesh primitives
@@ -120,6 +121,14 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 - **Style-specific proportions**: Each style has optimized body ratios
 - **Better topology**: Improved mesh generation with proper edge flow
 - **Gender variations**: Subtle proportion adjustments for male/female
+
+#### 4. BMesh Direct Manipulation Tools
+Core low-level mesh editing primitives for procedural character building:
+- `add_primitive_box()`: Creates starting box for all modeling
+- `smart_extrude(face_index, length)`: Extrudes face with auto vertex group assignment for rigging
+- `loop_cut_and_slide(edge_index, count)`: Adds edge loops for smooth joint deformation
+- `mirror_and_weld()`: Mirrors geometry and welds center vertices for symmetry
+- `CharacterBuilder`: High-level class for building characters piece by piece
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |
