@@ -752,3 +752,535 @@ class ProceduralHumanoid:
         AkkuLogger.info("Basic rig created", {"bone_count": len(arm.bones)})
         
         return rig
+    
+    @classmethod
+    def generate_hierarchical(
+        cls,
+        style: str = "stylized",
+        poly_level: str = "medium",
+        gender: str = "male"
+    ) -> bpy.types.Object:
+        """
+        Generate a humanoid with separate body parts in a hierarchy.
+        
+        Creates separate mesh objects for each body part:
+        - Root (Empty)
+          - Head
+          - Torso
+          - Arm_L (Upper + Lower + Hand)
+          - Arm_R (Upper + Lower + Hand)
+          - Leg_L (Upper + Lower + Foot)
+          - Leg_R (Upper + Lower + Foot)
+        
+        Args:
+            style: Character style preset
+            poly_level: Polygon complexity
+            gender: Gender for proportions
+            
+        Returns:
+            Root empty object with all parts as children
+        """
+        props = StyleProportions.get_preset(style)
+        poly_settings = PolyLevelPresets.get_preset(poly_level)
+        
+        if gender == "female":
+            props.shoulder_width_ratio *= 0.9
+            props.hip_width_ratio *= 1.1
+            props.torso_thickness *= 0.9
+        
+        total_height = props.total_height
+        head_height = total_height * props.head_ratio
+        torso_height = total_height * props.torso_ratio
+        leg_height = total_height * props.leg_ratio
+        arm_length = total_height * props.arm_length_ratio
+        shoulder_width = total_height * props.shoulder_width_ratio
+        hip_width = total_height * props.hip_width_ratio
+        limb_thickness = props.limb_thickness
+        torso_depth = props.torso_thickness
+        
+        AkkuLogger.info("Generating hierarchical humanoid", {
+            "style": style,
+            "poly_level": poly_level,
+            "gender": gender
+        })
+        
+        root = bpy.data.objects.new("Character_Root", None)
+        root.empty_display_type = 'ARROWS'
+        root.empty_display_size = 0.2
+        bpy.context.collection.objects.link(root)
+        
+        leg_base = Vector((0, 0, 0))
+        torso_base = Vector((0, 0, leg_height))
+        shoulder_pos = Vector((0, 0, leg_height + torso_height))
+        head_base = shoulder_pos + Vector((0, 0, head_height * 0.1))
+        head_center = head_base + Vector((0, 0, head_height * 0.5))
+        
+        torso_obj = cls._create_detailed_torso(
+            "Torso",
+            torso_base,
+            torso_height,
+            shoulder_width,
+            hip_width,
+            torso_depth,
+            poly_settings
+        )
+        torso_obj.parent = root
+        
+        head_radius = head_height * props.head_scale * 0.5
+        head_obj = cls._create_detailed_head(
+            "Head",
+            head_center,
+            head_radius,
+            poly_settings
+        )
+        head_obj.parent = root
+        
+        neck_obj = cls._create_limb_part(
+            "Neck",
+            shoulder_pos,
+            head_base,
+            limb_thickness * 0.8,
+            poly_settings
+        )
+        neck_obj.parent = root
+        
+        upper_leg_length = leg_height * 0.5
+        lower_leg_length = leg_height * 0.5
+        
+        left_hip = Vector((-hip_width / 2, 0, leg_height))
+        right_hip = Vector((hip_width / 2, 0, leg_height))
+        
+        left_knee = left_hip - Vector((0, 0, upper_leg_length))
+        right_knee = right_hip - Vector((0, 0, upper_leg_length))
+        
+        left_ankle = left_knee - Vector((0, 0, lower_leg_length * 0.9))
+        right_ankle = right_knee - Vector((0, 0, lower_leg_length * 0.9))
+        
+        leg_l_upper = cls._create_limb_part("Leg_L_Upper", left_hip, left_knee, limb_thickness * 1.3, poly_settings)
+        leg_l_lower = cls._create_limb_part("Leg_L_Lower", left_knee, left_ankle, limb_thickness * 1.1, poly_settings)
+        leg_l_upper.parent = root
+        leg_l_lower.parent = root
+        
+        leg_r_upper = cls._create_limb_part("Leg_R_Upper", right_hip, right_knee, limb_thickness * 1.3, poly_settings)
+        leg_r_lower = cls._create_limb_part("Leg_R_Lower", right_knee, right_ankle, limb_thickness * 1.1, poly_settings)
+        leg_r_upper.parent = root
+        leg_r_lower.parent = root
+        
+        foot_length = limb_thickness * 3.5
+        foot_width = limb_thickness * 2
+        foot_height = limb_thickness * 0.9
+        
+        foot_l = cls._create_foot("Foot_L", left_ankle, foot_length, foot_width, foot_height, -1)
+        foot_r = cls._create_foot("Foot_R", right_ankle, foot_length, foot_width, foot_height, 1)
+        foot_l.parent = root
+        foot_r.parent = root
+        
+        upper_arm_length = arm_length * 0.5
+        lower_arm_length = arm_length * 0.5
+        
+        left_shoulder = shoulder_pos + Vector((-shoulder_width / 2, 0, 0))
+        right_shoulder = shoulder_pos + Vector((shoulder_width / 2, 0, 0))
+        
+        left_elbow = left_shoulder - Vector((upper_arm_length * 0.85, 0, upper_arm_length * 0.15))
+        right_elbow = right_shoulder + Vector((upper_arm_length * 0.85, 0, -upper_arm_length * 0.15))
+        
+        left_wrist = left_elbow - Vector((lower_arm_length * 0.85, 0, lower_arm_length * 0.15))
+        right_wrist = right_elbow + Vector((lower_arm_length * 0.85, 0, -lower_arm_length * 0.15))
+        
+        arm_l_upper = cls._create_limb_part("Arm_L_Upper", left_shoulder, left_elbow, limb_thickness * 1.1, poly_settings)
+        arm_l_lower = cls._create_limb_part("Arm_L_Lower", left_elbow, left_wrist, limb_thickness * 0.95, poly_settings)
+        arm_l_upper.parent = root
+        arm_l_lower.parent = root
+        
+        arm_r_upper = cls._create_limb_part("Arm_R_Upper", right_shoulder, right_elbow, limb_thickness * 1.1, poly_settings)
+        arm_r_lower = cls._create_limb_part("Arm_R_Lower", right_elbow, right_wrist, limb_thickness * 0.95, poly_settings)
+        arm_r_upper.parent = root
+        arm_r_lower.parent = root
+        
+        hand_size = limb_thickness * 1.8
+        hand_l = cls._create_hand("Hand_L", left_wrist, left_elbow, hand_size)
+        hand_r = cls._create_hand("Hand_R", right_wrist, right_elbow, hand_size)
+        hand_l.parent = root
+        hand_r.parent = root
+        
+        total_verts = 0
+        total_faces = 0
+        for child in root.children:
+            if child.type == 'MESH':
+                total_verts += len(child.data.vertices)
+                total_faces += len(child.data.polygons)
+        
+        AkkuLogger.info("Hierarchical humanoid generated", {
+            "parts_count": len(root.children),
+            "total_vertices": total_verts,
+            "total_faces": total_faces,
+            "style": style,
+            "poly_level": poly_level
+        })
+        
+        return root
+    
+    @classmethod
+    def _create_detailed_torso(
+        cls,
+        name: str,
+        base_pos: Vector,
+        height: float,
+        shoulder_width: float,
+        hip_width: float,
+        depth: float,
+        poly_settings
+    ) -> bpy.types.Object:
+        """Create a detailed torso mesh with chest and waist definition"""
+        mesh = bpy.data.meshes.new(name)
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        
+        bm = bmesh.new()
+        
+        segments = max(8, poly_settings.torso_segments + 2)
+        height_divisions = 6
+        
+        verts = []
+        for h in range(height_divisions + 1):
+            t = h / height_divisions
+            y_pos = base_pos.z + height * t
+            
+            if t < 0.2:
+                width = hip_width * (0.9 + t * 0.5)
+                d = depth * 0.85
+            elif t < 0.5:
+                waist_t = (t - 0.2) / 0.3
+                width = hip_width * (1.0 - waist_t * 0.15)
+                d = depth * (0.85 + waist_t * 0.1)
+            elif t < 0.8:
+                chest_t = (t - 0.5) / 0.3
+                width = hip_width * (0.85 + chest_t * 0.35) * (shoulder_width / hip_width)
+                d = depth * (0.95 + chest_t * 0.15)
+            else:
+                shoulder_t = (t - 0.8) / 0.2
+                width = shoulder_width * (1.0 - shoulder_t * 0.05)
+                d = depth * (1.1 - shoulder_t * 0.1)
+            
+            row = []
+            for s in range(segments):
+                angle = (s / segments) * 2 * math.pi
+                x = math.cos(angle) * width / 2
+                z = math.sin(angle) * d / 2
+                v = bm.verts.new(Vector((x, z, y_pos)))
+                row.append(v)
+            verts.append(row)
+        
+        bm.verts.ensure_lookup_table()
+        
+        for h in range(height_divisions):
+            for s in range(segments):
+                v1 = verts[h][s]
+                v2 = verts[h][(s + 1) % segments]
+                v3 = verts[h + 1][(s + 1) % segments]
+                v4 = verts[h + 1][s]
+                try:
+                    bm.faces.new([v1, v2, v3, v4])
+                except:
+                    pass
+        
+        bottom_center = bm.verts.new(Vector((0, 0, base_pos.z)))
+        bm.verts.ensure_lookup_table()
+        for s in range(segments):
+            try:
+                bm.faces.new([bottom_center, verts[0][(s + 1) % segments], verts[0][s]])
+            except:
+                pass
+        
+        top_center = bm.verts.new(Vector((0, 0, base_pos.z + height)))
+        bm.verts.ensure_lookup_table()
+        for s in range(segments):
+            try:
+                bm.faces.new([top_center, verts[-1][s], verts[-1][(s + 1) % segments]])
+            except:
+                pass
+        
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.update()
+        
+        return obj
+    
+    @classmethod
+    def _create_detailed_head(
+        cls,
+        name: str,
+        center: Vector,
+        radius: float,
+        poly_settings
+    ) -> bpy.types.Object:
+        """Create a detailed head with slight oval shape"""
+        mesh = bpy.data.meshes.new(name)
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        
+        bm = bmesh.new()
+        
+        segments = max(10, poly_settings.head_segments + 2)
+        rings = max(6, segments // 2)
+        
+        verts = []
+        
+        bottom = bm.verts.new(center - Vector((0, 0, radius * 0.9)))
+        verts.append([bottom])
+        
+        for r in range(1, rings):
+            t = r / rings
+            phi = t * math.pi
+            
+            y_scale = 1.0 - 0.1 * math.sin(phi)
+            z_scale = 1.0 + 0.05 * (1 - abs(t - 0.5) * 2)
+            
+            row = []
+            for s in range(segments):
+                theta = (s / segments) * 2 * math.pi
+                x = radius * math.sin(phi) * math.cos(theta) * y_scale
+                y = radius * math.sin(phi) * math.sin(theta) * y_scale
+                z = radius * math.cos(phi) * z_scale
+                v = bm.verts.new(center + Vector((x, y, z)))
+                row.append(v)
+            verts.append(row)
+        
+        top = bm.verts.new(center + Vector((0, 0, radius)))
+        verts.append([top])
+        
+        bm.verts.ensure_lookup_table()
+        
+        for s in range(segments):
+            try:
+                bm.faces.new([verts[0][0], verts[1][s], verts[1][(s + 1) % segments]])
+            except:
+                pass
+        
+        for r in range(1, rings - 1):
+            for s in range(segments):
+                v1 = verts[r][s]
+                v2 = verts[r][(s + 1) % segments]
+                v3 = verts[r + 1][(s + 1) % segments]
+                v4 = verts[r + 1][s]
+                try:
+                    bm.faces.new([v1, v2, v3, v4])
+                except:
+                    pass
+        
+        for s in range(segments):
+            try:
+                bm.faces.new([verts[-1][0], verts[-2][(s + 1) % segments], verts[-2][s]])
+            except:
+                pass
+        
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.update()
+        
+        return obj
+    
+    @classmethod
+    def _create_limb_part(
+        cls,
+        name: str,
+        start: Vector,
+        end: Vector,
+        radius: float,
+        poly_settings
+    ) -> bpy.types.Object:
+        """Create a limb segment with tapered ends"""
+        mesh = bpy.data.meshes.new(name)
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        
+        bm = bmesh.new()
+        
+        segments = max(6, poly_settings.limb_segments)
+        height_segments = 4
+        
+        direction = (end - start).normalized()
+        length = (end - start).length
+        
+        if abs(direction.z) < 0.99:
+            side = direction.cross(Vector((0, 0, 1))).normalized()
+        else:
+            side = direction.cross(Vector((1, 0, 0))).normalized()
+        forward = direction.cross(side).normalized()
+        
+        verts = []
+        for h in range(height_segments + 1):
+            t = h / height_segments
+            pos = start.lerp(end, t)
+            
+            taper = 1.0 - abs(t - 0.5) * 0.3
+            
+            row = []
+            for s in range(segments):
+                angle = (s / segments) * 2 * math.pi
+                offset = (side * math.cos(angle) + forward * math.sin(angle)) * radius * taper
+                v = bm.verts.new(pos + offset)
+                row.append(v)
+            verts.append(row)
+        
+        bm.verts.ensure_lookup_table()
+        
+        for h in range(height_segments):
+            for s in range(segments):
+                v1 = verts[h][s]
+                v2 = verts[h][(s + 1) % segments]
+                v3 = verts[h + 1][(s + 1) % segments]
+                v4 = verts[h + 1][s]
+                try:
+                    bm.faces.new([v1, v2, v3, v4])
+                except:
+                    pass
+        
+        start_center = bm.verts.new(start)
+        bm.verts.ensure_lookup_table()
+        for s in range(segments):
+            try:
+                bm.faces.new([start_center, verts[0][(s + 1) % segments], verts[0][s]])
+            except:
+                pass
+        
+        end_center = bm.verts.new(end)
+        bm.verts.ensure_lookup_table()
+        for s in range(segments):
+            try:
+                bm.faces.new([end_center, verts[-1][s], verts[-1][(s + 1) % segments]])
+            except:
+                pass
+        
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.update()
+        
+        return obj
+    
+    @classmethod
+    def _create_foot(
+        cls,
+        name: str,
+        ankle: Vector,
+        length: float,
+        width: float,
+        height: float,
+        side: int
+    ) -> bpy.types.Object:
+        """Create a foot mesh"""
+        mesh = bpy.data.meshes.new(name)
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        
+        bm = bmesh.new()
+        
+        foot_center = ankle + Vector((0, length * 0.3, -height / 2))
+        
+        hw = width / 2
+        hl = length / 2
+        hh = height / 2
+        
+        corners = [
+            foot_center + Vector((-hw, -hl * 0.3, -hh)),
+            foot_center + Vector((hw, -hl * 0.3, -hh)),
+            foot_center + Vector((hw, hl, -hh)),
+            foot_center + Vector((-hw, hl, -hh)),
+            foot_center + Vector((-hw * 0.8, -hl * 0.2, hh)),
+            foot_center + Vector((hw * 0.8, -hl * 0.2, hh)),
+            foot_center + Vector((hw * 0.7, hl * 0.8, hh)),
+            foot_center + Vector((-hw * 0.7, hl * 0.8, hh)),
+        ]
+        
+        verts = [bm.verts.new(c) for c in corners]
+        bm.verts.ensure_lookup_table()
+        
+        faces = [
+            [0, 1, 2, 3],
+            [4, 7, 6, 5],
+            [0, 4, 5, 1],
+            [1, 5, 6, 2],
+            [2, 6, 7, 3],
+            [3, 7, 4, 0],
+        ]
+        
+        for f in faces:
+            try:
+                bm.faces.new([verts[i] for i in f])
+            except:
+                pass
+        
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.update()
+        
+        return obj
+    
+    @classmethod
+    def _create_hand(
+        cls,
+        name: str,
+        wrist: Vector,
+        elbow: Vector,
+        size: float
+    ) -> bpy.types.Object:
+        """Create a hand mesh"""
+        mesh = bpy.data.meshes.new(name)
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        
+        bm = bmesh.new()
+        
+        direction = (wrist - elbow).normalized()
+        hand_end = wrist + direction * size
+        hand_center = wrist.lerp(hand_end, 0.5)
+        
+        hw = size * 0.5
+        hl = size * 0.3
+        hh = size * 0.15
+        
+        if abs(direction.z) < 0.99:
+            side = direction.cross(Vector((0, 0, 1))).normalized()
+        else:
+            side = direction.cross(Vector((1, 0, 0))).normalized()
+        up = direction.cross(side).normalized()
+        
+        corners = [
+            wrist + side * (-hw * 0.7) + up * (-hh),
+            wrist + side * (hw * 0.7) + up * (-hh),
+            hand_end + side * (hw * 0.5) + up * (-hh * 0.8),
+            hand_end + side * (-hw * 0.5) + up * (-hh * 0.8),
+            wrist + side * (-hw * 0.6) + up * (hh),
+            wrist + side * (hw * 0.6) + up * (hh),
+            hand_end + side * (hw * 0.4) + up * (hh * 0.6),
+            hand_end + side * (-hw * 0.4) + up * (hh * 0.6),
+        ]
+        
+        verts = [bm.verts.new(c) for c in corners]
+        bm.verts.ensure_lookup_table()
+        
+        faces = [
+            [0, 1, 2, 3],
+            [4, 7, 6, 5],
+            [0, 4, 5, 1],
+            [1, 5, 6, 2],
+            [2, 6, 7, 3],
+            [3, 7, 4, 0],
+        ]
+        
+        for f in faces:
+            try:
+                bm.faces.new([verts[i] for i in f])
+            except:
+                pass
+        
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.update()
+        
+        return obj

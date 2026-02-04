@@ -59,7 +59,8 @@ def generate_procedural_base(
     style: str = "stylized",
     poly_level: str = "medium",
     gender: str = "male",
-    create_rig: bool = True
+    create_rig: bool = True,
+    hierarchical: bool = True
 ):
     """
     Generate a procedural humanoid base mesh from scratch.
@@ -70,6 +71,7 @@ def generate_procedural_base(
         poly_level: Polygon complexity (ultra_low, low, medium, high)
         gender: Gender for proportion adjustments (male, female)
         create_rig: Whether to create basic armature rig
+        hierarchical: Use hierarchical generation with separate body parts (default: True)
         
     Returns:
         Dict with mesh info and stats
@@ -81,32 +83,66 @@ def generate_procedural_base(
         "style": style,
         "poly_level": poly_level,
         "gender": gender,
-        "create_rig": create_rig
+        "create_rig": create_rig,
+        "hierarchical": hierarchical
     })
     
-    mesh_obj = ProceduralHumanoid.generate(
-        style=style,
-        poly_level=poly_level,
-        gender=gender
-    )
-    
-    rig_obj = None
-    if create_rig:
-        rig_obj = ProceduralHumanoid.create_basic_rig(mesh_obj)
-    
-    stats = MeshAnalyzer.get_stats(mesh_obj)
-    
-    return {
-        "mesh_name": mesh_obj.name,
-        "rig_name": rig_obj.name if rig_obj else None,
-        "vertex_count": stats.vertex_count,
-        "face_count": stats.face_count,
-        "triangle_count": stats.triangle_count,
-        "style": style,
-        "poly_level": poly_level,
-        "gender": gender,
-        "mode": "procedural"
-    }
+    if hierarchical:
+        root_obj = ProceduralHumanoid.generate_hierarchical(
+            style=style,
+            poly_level=poly_level,
+            gender=gender
+        )
+        
+        total_verts = 0
+        total_faces = 0
+        total_tris = 0
+        mesh_names = []
+        
+        for child in root_obj.children:
+            if child.type == 'MESH':
+                mesh_names.append(child.name)
+                total_verts += len(child.data.vertices)
+                total_faces += len(child.data.polygons)
+                total_tris += sum(1 for p in child.data.polygons if len(p.vertices) == 3) + \
+                             sum(2 for p in child.data.polygons if len(p.vertices) == 4)
+        
+        return {
+            "root_name": root_obj.name,
+            "mesh_names": mesh_names,
+            "parts_count": len(mesh_names),
+            "vertex_count": total_verts,
+            "face_count": total_faces,
+            "triangle_count": total_tris,
+            "style": style,
+            "poly_level": poly_level,
+            "gender": gender,
+            "mode": "procedural_hierarchical"
+        }
+    else:
+        mesh_obj = ProceduralHumanoid.generate(
+            style=style,
+            poly_level=poly_level,
+            gender=gender
+        )
+        
+        rig_obj = None
+        if create_rig:
+            rig_obj = ProceduralHumanoid.create_basic_rig(mesh_obj)
+        
+        stats = MeshAnalyzer.get_stats(mesh_obj)
+        
+        return {
+            "mesh_name": mesh_obj.name,
+            "rig_name": rig_obj.name if rig_obj else None,
+            "vertex_count": stats.vertex_count,
+            "face_count": stats.face_count,
+            "triangle_count": stats.triangle_count,
+            "style": style,
+            "poly_level": poly_level,
+            "gender": gender,
+            "mode": "procedural"
+        }
 
 
 @tool("apply_style", "Apply style-based transformations")
@@ -406,7 +442,8 @@ def generate_character(
             "style": style,
             "poly_level": poly_level,
             "gender": gender,
-            "create_rig": True
+            "create_rig": True,
+            "hierarchical": True
         })
     else:
         load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
