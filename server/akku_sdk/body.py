@@ -173,34 +173,40 @@ class BodyTypeSystem:
             dx, dy, dz = 0.0, 0.0, 0.0
             
             if params.height != 0:
-                dz = params.height * 0.15 * w_norm
+                dz = params.height * 0.4 * w_norm
             
-            body_width_factor = params.muscular * 0.12 + params.fat * 0.15
+            # DRAMATICALLY INCREASED scaling (3-4x) for visible silhouette changes
+            body_width_factor = params.muscular * 0.5 + params.fat * 0.4
             
             if 0.55 < w_norm < 0.8:
-                shoulder_factor = params.shoulder_width * 0.1
+                # Shoulders - most dramatic change for heroic/muscular
+                shoulder_factor = params.shoulder_width * 0.5
                 dx = (u_norm - 0.5) * (body_width_factor + shoulder_factor)
                 dy = (v_norm - 0.5) * body_width_factor * 0.7
             
             elif 0.45 < w_norm <= 0.55:
-                waist_factor = -params.muscular * 0.05 + params.fat * 0.1
+                # Waist - cinch for muscular, expand for fat
+                waist_factor = -params.muscular * 0.2 + params.fat * 0.3
                 dx = (u_norm - 0.5) * waist_factor
                 dy = (v_norm - 0.5) * waist_factor
             
             elif 0.35 < w_norm <= 0.45:
-                hip_factor = params.hip_width * 0.08 + params.fat * 0.08
+                # Hips - wider for stocky/fat
+                hip_factor = params.hip_width * 0.3 + params.fat * 0.25
                 dx = (u_norm - 0.5) * hip_factor
                 dy = (v_norm - 0.5) * hip_factor
             
             elif w_norm <= 0.35:
-                leg_scale = params.leg_length * 0.1
+                # Legs - thicker for muscular/fat
+                leg_scale = params.leg_length * 0.3
                 dz = leg_scale * w_norm
-                leg_width = (params.muscular * 0.05 + params.fat * 0.06) * (1 - w_norm)
+                leg_width = (params.muscular * 0.2 + params.fat * 0.2) * (1 - w_norm)
                 dx = (u_norm - 0.5) * leg_width
                 dy = (v_norm - 0.5) * leg_width
             
             elif w_norm > 0.85:
-                head_scale = params.head_size * 0.08
+                # Head - larger for chibi style
+                head_scale = params.head_size * 0.25
                 dx = (u_norm - 0.5) * head_scale
                 dy = (v_norm - 0.5) * head_scale
                 dz += head_scale * 0.5
