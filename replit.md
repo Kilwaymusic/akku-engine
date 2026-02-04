@@ -95,11 +95,12 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `mesh.py` | 438 | MeshTools, UndoManager, BooleanRemeshTools |
 | `shader.py` | 328 | MaterialSystem, StylizedShaderParams, StylizedShaderSystem |
 | `body.py` | 321 | BodyTypeParams, BodyTypePresets, BodyTypeSystem |
-| `kitbash.py` | 398 | SocketInfo, SemanticPart, KitbashLibrary, KitbashEquipper |
+| `kitbash.py` | 419 | SocketInfo, SemanticPart, KitbashLibrary, KitbashEquipper |
+| `rigging.py` | 324 | AutoWeightTransfer, WeightTransferResult (Data Transfer modifier) |
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
-| `main.py` | 390 | CLI interface and registered tools |
+| `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |
-| `__init__.py` | 104 | Clean API with all exports, sys.path registration |
+| `__init__.py` | 113 | Clean API with all exports, sys.path registration |
 
 ## API Endpoints
 
@@ -182,8 +183,13 @@ Procedural material system for low-poly characters:
 Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
 
 ## Recent Changes
-- 2026-02-04: **SDK v3.5 Modular Refactoring** - Split 2,706-line monolithic file into 8 focused modules
-  - Improved maintainability with ~2,437 total lines across modules
+- 2026-02-04: **Added Auto Weight Transfer System** - rigging.py module (324 lines)
+  - Uses Data Transfer modifier to copy vertex weights from base mesh to parts
+  - Enables equipment to deform with animations without manual weight painting
+  - Integrated with KitbashEquipper (auto_rig=True by default)
+  - cleanup_zero_weights() removes empty vertex groups
+- 2026-02-04: **SDK v3.5 Modular Refactoring** - Split monolithic file into 9 focused modules
+  - 2,878 total lines across modules (increased from base due to rigging module)
   - Clean imports via `from akku_sdk import ...`
   - All operations remain context-independent (bmesh-based)
 - 2026-02-04: **Added Kitbash 2.0 Semantic Component Library** - AI-driven equipment system

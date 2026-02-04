@@ -19,6 +19,7 @@ from .mesh import MeshTools, BooleanRemeshTools
 from .shader import StylizedShaderSystem
 from .body import BodyTypePresets, BodyTypeSystem
 from .kitbash import KitbashLibrary, KitbashEquipper
+from .rigging import AutoWeightTransfer
 from .handlers import FBXHandler, GLBHandler
 
 
@@ -237,6 +238,59 @@ def tool_list_kitbash_parts(params: dict):
         ],
         "categories": KitbashLibrary.list_categories(),
         "styles": KitbashLibrary.list_styles()
+    }
+
+
+@tool("auto_weight_transfer", "Transfer vertex weights from base mesh to all parts")
+def tool_auto_weight_transfer(params: dict = None):
+    """
+    Auto-rig all equipment parts by transferring vertex weights from base mesh.
+    
+    Uses Data Transfer modifier to copy vertex groups from the base character
+    mesh to attached equipment parts, enabling them to deform with animations.
+    
+    Args:
+        params: Optional dict with:
+            - apply_modifier: bool - Whether to apply the modifier (default: True)
+            - cleanup_empty: bool - Remove vertex groups with no weights (default: True)
+    
+    Returns:
+        Dict with success status and details for each rigged part
+    """
+    if params is None:
+        params = {}
+    
+    apply_modifier = params.get("apply_modifier", True)
+    cleanup_empty = params.get("cleanup_empty", True)
+    
+    results = AutoWeightTransfer.auto_rig_all_parts(
+        exclude_base=True,
+        apply_transfer=apply_modifier
+    )
+    
+    if cleanup_empty:
+        for result in results:
+            if result.success:
+                obj = bpy.data.objects.get(result.part_name)
+                if obj:
+                    AutoWeightTransfer.cleanup_zero_weights(obj)
+    
+    success_count = sum(1 for r in results if r.success)
+    
+    return {
+        "status": "success" if success_count > 0 else "no_parts_rigged",
+        "parts_rigged": success_count,
+        "total_parts": len(results),
+        "details": [
+            {
+                "part": r.part_name,
+                "success": r.success,
+                "source": r.source_mesh,
+                "groups": r.vertex_groups_created,
+                "message": r.message
+            }
+            for r in results
+        ]
     }
 
 

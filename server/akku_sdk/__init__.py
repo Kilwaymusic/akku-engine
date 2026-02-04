@@ -8,6 +8,7 @@ Modules:
 - shader: Material and Stylized Shader System
 - body: Body Type System with Deformation
 - kitbash: Semantic Component Library for Equipment
+- rigging: Auto Weight Transfer System
 - handlers: FBX Import and GLB Export
 """
 
@@ -61,6 +62,11 @@ from .kitbash import (
     KitbashEquipper,
 )
 
+from .rigging import (
+    WeightTransferResult,
+    AutoWeightTransfer,
+)
+
 from .handlers import (
     FBXHandler,
     GLBHandler,
@@ -98,6 +104,9 @@ __all__ = [
     "SemanticPart",
     "KitbashLibrary",
     "KitbashEquipper",
+    # Rigging
+    "WeightTransferResult",
+    "AutoWeightTransfer",
     # Handlers
     "FBXHandler",
     "GLBHandler",

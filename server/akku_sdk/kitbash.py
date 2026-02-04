@@ -11,6 +11,7 @@ from mathutils import Vector, Euler
 
 from .core import AkkuLogger
 from .shader import StylizedShaderSystem
+from .rigging import AutoWeightTransfer
 
 
 @dataclass
@@ -340,9 +341,21 @@ class KitbashEquipper:
     def equip_part(
         part: SemanticPart,
         color: Tuple[float, float, float] = (0.5, 0.5, 0.5),
-        style_preset: str = "stylized"
+        style_preset: str = "stylized",
+        auto_rig: bool = True
     ) -> Optional[bpy.types.Object]:
-        """Equip a semantic part to the character"""
+        """
+        Equip a semantic part to the character
+        
+        Args:
+            part: SemanticPart definition with socket info
+            color: RGB color tuple for the part material
+            style_preset: Style preset for shader system
+            auto_rig: If True, automatically transfer weights from base mesh
+            
+        Returns:
+            The created mesh object, or None on failure
+        """
         armature = KitbashEquipper.find_armature()
         if not armature:
             AkkuLogger.warning("No armature found in scene")
@@ -389,10 +402,18 @@ class KitbashEquipper:
         
         StylizedShaderSystem.apply_stylized_shader(obj, color, style_preset)
         
+        if auto_rig:
+            result = AutoWeightTransfer.auto_rig_part(obj, apply_transfer=True)
+            if result.success:
+                AkkuLogger.info(f"Auto-rigged {part.name} with {result.vertex_groups_created} groups")
+            else:
+                AkkuLogger.warning(f"Auto-rig failed for {part.name}: {result.message}")
+        
         AkkuLogger.info(f"Equipped part: {part.name}", {
             "category": part.category,
             "style": part.style,
-            "bone": part.socket.bone_name
+            "bone": part.socket.bone_name,
+            "auto_rigged": auto_rig
         })
         
         return obj
