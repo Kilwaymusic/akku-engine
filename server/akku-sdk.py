@@ -268,8 +268,18 @@ class AkkuMaterialSystem:
         principled.inputs['Roughness'].default_value = roughness
         
         if emission > 0:
-            principled.inputs['Emission Color'].default_value = (*color, 1.0)
-            principled.inputs['Emission Strength'].default_value = emission * 2.0
+            # Blender 3.4 uses 'Emission' instead of 'Emission Color'
+            try:
+                principled.inputs['Emission'].default_value = (*color, 1.0)
+            except KeyError:
+                try:
+                    principled.inputs['Emission Color'].default_value = (*color, 1.0)
+                except KeyError:
+                    pass
+            try:
+                principled.inputs['Emission Strength'].default_value = emission * 2.0
+            except KeyError:
+                pass
         
         # Connect nodes
         links.new(principled.outputs['BSDF'], output.inputs['Surface'])
