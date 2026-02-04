@@ -186,6 +186,14 @@ Procedural material system for low-poly characters:
 Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
 
 ## Recent Changes
+- 2026-02-04: **Enhanced Body Deformation & Kitbash Integration** - Major visual differentiation update
+  - Doubled body deformation scaling factors (0.12-0.25 → 0.25-0.50) for dramatic visible changes
+  - Increased all preset values (muscular: 0.6→1.0, fat: 0.5→1.0, heroic: 0.5→0.9, etc.)
+  - Added MIN_SCALE/MAX_SCALE clamping (0.4-2.0) to prevent mesh distortion
+  - Integrated kitbash equipment into generate_character pipeline with archetype detection
+  - Maps archetype to equipment style: warrior/knight→heavy, mage/wizard→magic, rogue→light, robot→scifi
+  - Auto-runs weight transfer after successful equipment attachment
+  - Created sync_to_gcp.sh script for deploying SDK updates to GCP Worker
 - 2026-02-04: **Direct Data Manipulation Refactoring** - Ensures GLB export compatibility
   - `shader.py`: Replaced complex shader nodes with GLB-standard Principled BSDF (Base Color, Metallic, Roughness, Emission only)
   - `body.py`: Added DirectMeshDeformer class - all vertex deformations via bmesh, baked into mesh data
