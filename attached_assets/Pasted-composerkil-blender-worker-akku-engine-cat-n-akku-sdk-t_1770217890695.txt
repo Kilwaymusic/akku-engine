@@ -1,0 +1,51 @@
+composerkil@blender-worker:~/akku-engine$ cat -n akku_sdk/tools.py | sed -n '80,130p'
+    80                      result = func(*args, **kwargs)
+    81                      duration = (time.time() - start_time) * 1000
+    82                      
+    83                      mesh_stats = None
+    84                      mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+    85                      if mesh_objects:
+    86                          mesh_stats = MeshAnalyzer.get_stats(mesh_objects[0])
+    87                      
+    88                      step_result = StepResult(
+    89                          step_name=name,
+    90                          success=True,
+    91                          message="Completed successfully",
+    92                          mesh_stats=mesh_stats,
+    93                          duration_ms=duration,
+    94                          timestamp=datetime.now().isoformat()
+    95                      )
+    96                      AkkuLogger.add_step_result(step_result)
+    97                      
+    98                      return result
+    99                      
+   100                  except Exception as e:
+   101                      duration = (time.time() - start_time) * 1000
+   102                      
+   103                      mesh_stats = None
+   104                      mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+   105                      if mesh_objects:
+   106                          mesh_stats = MeshAnalyzer.get_stats(mesh_objects[0])
+   107                      
+   108                      error_report = AkkuLogger.create_error_report(e, name, mesh_stats)
+   109                      
+   110                      step_result = StepResult(
+   111                          step_name=name,
+   112                          success=False,
+   113                          message=str(e),
+   114                          mesh_stats=mesh_stats,
+   115                          duration_ms=duration,
+   116                          timestamp=datetime.now().isoformat(),
+   117                          error_details=asdict(error_report)
+   118                      )
+   119                      AkkuLogger.add_step_result(step_result)
+   120                      
+   121                      raise
+   122              
+   123              cls._tools[name] = {
+   124                  "function": wrapper,
+   125                  "description": description,
+   126                  "name": name
+   127              }
+   128              return wrapper
+   129          return decorator
