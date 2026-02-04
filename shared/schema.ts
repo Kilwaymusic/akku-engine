@@ -6,6 +6,8 @@ import { z } from "zod";
 export const jobs = pgTable("jobs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   prompt: text("prompt").notNull(),
+  style: varchar("style", { length: 20 }).default("stylized"),
+  polyLevel: varchar("poly_level", { length: 20 }).default("medium"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
   modelUrl: text("model_url"),
   error: text("error"),
@@ -14,6 +16,9 @@ export const jobs = pgTable("jobs", {
 
 export const insertJobSchema = createInsertSchema(jobs).pick({
   prompt: true,
+}).extend({
+  style: z.enum(["sd", "stylized", "realistic", "chibi", "mobile", "minifig", "cartoon"]).optional().default("stylized"),
+  polyLevel: z.enum(["ultra_low", "low", "medium", "high"]).optional().default("medium"),
 });
 
 export type InsertJob = z.infer<typeof insertJobSchema>;

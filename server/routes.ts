@@ -74,10 +74,18 @@ async function generateModelCLI(jobId: string, prompt: string): Promise<string> 
 /**
  * Akku SDK MCP-based generation with multi-step procedural workflow
  */
-async function generateModelMCP(jobId: string, prompt: string): Promise<string> {
+interface GenerationOptions {
+  prompt: string;
+  style?: string;
+  polyLevel?: string;
+}
+
+async function generateModelMCP(jobId: string, options: GenerationOptions): Promise<string> {
+  const { prompt, style = "stylized", polyLevel = "medium" } = options;
   console.log(`[Akku SDK Mode] Generating plan with Gemini AI for job ${jobId}...`);
+  console.log(`Style: ${style}, Poly Level: ${polyLevel}`);
   
-  const plan = await generateAkkuPlan(prompt);
+  const plan = await generateAkkuPlan(prompt, style, polyLevel);
   console.log(`Akku SDK Plan:`, JSON.stringify(plan, null, 2));
   console.log(`Total steps: ${plan.steps.length}`);
 
@@ -103,16 +111,16 @@ async function generateModelMCP(jobId: string, prompt: string): Promise<string> 
 /**
  * Main generation function - tries MCP first, falls back to CLI
  */
-async function generateModel(jobId: string, prompt: string): Promise<string> {
+async function generateModel(jobId: string, options: GenerationOptions): Promise<string> {
   if (useMCPMode) {
     try {
-      return await generateModelMCP(jobId, prompt);
+      return await generateModelMCP(jobId, options);
     } catch (error) {
       console.warn(`MCP generation failed, falling back to CLI:`, error);
-      return await generateModelCLI(jobId, prompt);
+      return await generateModelCLI(jobId, options.prompt);
     }
   } else {
-    return await generateModelCLI(jobId, prompt);
+    return await generateModelCLI(jobId, options.prompt);
   }
 }
 
@@ -164,7 +172,11 @@ export async function registerRoutes(
         try {
           await storage.updateJob(job.id, { status: "processing" });
           
-          const modelUrl = await generateModel(job.id, job.prompt);
+          const modelUrl = await generateModel(job.id, {
+            prompt: job.prompt,
+            style: result.data.style,
+            polyLevel: result.data.polyLevel,
+          });
           
           await storage.updateJob(job.id, {
             status: "completed",

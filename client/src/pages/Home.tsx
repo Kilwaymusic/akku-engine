@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { BabylonViewer } from "@/components/BabylonViewer";
-import { PromptInput } from "@/components/PromptInput";
+import { PromptInput, type GenerationOptions } from "@/components/PromptInput";
 import { JobHistory } from "@/components/JobHistory";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useToast } from "@/hooks/use-toast";
@@ -50,8 +50,12 @@ export default function Home() {
   });
 
   const createJobMutation = useMutation({
-    mutationFn: async (prompt: string) => {
-      const response = await apiRequest("POST", "/api/jobs", { prompt });
+    mutationFn: async (options: GenerationOptions) => {
+      const response = await apiRequest("POST", "/api/jobs", {
+        prompt: options.prompt,
+        style: options.style,
+        polyLevel: options.polyLevel,
+      });
       return response.json();
     },
     onSuccess: (newJob: Job) => {
@@ -177,7 +181,7 @@ export default function Home() {
             </div>
 
             <PromptInput
-              onSubmit={(prompt) => createJobMutation.mutate(prompt)}
+              onSubmit={(options) => createJobMutation.mutate(options)}
               isLoading={createJobMutation.isPending || isGenerating}
             />
           </div>

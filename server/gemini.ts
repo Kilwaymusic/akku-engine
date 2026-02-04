@@ -339,15 +339,32 @@ Output ONLY the JSON, no explanations or markdown.`;
 
 /**
  * Generate an Akku SDK generation plan using Gemini
+ * @param prompt User's character description
+ * @param style Proportion type (sd, stylized, realistic, chibi, mobile, minifig, cartoon)
+ * @param polyLevel Polygon density (ultra_low, low, medium, high)
  */
-export async function generateAkkuPlan(prompt: string): Promise<AkkuGenerationPlan> {
+export async function generateAkkuPlan(
+  prompt: string,
+  style: string = "stylized",
+  polyLevel: string = "medium"
+): Promise<AkkuGenerationPlan> {
   try {
+    const userRequest = `Create an Akku SDK generation plan for this character:
+
+Character description: ${prompt}
+
+Required parameters:
+- Use proportion_type: "${style}"
+- Use poly_level: "${polyLevel}"
+
+Make sure spawn_humanoid_base includes both proportion_type and poly_level in its params.`;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
         { role: "user", parts: [{ text: AKKU_SDK_PROMPT }] },
         { role: "model", parts: [{ text: "I understand. I will analyze character descriptions and output Akku SDK generation plans using only the 8 approved tools across the 4 categories." }] },
-        { role: "user", parts: [{ text: `Create an Akku SDK generation plan for this character:\n\n${prompt}` }] },
+        { role: "user", parts: [{ text: userRequest }] },
       ],
     });
 

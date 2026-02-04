@@ -46,7 +46,7 @@ The system uses the **Akku Low-poly SDK** architecture with 8 structured tools i
 
 | Category | Tool | Description |
 |----------|------|-------------|
-| Base Generation | `spawn_humanoid_base` | Create base mesh with proportions (chibi/adult/heroic/stylized) |
+| Base Generation | `spawn_humanoid_base` | Create base mesh with proportions and poly level (7 styles, 4 poly levels) |
 | Base Generation | `deform_body` | Apply body deformations (muscular/slim/stocky/elongated) |
 | Kitbashing | `attach_armor_plate` | Add armor pieces (7 styles: knight/samurai/scifi/heavy/rogue/mage/tribal) |
 | Kitbashing | `add_scifi_detail` | Add sci-fi elements (antenna/visor/jetpack/tubes/panel) |
@@ -123,7 +123,32 @@ The system uses the **Akku Low-poly SDK** architecture with 8 structured tools i
 - **Zod**: Runtime schema validation for API inputs
 - **@google/genai**: Google Generative AI SDK for Gemini integration
 
+## Character Generation Options
+
+### Proportion Types (7 styles)
+| Type | Description | Target Use Case |
+|------|-------------|-----------------|
+| `stylized` | 5-6 heads tall, versatile | General purpose |
+| `chibi` | 1.5-2 heads, big head | Cute characters |
+| `sd` | 2-3 heads, super-deformed | Anime/mascot |
+| `mobile` | Ultra-low-poly | Mobile games |
+| `minifig` | LEGO-style proportions | Block-style games |
+| `cartoon` | Exaggerated features | Cartoon games |
+| `realistic` | 8 heads, human-like | Realistic games |
+
+### Polygon Levels (4 levels)
+| Level | Triangle Count | Target Platform |
+|-------|----------------|-----------------|
+| `ultra_low` | ~300 tris | Mobile, web games |
+| `low` | ~800 tris | Low-end devices |
+| `medium` | ~1500 tris | Balanced quality |
+| `high` | ~3000 tris | PC/Console games |
+
 ## Recent Changes
+- 2026-02-04: Added UI style selector with 7 proportion types and 4 poly levels
+- 2026-02-04: Optimized GLB export for game engines (mesh joining, Y-up orientation)
+- 2026-02-04: Extended spawn_humanoid_base with poly_level parameter
+- 2026-02-04: Added new proportion types (mobile, minifig, cartoon)
 - 2026-02-04: Implemented Akku Low-poly SDK with 8 structured tools across 4 categories
 - 2026-02-04: Updated Gemini prompt to use Akku SDK API exclusively
 - 2026-02-04: Added Korean language support for color terms and prompts

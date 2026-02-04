@@ -20,6 +20,8 @@ export class MemStorage implements IStorage {
     const job: Job = {
       id,
       prompt: insertJob.prompt,
+      style: insertJob.style || "stylized",
+      polyLevel: insertJob.polyLevel || "medium",
       status: "pending",
       modelUrl: null,
       error: null,

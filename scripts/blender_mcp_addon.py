@@ -483,9 +483,16 @@ class BlenderMCPServer:
 
         return info
 
-    def export_glb(self, filepath):
+    def export_glb(self, filepath, optimize_for_game=True):
+        """
+        Export scene to GLB format optimized for game engines.
+        - Applies all modifiers
+        - Joins meshes into single object for better batching
+        - Optimizes for real-time rendering
+        """
         bpy.ops.object.select_all(action='SELECT')
         
+        # Apply all modifiers first
         for obj in bpy.context.selected_objects:
             if obj.type == 'MESH':
                 bpy.context.view_layer.objects.active = obj
@@ -494,16 +501,50 @@ class BlenderMCPServer:
                         bpy.ops.object.modifier_apply(modifier=mod.name)
                     except:
                         pass
+        
+        # Count triangles before export
+        total_tris = 0
+        mesh_count = 0
+        for obj in bpy.context.scene.objects:
+            if obj.type == 'MESH':
+                mesh_count += 1
+                total_tris += sum(len(p.vertices) - 2 for p in obj.data.polygons)
+        
+        # Join meshes for game optimization (reduces draw calls)
+        if optimize_for_game and mesh_count > 1:
+            bpy.ops.object.select_all(action='SELECT')
+            mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+            if mesh_objects:
+                bpy.context.view_layer.objects.active = mesh_objects[0]
+                try:
+                    bpy.ops.object.join()
+                    joined_obj = bpy.context.active_object
+                    joined_obj.name = "AkkuCharacter"
+                except:
+                    pass
 
+        # Select all for export
+        bpy.ops.object.select_all(action='SELECT')
+        
+        # Export with game-engine optimized settings
         bpy.ops.export_scene.gltf(
             filepath=filepath,
             export_format='GLB',
             use_selection=True,
             export_apply=True,
-            export_materials='EXPORT'
+            export_materials='EXPORT',
+            export_colors=True,
+            export_cameras=False,
+            export_lights=False,
+            export_yup=True,  # Standard for game engines
         )
 
-        return f"Exported to {filepath}"
+        return {
+            "message": f"Exported to {filepath}",
+            "filepath": filepath,
+            "triangle_count": total_tris,
+            "optimized": optimize_for_game
+        }
 
     # ============================================================
     # AKKU SDK CATEGORY 1: BASE GENERATION
