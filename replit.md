@@ -82,11 +82,12 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | File | Purpose |
 |------|---------|
 | `server/routes.ts` | API routes with GCP Worker integration |
-| `server/gcp-app.py` | GCP Worker Flask server (v3.5) |
+| `server/gcp-app.py` | GCP Worker Flask server (v3.7) |
+| `server/image-analyzer.ts` | Gemini Vision image analysis for reference images (NEW) |
 | `client/src/components/BabylonViewer.tsx` | 3D model viewer component |
-| `server/akku_sdk/` | Modular Blender SDK package (v3.5) |
+| `server/akku_sdk/` | Modular Blender SDK package (v3.7) |
 
-### Akku SDK v3.6 Modules
+### Akku SDK v3.7 Modules
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
@@ -98,6 +99,27 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `kitbash.py` | 419 | SocketInfo, SemanticPart, KitbashLibrary, KitbashEquipper |
 | `rigging.py` | 324 | AutoWeightTransfer, WeightTransferResult (Data Transfer modifier) |
 | `finalize.py` | 1028 | FinalizePipeline, MeshOptimizer, DecimateEngine, MeshJoiner, LOD generation |
+| `procedural.py` | 600+ | ProceduralHumanoid, StyleProportions, PolyLevelPresets (NEW) |
+
+### v3.7 New Features (2026-02-04)
+
+#### 1. Procedural Humanoid Generation
+- **No Mixamo dependency**: Characters can now be generated from scratch using bmesh primitives
+- **Styles**: realistic, stylized, chibi, sd, mobile, minifig, cartoon
+- **Poly Levels**: ultra_low (~300 tris), low (~800 tris), medium (~1500 tris), high (~3000 tris)
+- **Auto-rigging**: Basic humanoid armature created automatically
+- **Usage**: Set `use_procedural=true` (default) in generation request
+
+#### 2. Image Prompt Analysis
+- **Gemini Vision Integration**: Upload reference images to extract character attributes
+- **Auto-detection**: Style, body type, colors, archetype, equipment
+- **Korean support**: Suggested prompts in Korean/English
+- **Endpoint**: POST `/api/analyze-image` with base64 image data
+
+#### 3. Enhanced Quality
+- **Style-specific proportions**: Each style has optimized body ratios
+- **Better topology**: Improved mesh generation with proper edge flow
+- **Gender variations**: Subtle proportion adjustments for male/female
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |

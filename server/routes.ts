@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { insertJobSchema } from "@shared/schema";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import path from "path";
+import { analyzeImage, attributesToGenerationOptions } from "./image-analyzer";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
 
@@ -348,12 +349,63 @@ echo "=== Pull Complete ==="
     }
   });
 
+  // Analyze reference image using Gemini Vision
+  app.post("/api/analyze-image", async (req, res) => {
+    try {
+      const { image, mimeType } = req.body as { image?: string; mimeType?: string };
+      
+      if (!image) {
+        return res.status(400).json({ error: "No image provided" });
+      }
+      
+      // Validate image size (max 5MB base64 = ~6.6MB string)
+      const MAX_IMAGE_SIZE = 7 * 1024 * 1024;
+      if (image.length > MAX_IMAGE_SIZE) {
+        return res.status(400).json({ error: "Image too large. Maximum size is 5MB." });
+      }
+      
+      // Validate mime type
+      const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"];
+      
+      // Remove data URL prefix if present
+      let imageBase64 = image;
+      const dataUrlMatch = image.match(/^data:([^;]+);base64,(.+)$/);
+      let detectedMimeType = mimeType || "image/png";
+      
+      if (dataUrlMatch) {
+        detectedMimeType = dataUrlMatch[1];
+        imageBase64 = dataUrlMatch[2];
+      }
+      
+      if (!allowedMimeTypes.includes(detectedMimeType)) {
+        return res.status(400).json({ error: "Invalid image type. Allowed: PNG, JPEG, WebP, GIF" });
+      }
+      
+      console.log(`[API] Analyzing image (${detectedMimeType}, ${imageBase64.length} chars base64)`);
+      
+      const attributes = await analyzeImage(imageBase64, detectedMimeType);
+      const generationOptions = attributesToGenerationOptions(attributes);
+      
+      res.json({
+        success: true,
+        attributes,
+        generationOptions,
+      });
+    } catch (error) {
+      console.error("[API] Image analysis failed:", error);
+      res.status(500).json({ 
+        error: "Image analysis failed",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Get system status
   app.get("/api/status", async (req, res) => {
     res.json({
       mode: "GCP Worker",
       workerUrl: GCP_WORKER_URL,
-      sdkVersion: "Akku SDK v2.0 (Remote)",
+      sdkVersion: "Akku SDK v3.7 (Procedural)",
       modelsDir: existsSync(MODELS_DIR),
     });
   });

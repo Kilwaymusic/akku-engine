@@ -21,15 +21,16 @@ from .body import BodyTypePresets, BodyTypeSystem
 from .kitbash import KitbashLibrary, KitbashEquipper
 from .rigging import AutoWeightTransfer
 from .handlers import FBXHandler, GLBHandler
+from .procedural import ProceduralHumanoid, StyleProportions, PolyLevelPresets
 
 
 # ========================================
 # REGISTERED TOOLS
 # ========================================
 
-@tool("load_base_mesh", "Load Mixamo FBX base mesh")
+@tool("load_base_mesh", "Load Mixamo FBX base mesh (legacy)")
 def load_base_mesh(gender: str = "male"):
-    """Load and normalize a Mixamo FBX base mesh"""
+    """Load and normalize a Mixamo FBX base mesh (legacy mode)"""
     MeshTools.clear_scene()
     AkkuLogger.clear()
     
@@ -48,7 +49,63 @@ def load_base_mesh(gender: str = "male"):
     return {
         "mesh_count": len(mesh_objects),
         "mesh_names": [obj.name for obj in mesh_objects],
-        "target_height": AkkuConfig.TARGET_HEIGHT
+        "target_height": AkkuConfig.TARGET_HEIGHT,
+        "mode": "legacy_fbx"
+    }
+
+
+@tool("generate_procedural_base", "Generate procedural humanoid base mesh from scratch")
+def generate_procedural_base(
+    style: str = "stylized",
+    poly_level: str = "medium",
+    gender: str = "male",
+    create_rig: bool = True
+):
+    """
+    Generate a procedural humanoid base mesh from scratch.
+    No external dependencies (Mixamo, FBX) required.
+    
+    Args:
+        style: Character style (realistic, stylized, chibi, sd, mobile, minifig, cartoon)
+        poly_level: Polygon complexity (ultra_low, low, medium, high)
+        gender: Gender for proportion adjustments (male, female)
+        create_rig: Whether to create basic armature rig
+        
+    Returns:
+        Dict with mesh info and stats
+    """
+    MeshTools.clear_scene()
+    AkkuLogger.clear()
+    
+    AkkuLogger.info("Generating procedural humanoid", {
+        "style": style,
+        "poly_level": poly_level,
+        "gender": gender,
+        "create_rig": create_rig
+    })
+    
+    mesh_obj = ProceduralHumanoid.generate(
+        style=style,
+        poly_level=poly_level,
+        gender=gender
+    )
+    
+    rig_obj = None
+    if create_rig:
+        rig_obj = ProceduralHumanoid.create_basic_rig(mesh_obj)
+    
+    stats = MeshAnalyzer.get_stats(mesh_obj)
+    
+    return {
+        "mesh_name": mesh_obj.name,
+        "rig_name": rig_obj.name if rig_obj else None,
+        "vertex_count": stats.vertex_count,
+        "face_count": stats.face_count,
+        "triangle_count": stats.triangle_count,
+        "style": style,
+        "poly_level": poly_level,
+        "gender": gender,
+        "mode": "procedural"
     }
 
 
@@ -316,21 +373,44 @@ def generate_character(
     gender: str = "male",
     body_type: str = "auto",
     body_type_params: dict = None,
-    use_remesh: bool = False
+    use_remesh: bool = False,
+    use_procedural: bool = True
 ):
-    """Generate a complete low-poly character from prompt."""
+    """Generate a complete low-poly character from prompt.
+    
+    Args:
+        prompt: Character description
+        style: Character style (realistic, stylized, chibi, sd, mobile, minifig, cartoon)
+        poly_level: Polygon complexity (ultra_low, low, medium, high)
+        output_path: Output GLB file path
+        gender: Gender (male, female)
+        body_type: Body type preset or "auto" for prompt detection
+        body_type_params: Detailed body type parameters
+        use_remesh: Whether to apply voxel remesh
+        use_procedural: Use procedural mesh generation (default: True, False = legacy Mixamo)
+    """
     
     print(f"\n{'='*60}")
-    print(f"[Akku SDK v3.6] Character Generation")
+    print(f"[Akku SDK v3.7] Character Generation")
     print(f"{'='*60}")
     print(f"Prompt: {prompt}")
     print(f"Style: {style}, Poly Level: {poly_level}")
     print(f"Gender: {gender}, Body Type: {body_type}")
     print(f"Body Type Params: {body_type_params}")
     print(f"Use Remesh: {use_remesh}")
+    print(f"Use Procedural: {use_procedural}")
     print(f"{'='*60}\n")
     
-    load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
+    if use_procedural:
+        load_result = ToolRegistry.execute("generate_procedural_base", {
+            "style": style,
+            "poly_level": poly_level,
+            "gender": gender,
+            "create_rig": True
+        })
+    else:
+        load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
+    
     if load_result["status"] == "error":
         raise RuntimeError(f"Load failed: {load_result['message']}")
     
@@ -439,6 +519,7 @@ def generate_character(
         "poly_level": poly_level,
         "body_type": body_type,
         "output_path": output_path,
+        "generation_mode": "procedural" if use_procedural else "legacy_fbx",
         "load_info": load_result["result"],
         "body_type_info": body_type_result["result"] if body_type_result else None,
         "style_info": style_result["result"],
@@ -456,9 +537,12 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     
     if len(args) < 4:
-        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh]")
-        print("\nBody Types: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant")
+        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [use_procedural]")
+        print("\nStyles: realistic, stylized, chibi, sd, mobile, minifig, cartoon")
+        print("Poly Levels: ultra_low, low, medium, high")
+        print("Body Types: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant")
         print("Korean: 근육질, 마른, 뚱뚱한, 키큰, 키작은, 운동선수, 땅딸막한, 날씬한, 영웅, 치비, 거인")
+        print("\nuse_procedural: true (default) = generate from scratch, false = use Mixamo FBX")
         sys.exit(1)
     
     prompt = args[0]
@@ -468,6 +552,7 @@ def main():
     gender = args[4] if len(args) > 4 else "male"
     body_type_raw = args[5] if len(args) > 5 else "auto"
     use_remesh = args[6].lower() == "true" if len(args) > 6 else False
+    use_procedural = args[7].lower() != "false" if len(args) > 7 else True
     
     # Parse body type - can be JSON with detailed params or simple preset name
     body_type_params = None
@@ -487,6 +572,7 @@ def main():
         result = ToolRegistry.execute("generate_character", {
             "prompt": prompt,
             "style": style,
+            "use_procedural": use_procedural,
             "poly_level": poly_level,
             "output_path": output_path,
             "gender": gender,

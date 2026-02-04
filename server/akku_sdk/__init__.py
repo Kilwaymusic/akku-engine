@@ -88,7 +88,15 @@ from .handlers import (
     GLBHandler,
 )
 
-__version__ = "3.6.0"
+from .procedural import (
+    ProportionPreset,
+    StyleProportions,
+    PolyLevelSettings,
+    PolyLevelPresets,
+    ProceduralHumanoid,
+)
+
+__version__ = "3.7.0"
 __all__ = [
     # Core
     "AkkuConfig",
@@ -140,4 +148,10 @@ __all__ = [
     "FBXHandler",
     "MeshFreezer",
     "GLBHandler",
+    # Procedural
+    "ProportionPreset",
+    "StyleProportions",
+    "PolyLevelSettings",
+    "PolyLevelPresets",
+    "ProceduralHumanoid",
 ]
