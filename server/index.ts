@@ -2,8 +2,12 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import path from "path";
 
 const app = express();
+
+// Serve static files from public directory (for generated models)
+app.use("/models", express.static(path.join(process.cwd(), "public", "models")));
 const httpServer = createServer(app);
 
 declare module "http" {
