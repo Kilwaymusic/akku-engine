@@ -1,5 +1,5 @@
 """
-Akku SDK v3.5 - Modular Low-Poly Character Generation Toolkit
+Akku SDK v3.6 - Modular Low-Poly Character Generation Toolkit
 
 Modules:
 - core: Configuration, Logging, Error Handling
@@ -9,6 +9,7 @@ Modules:
 - body: Body Type System with Deformation
 - kitbash: Semantic Component Library for Equipment
 - rigging: Auto Weight Transfer System
+- finalize: Game Engine Optimization Pipeline
 - handlers: FBX Import and GLB Export
 """
 
@@ -67,12 +68,23 @@ from .rigging import (
     AutoWeightTransfer,
 )
 
+from .finalize import (
+    OptimizationResult,
+    TargetProfile,
+    PlatformTargets,
+    MeshOptimizer,
+    MaterialOptimizer,
+    DecimateEngine,
+    MeshJoiner,
+    FinalizePipeline,
+)
+
 from .handlers import (
     FBXHandler,
     GLBHandler,
 )
 
-__version__ = "3.5.0"
+__version__ = "3.6.0"
 __all__ = [
     # Core
     "AkkuConfig",
@@ -107,6 +119,15 @@ __all__ = [
     # Rigging
     "WeightTransferResult",
     "AutoWeightTransfer",
+    # Finalize
+    "OptimizationResult",
+    "TargetProfile",
+    "PlatformTargets",
+    "MeshOptimizer",
+    "MaterialOptimizer",
+    "DecimateEngine",
+    "MeshJoiner",
+    "FinalizePipeline",
     # Handlers
     "FBXHandler",
     "GLBHandler",
