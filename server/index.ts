@@ -8,6 +8,18 @@ const app = express();
 
 // Serve static files from public directory (for generated models)
 app.use("/models", express.static(path.join(process.cwd(), "public", "models")));
+
+// SDK download endpoint - must be before other middleware
+import fs from "fs";
+app.get("/akku_sdk_v3.6.tar.gz", (req, res) => {
+  const filePath = path.join(process.cwd(), "public", "akku_sdk_v3.6.tar.gz");
+  if (fs.existsSync(filePath)) {
+    res.download(filePath);
+  } else {
+    res.status(404).send("SDK file not found");
+  }
+});
+
 const httpServer = createServer(app);
 
 declare module "http" {
