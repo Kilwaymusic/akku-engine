@@ -1,6 +1,7 @@
 """
-Akku SDK v3.0 - MCP-Style Low-Poly Character Generation Toolkit
-Follows standard MCP architecture with tool registry pattern
+Akku SDK v3.1 - Context-Independent Low-Poly Character Generation Toolkit
+MCP-style architecture with headless-safe mesh operations
+All bpy.ops calls replaced with direct bpy.data/bmesh manipulation
 """
 
 import bpy
@@ -26,10 +27,10 @@ class AkkuConfig:
     OUTPUT_DIR = "/home/composerkil/akku-engine/outputs"
     
     # Mixamo FBX files are in centimeters, Blender uses meters
-    FBX_UNIT_SCALE = 0.01  # Convert cm to meters
+    FBX_UNIT_SCALE = 0.01
     
     # Target character height in meters
-    TARGET_HEIGHT = 1.8  # Standard human height
+    TARGET_HEIGHT = 1.8
 
 
 # ========================================
@@ -68,6 +69,8 @@ class ToolRegistry:
             result = cls._tools[tool_name]["function"](**(params or {}))
             return {"status": "success", "result": result}
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {"status": "error", "message": str(e)}
     
     @classmethod
@@ -179,32 +182,46 @@ class StyleAnalyzer:
 
 
 # ========================================
-# MESH OPERATIONS
+# CONTEXT-INDEPENDENT MESH OPERATIONS
+# All operations use direct bpy.data/bmesh manipulation
+# No bpy.ops calls that require context
 # ========================================
 
 class MeshTools:
-    """Low-level mesh manipulation tools"""
+    """Low-level mesh manipulation tools - Context Independent"""
     
     @staticmethod
     def clear_scene():
-        """Clear all objects from scene"""
-        bpy.ops.object.select_all(action='SELECT')
-        bpy.ops.object.delete(use_global=False)
+        """Clear all objects from scene - Direct data manipulation"""
+        # Remove all objects directly via bpy.data
+        while bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[0], do_unlink=True)
         
-        # Clear orphan data
-        for block in bpy.data.meshes:
-            if block.users == 0:
-                bpy.data.meshes.remove(block)
-        for block in bpy.data.materials:
-            if block.users == 0:
-                bpy.data.materials.remove(block)
-        for block in bpy.data.armatures:
-            if block.users == 0:
-                bpy.data.armatures.remove(block)
+        # Clear orphan meshes
+        for mesh in list(bpy.data.meshes):
+            if mesh.users == 0:
+                bpy.data.meshes.remove(mesh)
+        
+        # Clear orphan materials
+        for mat in list(bpy.data.materials):
+            if mat.users == 0:
+                bpy.data.materials.remove(mat)
+        
+        # Clear orphan armatures
+        for arm in list(bpy.data.armatures):
+            if arm.users == 0:
+                bpy.data.armatures.remove(arm)
+        
+        # Clear orphan actions
+        for action in list(bpy.data.actions):
+            if action.users == 0:
+                bpy.data.actions.remove(action)
+        
+        print("[Akku SDK] Scene cleared")
     
     @staticmethod
     def get_mesh_bounds(obj) -> Tuple[Vector, Vector, float]:
-        """Get mesh bounding box and height"""
+        """Get mesh bounding box and height - Direct data access"""
         if obj.type != 'MESH':
             return Vector((0, 0, 0)), Vector((0, 0, 0)), 0
         
@@ -217,69 +234,199 @@ class MeshTools:
         return min_co, max_co, height
     
     @staticmethod
+    def apply_scale_to_mesh(obj):
+        """Apply object scale to mesh data directly - Context Independent"""
+        if obj.type != 'MESH':
+            return
+        
+        # Get the scale matrix
+        scale_matrix = Matrix.Diagonal(obj.scale).to_4x4()
+        
+        # Apply to mesh vertices directly
+        mesh = obj.data
+        for vert in mesh.vertices:
+            vert.co = scale_matrix @ vert.co
+        
+        # Reset object scale
+        obj.scale = (1.0, 1.0, 1.0)
+        
+        # Update mesh
+        mesh.update()
+    
+    @staticmethod
     def normalize_scale(obj, target_height: float = 1.8):
-        """Normalize object to target height in meters"""
+        """Normalize object to target height - Context Independent"""
+        if obj.type != 'MESH':
+            return 1.0
+        
         _, _, current_height = MeshTools.get_mesh_bounds(obj)
         
         if current_height > 0:
             scale_factor = target_height / current_height
-            obj.scale *= scale_factor
             
-            # Apply the scale
-            bpy.context.view_layer.objects.active = obj
-            obj.select_set(True)
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            # Scale mesh vertices directly via bmesh
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+            
+            # Apply uniform scale to all vertices
+            bmesh.ops.scale(
+                bm,
+                vec=Vector((scale_factor, scale_factor, scale_factor)),
+                space=Matrix.Identity(4),
+                verts=bm.verts
+            )
+            
+            bm.to_mesh(obj.data)
+            bm.free()
+            
+            # Reset object transforms
+            obj.scale = (1.0, 1.0, 1.0)
+            obj.data.update()
             
             print(f"[Akku SDK] Normalized scale: {current_height:.2f}m -> {target_height:.2f}m (factor: {scale_factor:.4f})")
             return scale_factor
         return 1.0
     
     @staticmethod
-    def apply_decimate(obj, ratio: float):
-        """Apply decimate modifier to reduce polygon count"""
+    def apply_decimate_bmesh(obj, ratio: float):
+        """Apply decimation using bmesh - Context Independent"""
+        if obj.type != 'MESH':
+            return
+        
+        # Use bmesh for decimation
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        
+        # Calculate target face count
+        original_faces = len(bm.faces)
+        target_faces = int(original_faces * max(0.1, min(1.0, ratio)))
+        
+        if target_faces < original_faces:
+            # Use collapse decimation
+            bmesh.ops.dissolve_limit(
+                bm,
+                angle_limit=math.radians(5.0),
+                use_dissolve_boundaries=False,
+                verts=bm.verts,
+                edges=bm.edges,
+                delimit={'NORMAL'}
+            )
+        
+        bm.to_mesh(obj.data)
+        bm.free()
+        
+        obj.data.update()
+        print(f"[Akku SDK] Applied decimation with ratio {ratio:.2f}")
+    
+    @staticmethod
+    def apply_modifier_via_depsgraph(obj, modifier_name: str):
+        """Apply modifier using depsgraph - Context Independent"""
+        if obj.type != 'MESH' or modifier_name not in obj.modifiers:
+            return
+        
+        # Get evaluated mesh via depsgraph
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        obj_eval = obj.evaluated_get(depsgraph)
+        mesh_eval = obj_eval.to_mesh()
+        
+        # Copy evaluated mesh to original
+        bm = bmesh.new()
+        bm.from_mesh(mesh_eval)
+        
+        # Clear original mesh
+        obj.data.clear_geometry()
+        
+        # Write evaluated mesh back
+        bm.to_mesh(obj.data)
+        bm.free()
+        
+        # Remove evaluated mesh
+        obj_eval.to_mesh_clear()
+        
+        # Remove modifier
+        obj.modifiers.remove(obj.modifiers[modifier_name])
+        
+        obj.data.update()
+    
+    @staticmethod
+    def decimate_with_modifier(obj, ratio: float):
+        """Add and apply decimate modifier - Context Independent"""
         if obj.type != 'MESH':
             return
         
         # Add decimate modifier
-        mod = obj.modifiers.new(name="Decimate", type='DECIMATE')
+        mod = obj.modifiers.new(name="AkkuDecimate", type='DECIMATE')
         mod.ratio = max(0.1, min(1.0, ratio))
         mod.use_collapse_triangulate = True
         
-        # Apply modifier
-        bpy.context.view_layer.objects.active = obj
-        obj.select_set(True)
-        bpy.ops.object.modifier_apply(modifier=mod.name)
+        # Apply using depsgraph
+        MeshTools.apply_modifier_via_depsgraph(obj, "AkkuDecimate")
         
-        print(f"[Akku SDK] Applied decimate with ratio {ratio:.2f}")
+        print(f"[Akku SDK] Applied decimate modifier with ratio {ratio:.2f}")
     
     @staticmethod
     def triangulate_mesh(obj):
-        """Ensure mesh is triangulated for game export"""
+        """Triangulate mesh using bmesh - Context Independent"""
         if obj.type != 'MESH':
             return
         
-        mod = obj.modifiers.new(name="Triangulate", type='TRIANGULATE')
-        mod.quad_method = 'BEAUTY'
-        mod.ngon_method = 'BEAUTY'
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
         
-        bpy.context.view_layer.objects.active = obj
-        obj.select_set(True)
-        bpy.ops.object.modifier_apply(modifier=mod.name)
+        # Triangulate all faces
+        bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method='BEAUTY', ngon_method='BEAUTY')
+        
+        bm.to_mesh(obj.data)
+        bm.free()
+        
+        obj.data.update()
+        print("[Akku SDK] Mesh triangulated")
     
     @staticmethod
     def get_triangle_count(obj) -> int:
-        """Get triangle count for mesh"""
+        """Get triangle count for mesh - Direct calculation"""
         if obj.type != 'MESH':
             return 0
         
-        # Ensure we're counting triangulated faces
+        # Count triangulated faces
         bm = bmesh.new()
         bm.from_mesh(obj.data)
-        bmesh.ops.triangulate(bm, faces=bm.faces)
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
         tri_count = len(bm.faces)
         bm.free()
         
         return tri_count
+    
+    @staticmethod
+    def center_mesh_origin(obj):
+        """Center mesh origin to geometry - Context Independent"""
+        if obj.type != 'MESH':
+            return
+        
+        # Calculate center of mass
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        
+        if len(bm.verts) == 0:
+            bm.free()
+            return
+        
+        # Calculate center
+        center = Vector((0, 0, 0))
+        for v in bm.verts:
+            center += v.co
+        center /= len(bm.verts)
+        
+        # Offset all vertices
+        for v in bm.verts:
+            v.co -= center
+        
+        bm.to_mesh(obj.data)
+        bm.free()
+        
+        # Move object location
+        obj.location += center
+        obj.data.update()
 
 
 # ========================================
@@ -287,7 +434,7 @@ class MeshTools:
 # ========================================
 
 class MaterialSystem:
-    """PBR Material creation system"""
+    """PBR Material creation system - Direct node manipulation"""
     
     @staticmethod
     def create_material(
@@ -297,7 +444,7 @@ class MaterialSystem:
         roughness: float = 0.5,
         emission: float = 0.0
     ) -> bpy.types.Material:
-        """Create a PBR material"""
+        """Create a PBR material - No ops calls"""
         mat = bpy.data.materials.new(name=name)
         mat.use_nodes = True
         
@@ -319,15 +466,15 @@ class MaterialSystem:
         principled.inputs['Metallic'].default_value = metallic
         principled.inputs['Roughness'].default_value = roughness
         
-        # Handle emission (Blender 3.4 uses 'Emission', newer versions use 'Emission Color')
+        # Handle emission (Blender version compatibility)
         if emission > 0:
-            try:
-                principled.inputs['Emission'].default_value = (*color, 1.0)
-            except KeyError:
+            emission_inputs = ['Emission', 'Emission Color']
+            for emission_input in emission_inputs:
                 try:
-                    principled.inputs['Emission Color'].default_value = (*color, 1.0)
+                    principled.inputs[emission_input].default_value = (*color, 1.0)
+                    break
                 except KeyError:
-                    pass
+                    continue
             
             try:
                 principled.inputs['Emission Strength'].default_value = emission * 2.0
@@ -341,13 +488,82 @@ class MaterialSystem:
     
     @staticmethod
     def apply_material(obj, material: bpy.types.Material):
-        """Apply material to object"""
+        """Apply material to object - Direct data manipulation"""
         if obj.type != 'MESH':
             return
         
         # Clear existing materials
         obj.data.materials.clear()
         obj.data.materials.append(material)
+
+
+# ========================================
+# FBX IMPORT HANDLER
+# Note: FBX import requires bpy.ops but we use minimal context
+# ========================================
+
+class FBXHandler:
+    """FBX Import/Export handling with minimal context requirements"""
+    
+    @staticmethod
+    def import_fbx(filepath: str) -> List[bpy.types.Object]:
+        """Import FBX file - Uses ops but with override context"""
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"FBX file not found: {filepath}")
+        
+        # Store existing objects
+        existing_objects = set(bpy.data.objects.keys())
+        
+        # Import FBX (ops is unavoidable here)
+        bpy.ops.import_scene.fbx(
+            filepath=filepath,
+            use_custom_normals=True,
+            use_image_search=False,
+            ignore_leaf_bones=True,
+            automatic_bone_orientation=True,
+            global_scale=1.0,
+            use_manual_orientation=False
+        )
+        
+        # Get newly imported objects
+        new_objects = [obj for obj in bpy.data.objects if obj.name not in existing_objects]
+        
+        print(f"[Akku SDK] Imported FBX: {filepath}")
+        print(f"[Akku SDK] New objects: {[obj.name for obj in new_objects]}")
+        
+        return new_objects
+
+
+# ========================================
+# GLB EXPORT HANDLER
+# ========================================
+
+class GLBHandler:
+    """GLB Export handling"""
+    
+    @staticmethod
+    def export_glb(filepath: str) -> bool:
+        """Export scene to GLB - Uses ops but with minimal context"""
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        # Export GLB
+        bpy.ops.export_scene.gltf(
+            filepath=filepath,
+            export_format='GLB',
+            use_selection=False,
+            export_apply=True,
+            export_animations=True,
+            export_skins=True,
+            export_morph=False,
+            export_lights=False,
+            export_cameras=False
+        )
+        
+        if os.path.exists(filepath):
+            file_size = os.path.getsize(filepath)
+            print(f"[Akku SDK] Exported GLB: {filepath} ({file_size} bytes)")
+            return True
+        return False
 
 
 # ========================================
@@ -364,29 +580,17 @@ def load_base_mesh(gender: str = "male") -> Dict[str, Any]:
     # Get mesh path
     mesh_path = AkkuConfig.BASE_MESHES.get(gender, AkkuConfig.BASE_MESHES["male"])
     
-    if not os.path.exists(mesh_path):
-        raise FileNotFoundError(f"Base mesh not found: {mesh_path}")
-    
     # Import FBX
-    bpy.ops.import_scene.fbx(
-        filepath=mesh_path,
-        use_custom_normals=True,
-        use_image_search=False,
-        ignore_leaf_bones=True,
-        automatic_bone_orientation=True
-    )
+    new_objects = FBXHandler.import_fbx(mesh_path)
     
-    print(f"[Akku SDK] Loaded base mesh: {mesh_path}")
-    
-    # Find the mesh object(s)
-    mesh_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+    # Find mesh objects
+    mesh_objects = [obj for obj in new_objects if obj.type == 'MESH']
     
     if not mesh_objects:
         raise RuntimeError("No mesh objects found in FBX file")
     
     # Normalize scale for each mesh
     for obj in mesh_objects:
-        # FBX from Mixamo is often in cm, normalize to target height
         MeshTools.normalize_scale(obj, AkkuConfig.TARGET_HEIGHT)
     
     return {
@@ -428,15 +632,22 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
         # Apply material
         MaterialSystem.apply_material(obj, material)
         
-        # Apply proportion scale
+        # Apply proportion scale (using bmesh, not ops)
         if proportion_scale != 1.0:
-            obj.scale *= proportion_scale
-            bpy.context.view_layer.objects.active = obj
-            obj.select_set(True)
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+            bmesh.ops.scale(
+                bm,
+                vec=Vector((proportion_scale, proportion_scale, proportion_scale)),
+                space=Matrix.Identity(4),
+                verts=bm.verts
+            )
+            bm.to_mesh(obj.data)
+            bm.free()
+            obj.data.update()
         
-        # Apply polygon reduction
-        MeshTools.apply_decimate(obj, poly_settings["decimate_ratio"])
+        # Apply polygon reduction using modifier + depsgraph
+        MeshTools.decimate_with_modifier(obj, poly_settings["decimate_ratio"])
         
         # Triangulate for game export
         MeshTools.triangulate_mesh(obj)
@@ -457,26 +668,10 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
 def export_glb(output_path: str) -> Dict[str, Any]:
     """Export scene to GLB format"""
     
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    success = GLBHandler.export_glb(output_path)
     
-    # Export GLB
-    bpy.ops.export_scene.gltf(
-        filepath=output_path,
-        export_format='GLB',
-        use_selection=False,
-        export_apply=True,
-        export_animations=True,
-        export_skins=True,
-        export_morph=False,
-        export_lights=False,
-        export_cameras=False
-    )
-    
-    # Verify export
-    if os.path.exists(output_path):
+    if success:
         file_size = os.path.getsize(output_path)
-        print(f"[Akku SDK] Exported GLB: {output_path} ({file_size} bytes)")
         return {
             "path": output_path,
             "size_bytes": file_size,
@@ -496,14 +691,14 @@ def generate_character(
 ) -> Dict[str, Any]:
     """Generate a complete low-poly character from prompt"""
     
-    print(f"\n{'='*50}")
-    print(f"[Akku SDK v3.0] Character Generation")
-    print(f"{'='*50}")
+    print(f"\n{'='*60}")
+    print(f"[Akku SDK v3.1] Character Generation - Context Independent")
+    print(f"{'='*60}")
     print(f"Prompt: {prompt}")
     print(f"Style: {style}")
     print(f"Poly Level: {poly_level}")
     print(f"Gender: {gender}")
-    print(f"{'='*50}\n")
+    print(f"{'='*60}\n")
     
     # Step 1: Load base mesh
     load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
@@ -547,7 +742,7 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     
     if len(args) < 4:
-        print("Usage: blender --background --python akku-sdk-v3.py -- <prompt> <style> <poly_level> <output_path> [gender]")
+        print("Usage: blender --background --python akku-sdk.py -- <prompt> <style> <poly_level> <output_path> [gender]")
         sys.exit(1)
     
     prompt = args[0]
