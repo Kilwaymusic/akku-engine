@@ -166,6 +166,12 @@ Procedural material system for low-poly characters:
 Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
 
 ## Recent Changes
+- 2026-02-04: **Added Kitbash 2.0 Semantic Component Library** - AI-driven equipment system
+  - 20+ SemanticPart definitions (helmets, shoulders, chest, boots, gauntlets, weapons, shields)
+  - Category taxonomy: "armor" → [helmet, shoulder, chest, boots, gauntlet], "weapons" → [weapon, shield]
+  - SocketInfo with bone_name, offset, rotation, scale for precise attachment
+  - bmesh-based mesh creation (context-independent, no bpy.ops)
+  - Bone rotation composition for proper equipment orientation
 - 2026-02-04: **Added Stylized Shader System** - Edge highlighting + cavity darkening for low-poly models
   - Geometry (Pointiness) + AO nodes for procedural shading
   - 8 style presets with different shader parameters
