@@ -1,0 +1,113 @@
+composerkil@blender-worker:~/akku-engine$ cd ~/akku-engine
+git pull origin main
+remote: Enumerating objects: 293, done.
+remote: Counting objects: 100% (293/293), done.
+remote: Compressing objects: 100% (107/107), done.
+remote: Total 283 (delta 217), reused 230 (delta 164), pack-reused 0 (from 0)
+Receiving objects: 100% (283/283), 4.12 MiB | 17.58 MiB/s, done.
+Resolving deltas: 100% (217/217), completed with 4 local objects.
+From https://github.com/Kilwaymusic/akku-engine
+ * branch            main       -> FETCH_HEAD
+   641c185..9da6435  main       -> origin/main
+Updating 641c185..9da6435
+Fast-forward
+ ...erkil-blender-worker-akku-engine-blender-backgrou_1770220828775.txt |   64 ++
+ ...erkil-blender-worker-akku-engine-blender-backgrou_1770220974838.txt |   74 +++
+ ...erkil-blender-worker-akku-engine-cat-app-py-Akku-_1770217026984.txt |  111 ++++
+ ...erkil-blender-worker-akku-engine-cat-n-akku-sdk-t_1770217842542.txt |   81 +++
+ ...erkil-blender-worker-akku-engine-cat-n-akku-sdk-t_1770217890695.txt |   51 ++
+ ...erkil-blender-worker-akku-engine-cd-home-composer_1770215264281.txt |   57 ++
+ ...erkil-blender-worker-akku-engine-ls-la-home-compo_1770216978176.txt |   36 ++
+ ...erkil-blender-worker-akku-engine-ls-lt-outputs-lo_1770218114486.txt |   84 +++
+ ...erkil-blender-worker-akku-engine-pkill-f-app-py-s_1770218014199.txt |    7 +
+ attached_assets/SSH_Key_1770219210083.txt                              |   49 ++
+ .../character-9ab2b296-d56f-41a7-909c-881a4003798d_1770204444905.glb   |  Bin 0 -> 2246784 bytes
+ attached_assets/image_1770197447273.png                                |  Bin 0 -> 11961 bytes
+ attached_assets/image_1770213260482.png                                |  Bin 0 -> 114770 bytes
+ attached_assets/image_1770218305528.png                                |  Bin 0 -> 127450 bytes
+ attached_assets/image_1770219780509.png                                |  Bin 0 -> 24537 bytes
+ public/models/28df258a-211e-45e8-a5b8-d0ad5fb4e3f2.glb                 |  Bin 0 -> 2505780 bytes
+ public/models/3f9cb31f-5aea-4104-b013-e97d53ad22d2.glb                 |  Bin 0 -> 775352 bytes
+ public/models/63eb7295-5000-4084-b9e0-41b7fdb04dc4.glb                 |  Bin 0 -> 380796 bytes
+ public/models/7344d04e-64bd-48e3-bc00-73dd840452be.glb                 |  Bin 0 -> 132 bytes
+ public/models/7fcf31b4-9e87-46aa-b7cd-e365f12167c4.glb                 |  Bin 0 -> 132 bytes
+ public/models/842e214b-08f9-45dc-867b-877d9d216a63.glb                 |  Bin 0 -> 265816 bytes
+ public/models/93589b86-646f-4e31-b440-b7aa5bce2566.glb                 |  Bin 0 -> 178148 bytes
+ public/models/9ab2b296-d56f-41a7-909c-881a4003798d.glb                 |  Bin 0 -> 2246784 bytes
+ public/models/9beb61a3-76a8-4af9-9a41-d0dcb2fb49f5.glb                 |  Bin 0 -> 2245132 bytes
+ public/models/ad88342c-5891-492b-966f-e8793989aab2.glb                 |  Bin 0 -> 177796 bytes
+ public/models/af624553-94e9-4633-b2f4-82dfeaa8dfcc.glb                 |  Bin 0 -> 178148 bytes
+ public/models/b400ced4-03bf-4e3a-82fd-9763f9c7f421.glb                 |  Bin 0 -> 1031700 bytes
+ public/models/d3c58b4e-9eea-4c90-a1e8-7a4af0835303.glb                 |  Bin 0 -> 775352 bytes
+ replit.md                                                              |  206 ++++---
+ scripts/deploy-to-gcp.sh                                               |   45 ++
+ server/akku_sdk/API_DOCS.md                                            |  513 ++++++++++++++++
+ server/akku_sdk/__init__.py                                            |  134 +++++
+ server/akku_sdk/body.py                                                |  327 ++++++++++
+ server/akku_sdk/core.py                                                |  163 +++++
+ server/akku_sdk/finalize.py                                            | 1024 ++++++++++++++++++++++++++++++++
+ server/akku_sdk/handlers.py                                            |   62 ++
+ server/akku_sdk/kitbash.py                                             |  419 +++++++++++++
+ server/akku_sdk/main.py                                                |  474 +++++++++++++++
+ server/akku_sdk/mesh.py                                                |  438 ++++++++++++++
+ server/akku_sdk/rigging.py                                             |  337 +++++++++++
+ server/akku_sdk/run.py                                                 |   25 +
+ server/akku_sdk/shader.py                                              |  328 ++++++++++
+ server/akku_sdk/test_all_archetypes.py                                 |  555 +++++++++++++++++
+ server/akku_sdk/tools.py                                               |  241 ++++++++
+ server/gcp-app.py                                                      |  180 ++++++
+ server/gcp-deploy.ts                                                   |  258 ++++++++
+ server/gemini.ts                                                       |  501 ++++++++++++++++
+ server/index.ts                                                        |   24 +
+ server/routes.ts                                                       |  360 +++++++----
+ server/sync_to_gcp.sh                                                  |   36 ++
+ 50 files changed, 7070 insertions(+), 194 deletions(-)
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-blender-backgrou_1770220828775.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-blender-backgrou_1770220974838.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-cat-app-py-Akku-_1770217026984.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-cat-n-akku-sdk-t_1770217842542.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-cat-n-akku-sdk-t_1770217890695.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-cd-home-composer_1770215264281.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-ls-la-home-compo_1770216978176.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-ls-lt-outputs-lo_1770218114486.txt
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-pkill-f-app-py-s_1770218014199.txt
+ create mode 100644 attached_assets/SSH_Key_1770219210083.txt
+ create mode 100644 attached_assets/character-9ab2b296-d56f-41a7-909c-881a4003798d_1770204444905.glb
+ create mode 100644 attached_assets/image_1770197447273.png
+ create mode 100644 attached_assets/image_1770213260482.png
+ create mode 100644 attached_assets/image_1770218305528.png
+ create mode 100644 attached_assets/image_1770219780509.png
+ create mode 100644 public/models/28df258a-211e-45e8-a5b8-d0ad5fb4e3f2.glb
+ create mode 100644 public/models/3f9cb31f-5aea-4104-b013-e97d53ad22d2.glb
+ create mode 100644 public/models/63eb7295-5000-4084-b9e0-41b7fdb04dc4.glb
+ create mode 100644 public/models/7344d04e-64bd-48e3-bc00-73dd840452be.glb
+ create mode 100644 public/models/7fcf31b4-9e87-46aa-b7cd-e365f12167c4.glb
+ create mode 100644 public/models/842e214b-08f9-45dc-867b-877d9d216a63.glb
+ create mode 100644 public/models/93589b86-646f-4e31-b440-b7aa5bce2566.glb
+ create mode 100644 public/models/9ab2b296-d56f-41a7-909c-881a4003798d.glb
+ create mode 100644 public/models/9beb61a3-76a8-4af9-9a41-d0dcb2fb49f5.glb
+ create mode 100644 public/models/ad88342c-5891-492b-966f-e8793989aab2.glb
+ create mode 100644 public/models/af624553-94e9-4633-b2f4-82dfeaa8dfcc.glb
+ create mode 100644 public/models/b400ced4-03bf-4e3a-82fd-9763f9c7f421.glb
+ create mode 100644 public/models/d3c58b4e-9eea-4c90-a1e8-7a4af0835303.glb
+ create mode 100755 scripts/deploy-to-gcp.sh
+ create mode 100644 server/akku_sdk/API_DOCS.md
+ create mode 100644 server/akku_sdk/__init__.py
+ create mode 100644 server/akku_sdk/body.py
+ create mode 100644 server/akku_sdk/core.py
+ create mode 100644 server/akku_sdk/finalize.py
+ create mode 100644 server/akku_sdk/handlers.py
+ create mode 100644 server/akku_sdk/kitbash.py
+ create mode 100644 server/akku_sdk/main.py
+ create mode 100644 server/akku_sdk/mesh.py
+ create mode 100644 server/akku_sdk/rigging.py
+ create mode 100644 server/akku_sdk/run.py
+ create mode 100644 server/akku_sdk/shader.py
+ create mode 100644 server/akku_sdk/test_all_archetypes.py
+ create mode 100644 server/akku_sdk/tools.py
+ create mode 100644 server/gcp-app.py
+ create mode 100644 server/gcp-deploy.ts
+ create mode 100644 server/sync_to_gcp.sh
+composerkil@blender-worker:~/akku-engine$ pkill -f app.py
+nohup python3 app.py > server.log 2>&1 &
+[3] 28878
