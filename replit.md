@@ -32,23 +32,31 @@ Preferred communication style: Simple, everyday language.
 - **Database Ready**: Drizzle config points to `DATABASE_URL` environment variable for PostgreSQL
 - **Job Table**: Stores job ID, prompt, status (pending/processing/completed/failed), model URL, error message, and timestamp
 
-### 3D Model Generation Pipeline (Dual Mode)
+### 3D Model Generation Pipeline (Akku Low-poly SDK)
 
-The system supports two generation modes with automatic fallback:
+The system uses the **Akku Low-poly SDK** architecture with 8 structured tools instead of arbitrary Blender code, ensuring production-ready quality with clean topology, optimized UV, and automatic rigging.
 
-#### Mode 1: MCP (Model Context Protocol) - Primary
+#### Mode 1: Akku SDK via MCP (Primary)
 - **Architecture**: Persistent Blender process with TCP socket communication
 - **Components**:
-  - `scripts/blender_mcp_addon.py` - Blender addon running MCP server
-  - `server/blender-mcp-client.ts` - Node.js TCP client
+  - `scripts/blender_mcp_addon.py` - Blender addon with Akku SDK implementation
+  - `server/blender-mcp-client.ts` - Node.js TCP client with SDK methods
   - `server/mcp-manager.ts` - Process lifecycle manager
-- **Process Flow**:
-  1. User prompt → Gemini AI generates multi-step generation plan
-  2. Node.js connects to Blender MCP server via TCP (port 9876)
-  3. Sends JSON commands for each step (create_base, apply_modifier, setup_material, etc.)
-  4. Blender executes commands and returns results
-  5. Final GLB export
-- **Advantages**: Real-time state inspection, iterative refinement, advanced modifiers
+- **SDK Tools (8 total across 4 categories)**:
+
+| Category | Tool | Description |
+|----------|------|-------------|
+| Base Generation | `spawn_humanoid_base` | Create base mesh with proportions (chibi/adult/heroic/stylized) |
+| Base Generation | `deform_body` | Apply body deformations (muscular/slim/stocky/elongated) |
+| Kitbashing | `attach_armor_plate` | Add armor pieces (7 styles: knight/samurai/scifi/heavy/rogue/mage/tribal) |
+| Kitbashing | `add_scifi_detail` | Add sci-fi elements (antenna/visor/jetpack/tubes/panel) |
+| PBR Shading | `apply_akku_pbr` | Apply PBR materials (10 presets: metal/cloth/leather/skin/etc.) |
+| PBR Shading | `set_material_property` | Fine-tune material properties |
+| Rigging | `finalize_and_bind` | Auto-rig with Rigify and bind armature |
+| Rigging | `test_animation` | Apply animation clips (idle/walk/run/attack) |
+
+- **Object Naming**: `AkkuBase_*` (after spawn_humanoid_base), `Armor_*` (after attach_armor_plate)
+- **Advantages**: Clean topology, optimized UV, game-ready output, no arbitrary code execution
 
 #### Mode 2: CLI (Command Line Interface) - Fallback
 - **Generator**: Python script (`scripts/generate_humanoid.py`) runs in Blender's background mode
@@ -60,16 +68,10 @@ The system supports two generation modes with automatic fallback:
 - **API Key**: Uses `GEMINI_API_KEY` from secrets (custom), or falls back to Replit AI Integrations
 - **Model**: gemini-2.5-flash
 - **Functions**:
-  - `generateCharacterPlan()` - Multi-step procedural generation plan for MCP mode
+  - `generateAkkuPlan()` - Multi-step Akku SDK generation plan for MCP mode
   - `analyzePromptWithGemini()` - Simple parameters for CLI mode
-- **Output**: JSON with character type, colors, proportions, modifiers, materials
-
-### MCP Command Types
-- `create_base` - Create base humanoid mesh with proportions
-- `apply_modifier` - Apply SUBSURF, SMOOTH, BEVEL, SOLIDIFY modifiers
-- `setup_material` - Configure PBR materials (Principled BSDF)
-- `execute_code` - Run arbitrary Blender Python code
-- `export` - Export scene to GLB
+- **Output**: JSON with SDK tool calls, parameters, and execution order
+- **Korean Support**: Color terms (빨강/파랑/초록/etc.) and prompts supported
 
 ### Build System
 - **Client Build**: Vite compiles React app to `dist/public`
@@ -122,6 +124,9 @@ The system supports two generation modes with automatic fallback:
 - **@google/genai**: Google Generative AI SDK for Gemini integration
 
 ## Recent Changes
+- 2026-02-04: Implemented Akku Low-poly SDK with 8 structured tools across 4 categories
+- 2026-02-04: Updated Gemini prompt to use Akku SDK API exclusively
+- 2026-02-04: Added Korean language support for color terms and prompts
 - 2026-02-04: Integrated Blender MCP for advanced procedural generation
 - 2026-02-04: Added Gemini AI for multi-step generation plan creation
 - 2026-02-04: Implemented dual-mode generation (MCP primary, CLI fallback)
