@@ -379,24 +379,28 @@ def generate_character(
         raise RuntimeError(f"Style failed: {style_result['message']}")
     
     style_info = style_result.get("result", {}) if style_result.get("status") == "success" else {}
-    archetype = style_info.get("archetype", "warrior")
     color = style_info.get("color", (0.6, 0.6, 0.6))
     
-    ARCHETYPE_STYLE_MAP = {
-        "warrior": "heavy",
-        "knight": "heavy",
-        "mage": "magic",
+    ARCHETYPE_KEYWORDS = {
+        "warrior": "heavy", "전사": "heavy",
+        "knight": "heavy", "기사": "heavy",
+        "mage": "magic", "마법사": "magic",
         "wizard": "magic",
-        "rogue": "light",
-        "assassin": "light",
-        "robot": "scifi",
-        "sci-fi": "scifi",
-        "scifi": "scifi",
+        "rogue": "light", "닌자": "light",
+        "assassin": "light", "ninja": "light",
+        "robot": "scifi", "로봇": "scifi",
+        "cyborg": "scifi", "사이보그": "scifi",
+        "sci-fi": "scifi", "scifi": "scifi", "SF": "scifi",
     }
-    equipment_style = ARCHETYPE_STYLE_MAP.get(archetype, "heavy")
+    
+    equipment_style = "heavy"
+    prompt_lower = prompt.lower()
+    for keyword, eq_style in ARCHETYPE_KEYWORDS.items():
+        if keyword.lower() in prompt_lower:
+            equipment_style = eq_style
+            break
     
     AkkuLogger.info(f"Equipping kitbash parts", {
-        "archetype": archetype,
         "equipment_style": equipment_style,
         "color": color
     })
