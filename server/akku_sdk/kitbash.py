@@ -1,5 +1,12 @@
 """
-Akku SDK Kitbash - Semantic Component Library for Equipment
+Akku SDK Kitbash - Direct Bone Parenting System
+
+CRITICAL DESIGN PRINCIPLES:
+1. All accessories are parented to bones IMMEDIATELY upon creation
+2. Mesh is created in LOCAL bone space (not world space)
+3. No floating parts - everything follows armature
+
+This uses BONE_RELATIVE parenting with vertex data in bone-local coordinates.
 """
 
 import bpy
@@ -7,11 +14,10 @@ import bmesh
 import math
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
-from mathutils import Vector, Euler
+from mathutils import Vector, Euler, Matrix
 
 from .core import AkkuLogger
-from .shader import StylizedShaderSystem
-from .rigging import AutoWeightTransfer
+from .shader import StyleToGLBConverter
 
 
 @dataclass
@@ -79,7 +85,6 @@ class KitbashLibrary:
         if cls._parts:
             return
         
-        # ===== HELMETS =====
         cls._parts["Knight_Helmet"] = SemanticPart(
             name="Knight_Helmet", category="helmet", style="heavy",
             socket=SocketInfo(bone_name=cls.BONE_SOCKETS["head"], offset=(0, 0, 0.08), rotation=(0, 0, 0), scale=0.12),
@@ -101,7 +106,6 @@ class KitbashLibrary:
             tags=["rogue", "assassin", "light", "cloth"]
         )
         
-        # ===== SHOULDER ARMOR =====
         cls._parts["Knight_Shoulder_L"] = SemanticPart(
             name="Knight_Shoulder_L", category="shoulder", style="heavy",
             socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_shoulder"], offset=(0.08, 0, 0.02), rotation=(0, 0, -15), scale=0.08),
@@ -130,7 +134,6 @@ class KitbashLibrary:
             tags=["scifi", "tech", "angular", "right"]
         )
         
-        # ===== CHEST ARMOR =====
         cls._parts["Knight_Chestplate"] = SemanticPart(
             name="Knight_Chestplate", category="chest", style="heavy",
             socket=SocketInfo(bone_name=cls.BONE_SOCKETS["chest"], offset=(0, 0.08, 0), rotation=(0, 0, 0), scale=0.15),
@@ -145,7 +148,6 @@ class KitbashLibrary:
             tags=["scifi", "tech", "armor", "angular"]
         )
         
-        # ===== BOOTS =====
         cls._parts["Heavy_Boots_L"] = SemanticPart(
             name="Heavy_Boots_L", category="boots", style="heavy",
             socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_foot"], offset=(0, 0, -0.02), rotation=(0, 0, 0), scale=0.06),
@@ -174,7 +176,6 @@ class KitbashLibrary:
             tags=["scifi", "boots", "tech", "right"]
         )
         
-        # ===== GAUNTLETS =====
         cls._parts["Knight_Gauntlet_L"] = SemanticPart(
             name="Knight_Gauntlet_L", category="gauntlet", style="heavy",
             socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_forearm"], offset=(0, 0, 0), rotation=(0, 0, 0), scale=0.04),
@@ -189,7 +190,6 @@ class KitbashLibrary:
             tags=["knight", "gauntlet", "arm", "right"]
         )
         
-        # ===== WEAPONS =====
         cls._parts["Knight_Sword"] = SemanticPart(
             name="Knight_Sword", category="weapon", style="heavy",
             socket=SocketInfo(bone_name=cls.BONE_SOCKETS["right_hand"], offset=(0, 0.05, 0), rotation=(90, 0, 0), scale=0.08),
@@ -211,7 +211,6 @@ class KitbashLibrary:
             tags=["staff", "magic", "wizard", "mage"]
         )
         
-        # ===== SHIELDS =====
         cls._parts["Knight_Shield"] = SemanticPart(
             name="Knight_Shield", category="shield", style="heavy",
             socket=SocketInfo(bone_name=cls.BONE_SOCKETS["left_forearm"], offset=(0.05, 0.03, 0), rotation=(0, 90, 0), scale=0.1),
@@ -282,12 +281,37 @@ class KitbashLibrary:
         return list(set(p.style for p in cls._parts.values()))
 
 
-class KitbashEquipper:
-    """Handles equipping semantic parts to character meshes - Context Independent"""
+class DirectBoneParenting:
+    """
+    Direct Bone Parenting System
+    
+    CRITICAL: This class ensures accessories are NEVER floating.
+    
+    Approach:
+    1. Create mesh at origin (0,0,0)
+    2. Immediately set parent to armature with BONE parent type
+    3. Apply socket offset/rotation as parent_inverse
+    4. Mesh data stays in local bone space
+    """
     
     @staticmethod
-    def create_primitive_mesh(mesh_data: Dict, name: str) -> bpy.types.Object:
-        """Create a primitive mesh using bmesh - Context Independent"""
+    def find_armature() -> Optional[bpy.types.Object]:
+        """Find the character armature in the scene"""
+        for obj in bpy.data.objects:
+            if obj.type == 'ARMATURE':
+                return obj
+        return None
+    
+    @staticmethod
+    def find_bone(armature, bone_name: str):
+        """Find a bone in the armature (from pose bones)"""
+        if armature and armature.type == 'ARMATURE':
+            return armature.pose.bones.get(bone_name)
+        return None
+    
+    @staticmethod
+    def create_primitive_at_origin(mesh_data: Dict, name: str) -> bpy.types.Object:
+        """Create a primitive mesh centered at origin"""
         mesh_type = mesh_data.get("type", "cube")
         
         mesh = bpy.data.meshes.new(name=f"{name}_mesh")
@@ -323,97 +347,153 @@ class KitbashEquipper:
         return obj
     
     @staticmethod
+    def parent_to_bone(
+        obj: bpy.types.Object,
+        armature: bpy.types.Object,
+        bone_name: str,
+        offset: Tuple[float, float, float] = (0, 0, 0),
+        rotation: Tuple[float, float, float] = (0, 0, 0),
+        scale: float = 1.0
+    ) -> bool:
+        """
+        Parent object to bone with local offset.
+        
+        CRITICAL: This is the key function that prevents floating parts.
+        
+        The object's location/rotation/scale are set in BONE-LOCAL space.
+        When the bone moves (animation), the object moves with it.
+        """
+        pose_bone = armature.pose.bones.get(bone_name)
+        if not pose_bone:
+            AkkuLogger.warning(f"Bone not found: {bone_name}")
+            return False
+        
+        obj.parent = armature
+        obj.parent_type = 'BONE'
+        obj.parent_bone = bone_name
+        
+        obj.location = Vector(offset)
+        
+        obj.rotation_mode = 'XYZ'
+        obj.rotation_euler = Euler((
+            math.radians(rotation[0]),
+            math.radians(rotation[1]),
+            math.radians(rotation[2])
+        ), 'XYZ')
+        
+        obj.scale = (scale, scale, scale)
+        
+        AkkuLogger.info(f"Parented {obj.name} to bone {bone_name}", {
+            "offset": offset,
+            "rotation": rotation,
+            "scale": scale
+        })
+        
+        return True
+    
+    @staticmethod
+    def add_armature_modifier(obj: bpy.types.Object, armature: bpy.types.Object) -> bool:
+        """
+        Add armature modifier for skinned deformation.
+        
+        Use this if the part needs to deform with the character
+        (e.g., clothing that stretches).
+        
+        For rigid parts (weapons, armor plates), bone parenting alone is sufficient.
+        """
+        if obj.type != 'MESH':
+            return False
+        
+        mod = obj.modifiers.new(name="Armature", type='ARMATURE')
+        mod.object = armature
+        mod.use_vertex_groups = True
+        
+        return True
+
+
+class KitbashEquipper:
+    """
+    Equips semantic parts to character meshes.
+    
+    Uses DirectBoneParenting for proper bone attachment.
+    """
+    
+    @staticmethod
+    def create_primitive_mesh(mesh_data: Dict, name: str) -> bpy.types.Object:
+        """Create a primitive mesh - delegates to DirectBoneParenting"""
+        return DirectBoneParenting.create_primitive_at_origin(mesh_data, name)
+    
+    @staticmethod
     def find_armature() -> Optional[bpy.types.Object]:
         """Find the character armature in the scene"""
-        for obj in bpy.data.objects:
-            if obj.type == 'ARMATURE':
-                return obj
-        return None
+        return DirectBoneParenting.find_armature()
     
     @staticmethod
     def find_bone(armature, bone_name: str):
         """Find a bone in the armature"""
-        if armature and armature.type == 'ARMATURE':
-            return armature.pose.bones.get(bone_name)
-        return None
+        return DirectBoneParenting.find_bone(armature, bone_name)
     
     @staticmethod
     def equip_part(
         part: SemanticPart,
         color: Tuple[float, float, float] = (0.5, 0.5, 0.5),
         style_preset: str = "stylized",
-        auto_rig: bool = True
+        auto_rig: bool = False
     ) -> Optional[bpy.types.Object]:
         """
-        Equip a semantic part to the character
+        Equip a semantic part to the character.
+        
+        CRITICAL CHANGES from old implementation:
+        1. Mesh is created at origin (not at world bone position)
+        2. Immediately parented to bone with BONE parent type
+        3. Offset/rotation are in bone-local space
+        4. Part will NEVER float - it follows the bone
         
         Args:
             part: SemanticPart definition with socket info
             color: RGB color tuple for the part material
             style_preset: Style preset for shader system
-            auto_rig: If True, automatically transfer weights from base mesh
+            auto_rig: If True, add armature modifier for deformation
             
         Returns:
             The created mesh object, or None on failure
         """
-        armature = KitbashEquipper.find_armature()
+        armature = DirectBoneParenting.find_armature()
         if not armature:
             AkkuLogger.warning("No armature found in scene")
             return None
         
-        bone = KitbashEquipper.find_bone(armature, part.socket.bone_name)
+        bone = DirectBoneParenting.find_bone(armature, part.socket.bone_name)
         if not bone:
             AkkuLogger.warning(f"Bone not found: {part.socket.bone_name}")
             return None
         
-        if part.mesh_type == "primitive":
-            obj = KitbashEquipper.create_primitive_mesh(part.mesh_data, part.name)
-        else:
-            AkkuLogger.warning(f"Unsupported mesh type: {part.mesh_type}")
-            return None
+        obj = DirectBoneParenting.create_primitive_at_origin(part.mesh_data, part.name)
         
         socket = part.socket
+        success = DirectBoneParenting.parent_to_bone(
+            obj=obj,
+            armature=armature,
+            bone_name=socket.bone_name,
+            offset=socket.offset,
+            rotation=socket.rotation,
+            scale=socket.scale
+        )
         
-        bone_matrix = armature.matrix_world @ bone.matrix
+        if not success:
+            bpy.data.objects.remove(obj, do_unlink=True)
+            return None
         
-        socket_rotation = Euler((
-            math.radians(socket.rotation[0]),
-            math.radians(socket.rotation[1]),
-            math.radians(socket.rotation[2])
-        ), 'XYZ')
-        
-        bone_rotation = bone_matrix.to_euler()
-        combined_rotation = Euler((
-            bone_rotation.x + socket_rotation.x,
-            bone_rotation.y + socket_rotation.y,
-            bone_rotation.z + socket_rotation.z
-        ), 'XYZ')
-        
-        offset_vec = Vector(socket.offset)
-        world_offset = bone_matrix.to_3x3() @ offset_vec
-        
-        obj.location = bone_matrix.to_translation() + world_offset
-        obj.rotation_euler = combined_rotation
-        obj.scale = (socket.scale, socket.scale, socket.scale)
-        
-        obj.parent = armature
-        obj.parent_type = 'BONE'
-        obj.parent_bone = part.socket.bone_name
-        
-        StylizedShaderSystem.apply_stylized_shader(obj, color, style_preset)
+        StyleToGLBConverter.apply_style_as_glb(obj, color, style_preset)
         
         if auto_rig:
-            result = AutoWeightTransfer.auto_rig_part(obj, apply_transfer=True)
-            if result.success:
-                AkkuLogger.info(f"Auto-rigged {part.name} with {result.vertex_groups_created} groups")
-            else:
-                AkkuLogger.warning(f"Auto-rig failed for {part.name}: {result.message}")
+            DirectBoneParenting.add_armature_modifier(obj, armature)
         
         AkkuLogger.info(f"Equipped part: {part.name}", {
             "category": part.category,
             "style": part.style,
             "bone": part.socket.bone_name,
-            "auto_rigged": auto_rig
+            "parenting": "BONE"
         })
         
         return obj

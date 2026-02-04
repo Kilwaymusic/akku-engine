@@ -1,10 +1,13 @@
 """
-Akku SDK Body - Body Type System with Lattice/Vertex Deformation
+Akku SDK Body - Direct Mesh Deformation with Export Freeze
+
+CRITICAL: All body deformations must be BAKED into mesh data before export.
+No modifiers, no lattices - direct vertex manipulation only.
 """
 
 import bpy
 import bmesh
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass, asdict
 from mathutils import Vector
 
@@ -30,17 +33,17 @@ class BodyTypePresets:
     
     PRESETS: Dict[str, BodyTypeParams] = {
         "default": BodyTypeParams(),
-        "muscular": BodyTypeParams(muscular=0.8, shoulder_width=0.5, fat=-0.2),
-        "thin": BodyTypeParams(muscular=-0.6, fat=-0.5, shoulder_width=-0.3),
-        "fat": BodyTypeParams(fat=0.7, muscular=-0.2, hip_width=0.4),
-        "tall": BodyTypeParams(height=0.5, leg_length=0.3, arm_length=0.2),
-        "short": BodyTypeParams(height=-0.4, leg_length=-0.2),
-        "athletic": BodyTypeParams(muscular=0.5, fat=-0.3, shoulder_width=0.3, leg_length=0.1),
-        "stocky": BodyTypeParams(height=-0.2, muscular=0.4, shoulder_width=0.4, fat=0.2),
-        "slim": BodyTypeParams(muscular=-0.3, fat=-0.4, shoulder_width=-0.2, hip_width=-0.2),
-        "heroic": BodyTypeParams(muscular=0.6, height=0.3, shoulder_width=0.5, hip_width=-0.1),
-        "chibi": BodyTypeParams(height=-0.5, head_size=0.8, leg_length=-0.4, arm_length=-0.3),
-        "giant": BodyTypeParams(height=0.8, muscular=0.4, shoulder_width=0.3),
+        "muscular": BodyTypeParams(muscular=0.6, shoulder_width=0.4, fat=-0.1),
+        "thin": BodyTypeParams(muscular=-0.4, fat=-0.3, shoulder_width=-0.2),
+        "fat": BodyTypeParams(fat=0.5, muscular=-0.1, hip_width=0.3),
+        "tall": BodyTypeParams(height=0.3, leg_length=0.2, arm_length=0.15),
+        "short": BodyTypeParams(height=-0.3, leg_length=-0.15),
+        "athletic": BodyTypeParams(muscular=0.35, fat=-0.2, shoulder_width=0.25, leg_length=0.1),
+        "stocky": BodyTypeParams(height=-0.15, muscular=0.3, shoulder_width=0.3, fat=0.15),
+        "slim": BodyTypeParams(muscular=-0.2, fat=-0.25, shoulder_width=-0.15, hip_width=-0.15),
+        "heroic": BodyTypeParams(muscular=0.5, height=0.2, shoulder_width=0.4, hip_width=-0.1),
+        "chibi": BodyTypeParams(height=-0.4, head_size=0.6, leg_length=-0.3, arm_length=-0.2),
+        "giant": BodyTypeParams(height=0.6, muscular=0.3, shoulder_width=0.25),
     }
     
     KOREAN_ALIASES: Dict[str, str] = {
@@ -82,246 +85,267 @@ class BodyTypePresets:
         return cls.PRESETS["default"]
 
 
-class BodyTypeSystem:
-    """Body type deformation system using Lattice and vertex manipulation."""
+class DirectMeshDeformer:
+    """
+    Direct Mesh Deformation System
     
-    BODY_REGIONS = {
-        "head": {"z_min": 1.5, "z_max": 1.85, "scale_axes": "XYZ"},
-        "neck": {"z_min": 1.4, "z_max": 1.5, "scale_axes": "XY"},
-        "shoulders": {"z_min": 1.25, "z_max": 1.4, "scale_axes": "X"},
-        "chest": {"z_min": 1.0, "z_max": 1.25, "scale_axes": "XYZ"},
-        "waist": {"z_min": 0.85, "z_max": 1.0, "scale_axes": "XY"},
-        "hips": {"z_min": 0.7, "z_max": 0.85, "scale_axes": "XY"},
-        "upper_legs": {"z_min": 0.4, "z_max": 0.7, "scale_axes": "XYZ"},
-        "lower_legs": {"z_min": 0.0, "z_max": 0.4, "scale_axes": "XYZ"},
+    CRITICAL DESIGN PRINCIPLE:
+    All deformations are applied directly to mesh vertex data using bmesh.
+    This ensures:
+    1. Changes are permanently baked into the mesh
+    2. No modifiers that might not export correctly
+    3. Predictable results in any viewer/engine
+    """
+    
+    BODY_ZONES = {
+        "head": (0.85, 1.0),
+        "neck": (0.78, 0.85),
+        "shoulders": (0.70, 0.78),
+        "chest": (0.55, 0.70),
+        "waist": (0.45, 0.55),
+        "hips": (0.35, 0.45),
+        "upper_legs": (0.18, 0.35),
+        "lower_legs": (0.0, 0.18),
     }
     
-    ARM_X_THRESHOLD = 0.15
-    ARM_Z_RANGE = (0.9, 1.4)
+    ARM_X_THRESHOLD = 0.12
     
     @classmethod
-    def create_lattice_for_mesh(cls, obj: bpy.types.Object, resolution: Tuple[int, int, int] = (4, 4, 6)) -> bpy.types.Object:
-        """Create a lattice object that encompasses the mesh."""
+    def deform_mesh(cls, obj: bpy.types.Object, params: BodyTypeParams) -> bool:
+        """
+        Apply body type deformation directly to mesh vertices.
+        
+        This method:
+        1. Opens mesh in bmesh
+        2. Applies all deformations to vertex positions
+        3. Writes changes back to mesh data
+        4. Mesh is now permanently deformed - no modifiers needed
+        """
         if obj.type != 'MESH':
-            return None
-        
-        min_co, max_co, _ = MeshTools.get_mesh_bounds(obj)
-        
-        padding = 0.05
-        size = (
-            (max_co.x - min_co.x) + padding * 2,
-            (max_co.y - min_co.y) + padding * 2,
-            (max_co.z - min_co.z) + padding * 2
-        )
-        center = (
-            (min_co.x + max_co.x) / 2,
-            (min_co.y + max_co.y) / 2,
-            (min_co.z + max_co.z) / 2
-        )
-        
-        lattice_data = bpy.data.lattices.new(name="AkkuBodyLattice")
-        lattice_data.points_u = resolution[0]
-        lattice_data.points_v = resolution[1]
-        lattice_data.points_w = resolution[2]
-        lattice_data.interpolation_type_u = 'KEY_BSPLINE'
-        lattice_data.interpolation_type_v = 'KEY_BSPLINE'
-        lattice_data.interpolation_type_w = 'KEY_BSPLINE'
-        
-        lattice_obj = bpy.data.objects.new("AkkuBodyLattice", lattice_data)
-        bpy.context.collection.objects.link(lattice_obj)
-        
-        lattice_obj.location = Vector(center)
-        lattice_obj.scale = Vector(size)
-        
-        mod = obj.modifiers.new(name="AkkuLattice", type='LATTICE')
-        mod.object = lattice_obj
-        
-        AkkuLogger.info("Created lattice for body deformation", {
-            "resolution": resolution,
-            "size": size
-        })
-        
-        return lattice_obj
-    
-    @classmethod
-    def deform_lattice(cls, lattice_obj: bpy.types.Object, params: BodyTypeParams) -> bool:
-        """Deform lattice points based on body type parameters."""
-        if lattice_obj.type != 'LATTICE':
+            AkkuLogger.warning(f"Cannot deform non-mesh object: {obj.name}")
             return False
         
-        lattice = lattice_obj.data
-        points_u = lattice.points_u
-        points_v = lattice.points_v
-        points_w = lattice.points_w
-        
-        AkkuLogger.info("Deforming lattice", {
-            "muscular": params.muscular,
-            "fat": params.fat,
-            "height": params.height
-        })
-        
-        for i, point in enumerate(lattice.points):
-            w_idx = i // (points_u * points_v)
-            remaining = i % (points_u * points_v)
-            v_idx = remaining // points_u
-            u_idx = remaining % points_u
-            
-            u_norm = u_idx / max(1, points_u - 1)
-            v_norm = v_idx / max(1, points_v - 1)
-            w_norm = w_idx / max(1, points_w - 1)
-            
-            dx, dy, dz = 0.0, 0.0, 0.0
-            
-            if params.height != 0:
-                dz = params.height * 0.4 * w_norm
-            
-            # DRAMATICALLY INCREASED scaling (3-4x) for visible silhouette changes
-            body_width_factor = params.muscular * 0.5 + params.fat * 0.4
-            
-            if 0.55 < w_norm < 0.8:
-                # Shoulders - most dramatic change for heroic/muscular
-                shoulder_factor = params.shoulder_width * 0.5
-                dx = (u_norm - 0.5) * (body_width_factor + shoulder_factor)
-                dy = (v_norm - 0.5) * body_width_factor * 0.7
-            
-            elif 0.45 < w_norm <= 0.55:
-                # Waist - cinch for muscular, expand for fat
-                waist_factor = -params.muscular * 0.2 + params.fat * 0.3
-                dx = (u_norm - 0.5) * waist_factor
-                dy = (v_norm - 0.5) * waist_factor
-            
-            elif 0.35 < w_norm <= 0.45:
-                # Hips - wider for stocky/fat
-                hip_factor = params.hip_width * 0.3 + params.fat * 0.25
-                dx = (u_norm - 0.5) * hip_factor
-                dy = (v_norm - 0.5) * hip_factor
-            
-            elif w_norm <= 0.35:
-                # Legs - thicker for muscular/fat
-                leg_scale = params.leg_length * 0.3
-                dz = leg_scale * w_norm
-                leg_width = (params.muscular * 0.2 + params.fat * 0.2) * (1 - w_norm)
-                dx = (u_norm - 0.5) * leg_width
-                dy = (v_norm - 0.5) * leg_width
-            
-            elif w_norm > 0.85:
-                # Head - larger for chibi style
-                head_scale = params.head_size * 0.25
-                dx = (u_norm - 0.5) * head_scale
-                dy = (v_norm - 0.5) * head_scale
-                dz += head_scale * 0.5
-            
-            point.co_deform.x += dx
-            point.co_deform.y += dy
-            point.co_deform.z += dz
-        
-        return True
-    
-    @classmethod
-    def apply_body_type_direct(cls, obj: bpy.types.Object, params: BodyTypeParams) -> bool:
-        """Apply body type deformation directly to mesh vertices."""
-        if obj.type != 'MESH':
-            return False
-        
-        UndoManager.save_state(obj, "before_body_type")
+        UndoManager.save_state(obj, "before_body_deform")
         
         try:
             bm = bmesh.new()
             bm.from_mesh(obj.data)
+            bm.verts.ensure_lookup_table()
             
             z_coords = [v.co.z for v in bm.verts]
-            z_min, z_max = min(z_coords), max(z_coords)
-            height = z_max - z_min
-            
-            if height <= 0:
+            if not z_coords:
                 bm.free()
                 return False
             
-            AkkuLogger.info("Applying body type directly", {
-                "mesh_height": height,
+            z_min, z_max = min(z_coords), max(z_coords)
+            height = z_max - z_min
+            
+            if height <= 0.001:
+                bm.free()
+                AkkuLogger.warning("Mesh has zero height, skipping deformation")
+                return False
+            
+            AkkuLogger.info("Applying direct mesh deformation", {
+                "mesh": obj.name,
+                "height": height,
                 "params": asdict(params)
             })
             
             for vert in bm.verts:
                 z_norm = (vert.co.z - z_min) / height
-                x_dist = abs(vert.co.x)
+                x_abs = abs(vert.co.x)
                 
-                dx, dy, dz = 0.0, 0.0, 0.0
+                scale_x, scale_y, scale_z = 1.0, 1.0, 1.0
+                offset_z = 0.0
                 
                 if params.height != 0:
-                    dz = params.height * 0.15 * height * z_norm
+                    offset_z = params.height * 0.12 * height * z_norm
                 
                 if z_norm > 0.85:
-                    scale = 1.0 + params.head_size * 0.4
-                    vert.co.x *= scale
-                    vert.co.y *= scale
-                    dz += params.head_size * 0.1 * height
-                    
-                elif 0.7 < z_norm <= 0.85:
-                    shoulder_scale = 1.0 + params.shoulder_width * 0.5 + params.muscular * 0.35
-                    vert.co.x *= shoulder_scale
-                    vert.co.y *= 1.0 + params.muscular * 0.25 + params.fat * 0.3
-                    
-                elif 0.55 < z_norm <= 0.7:
-                    chest_scale = 1.0 + params.muscular * 0.4 + params.fat * 0.35
-                    vert.co.x *= chest_scale
-                    vert.co.y *= chest_scale
-                    
+                    head_scale = 1.0 + params.head_size * 0.25
+                    scale_x = head_scale
+                    scale_y = head_scale
+                    offset_z += params.head_size * 0.08 * height
+                
+                elif 0.70 < z_norm <= 0.85:
+                    shoulder_scale = 1.0 + params.shoulder_width * 0.20 + params.muscular * 0.15
+                    scale_x = shoulder_scale
+                    scale_y = 1.0 + params.muscular * 0.12 + params.fat * 0.15
+                
+                elif 0.55 < z_norm <= 0.70:
+                    chest_scale = 1.0 + params.muscular * 0.18 + params.fat * 0.20
+                    scale_x = chest_scale
+                    scale_y = chest_scale
+                
                 elif 0.45 < z_norm <= 0.55:
-                    waist_scale = 1.0 - params.muscular * 0.2 + params.fat * 0.45
-                    vert.co.x *= waist_scale
-                    vert.co.y *= waist_scale
-                    
+                    waist_scale = 1.0 - params.muscular * 0.10 + params.fat * 0.25
+                    scale_x = waist_scale
+                    scale_y = waist_scale
+                
                 elif 0.35 < z_norm <= 0.45:
-                    hip_scale = 1.0 + params.hip_width * 0.4 + params.fat * 0.35
-                    vert.co.x *= hip_scale
-                    vert.co.y *= hip_scale
-                    
+                    hip_scale = 1.0 + params.hip_width * 0.18 + params.fat * 0.20
+                    scale_x = hip_scale
+                    scale_y = hip_scale
+                
                 elif z_norm <= 0.35:
                     if params.leg_length != 0:
-                        leg_factor = 1.0 + params.leg_length * 0.4
-                        vert.co.z = z_min + (vert.co.z - z_min) * leg_factor
+                        leg_factor = 1.0 + params.leg_length * 0.25
+                        new_z = z_min + (vert.co.z - z_min) * leg_factor
+                        offset_z = new_z - vert.co.z
                     
-                    leg_thickness = 1.0 + params.muscular * 0.25 + params.fat * 0.35
-                    vert.co.x *= leg_thickness
-                    vert.co.y *= leg_thickness
+                    leg_thickness = 1.0 + params.muscular * 0.12 + params.fat * 0.18
+                    scale_x = leg_thickness
+                    scale_y = leg_thickness
                 
-                if x_dist > 0.1 and 0.5 < z_norm < 0.8:
+                if x_abs > cls.ARM_X_THRESHOLD and 0.50 < z_norm < 0.80:
                     if params.arm_length != 0:
-                        arm_extend = params.arm_length * 0.25 * height
+                        arm_extend = params.arm_length * 0.15 * height
                         if vert.co.x > 0:
-                            vert.co.x += arm_extend * 0.5
+                            vert.co.x += arm_extend * 0.3
                         else:
-                            vert.co.x -= arm_extend * 0.5
+                            vert.co.x -= arm_extend * 0.3
                     
-                    arm_scale = 1.0 + params.muscular * 0.4 + params.fat * 0.25
-                    vert.co.y *= arm_scale
+                    arm_scale = 1.0 + params.muscular * 0.15 + params.fat * 0.12
+                    scale_y = arm_scale
                 
-                vert.co.z += dz
+                vert.co.x *= scale_x
+                vert.co.y *= scale_y
+                vert.co.z += offset_z
             
             bm.to_mesh(obj.data)
             bm.free()
+            
             obj.data.update()
             
-            AkkuLogger.info("Body type deformation completed")
-            
+            AkkuLogger.info(f"Direct mesh deformation completed: {obj.name}")
             return True
             
         except Exception as e:
-            AkkuLogger.error(f"Body type deformation failed: {str(e)}")
+            AkkuLogger.error(f"Mesh deformation failed: {str(e)}")
             UndoManager.undo(obj.name)
             return False
     
     @classmethod
-    def apply_body_type(cls, obj: bpy.types.Object, params: BodyTypeParams, use_lattice: bool = False) -> bool:
-        """Apply body type deformation to mesh."""
-        if use_lattice:
-            lattice = cls.create_lattice_for_mesh(obj, resolution=(4, 4, 8))
-            if lattice:
-                cls.deform_lattice(lattice, params)
-                MeshTools.apply_modifier_via_depsgraph(obj, "AkkuLattice")
-                bpy.data.objects.remove(lattice, do_unlink=True)
-                return True
+    def apply_all_modifiers(cls, obj: bpy.types.Object) -> bool:
+        """
+        Apply (freeze) all modifiers to mesh data.
+        
+        CRITICAL: This must be called before export to ensure
+        all deformations are baked into the mesh.
+        """
+        if obj.type != 'MESH':
             return False
-        else:
-            return cls.apply_body_type_direct(obj, params)
+        
+        if not obj.modifiers:
+            return True
+        
+        try:
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            obj_eval = obj.evaluated_get(depsgraph)
+            mesh_eval = bpy.data.meshes.new_from_object(obj_eval)
+            
+            old_mesh = obj.data
+            obj.data = mesh_eval
+            
+            bpy.data.meshes.remove(old_mesh)
+            
+            obj.modifiers.clear()
+            
+            AkkuLogger.info(f"Applied all modifiers to {obj.name}")
+            return True
+            
+        except Exception as e:
+            AkkuLogger.error(f"Failed to apply modifiers: {str(e)}")
+            return False
+    
+    @classmethod
+    def apply_transform(cls, obj: bpy.types.Object) -> bool:
+        """
+        Bake object transforms (location, rotation, scale) into mesh data.
+        
+        After this, object will have:
+        - Location: (0, 0, 0)
+        - Rotation: (0, 0, 0)
+        - Scale: (1, 1, 1)
+        
+        But the mesh vertices will be transformed accordingly.
+        """
+        if obj.type != 'MESH':
+            return False
+        
+        try:
+            matrix = obj.matrix_world.copy()
+            
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+            
+            for vert in bm.verts:
+                vert.co = matrix @ vert.co
+            
+            bm.to_mesh(obj.data)
+            bm.free()
+            
+            obj.matrix_world = obj.matrix_world.identity()
+            obj.location = (0, 0, 0)
+            obj.rotation_euler = (0, 0, 0)
+            obj.scale = (1, 1, 1)
+            
+            obj.data.update()
+            
+            AkkuLogger.info(f"Applied transform to {obj.name}")
+            return True
+            
+        except Exception as e:
+            AkkuLogger.error(f"Failed to apply transform: {str(e)}")
+            return False
+
+
+class BodyTypeSystem:
+    """
+    Body Type System - Public API
+    
+    This is the main interface for body type deformation.
+    All deformations are done via DirectMeshDeformer.
+    """
+    
+    @classmethod
+    def apply_body_type(
+        cls,
+        obj: bpy.types.Object,
+        params: BodyTypeParams,
+        use_lattice: bool = False
+    ) -> bool:
+        """
+        Apply body type deformation to mesh.
+        
+        Args:
+            obj: Mesh object to deform
+            params: Body type parameters
+            use_lattice: IGNORED - always uses direct mesh deformation
+            
+        Returns:
+            True if successful
+        """
+        return DirectMeshDeformer.deform_mesh(obj, params)
+    
+    @classmethod
+    def apply_body_type_direct(cls, obj: bpy.types.Object, params: BodyTypeParams) -> bool:
+        """Alias for apply_body_type - backward compatibility"""
+        return DirectMeshDeformer.deform_mesh(obj, params)
+    
+    @classmethod
+    def freeze_for_export(cls, objects: List[bpy.types.Object]) -> int:
+        """
+        Prepare all objects for GLB export by freezing transforms and modifiers.
+        
+        Returns:
+            Number of objects processed
+        """
+        count = 0
+        for obj in objects:
+            if obj.type == 'MESH':
+                DirectMeshDeformer.apply_all_modifiers(obj)
+                count += 1
+        
+        AkkuLogger.info(f"Frozen {count} objects for export")
+        return count
