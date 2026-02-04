@@ -183,6 +183,12 @@ Procedural material system for low-poly characters:
 Style presets adjust shader parameters automatically (stylized, chibi, heroic, cartoon, realistic, mobile, minifig).
 
 ## Recent Changes
+- 2026-02-04: **Added Prompt-to-Parameter Mapping Engine** - Enhanced gemini.ts
+  - mapPromptToParameters() converts abstract prompts to SDK parameters
+  - AkkuSDKParameters interface with bodyType, style, shader, equipment
+  - SDK_PARAMETER_SCHEMA for strict JSON validation
+  - Comprehensive mapping tables for archetypes, materials, colors
+  - Korean language support (강력한 전사 → muscular:0.8, armorStyle:plate)
 - 2026-02-04: **Added Auto Weight Transfer System** - rigging.py module (324 lines)
   - Uses Data Transfer modifier to copy vertex weights from base mesh to parts
   - Enables equipment to deform with animations without manual weight painting

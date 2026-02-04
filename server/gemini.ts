@@ -18,6 +18,290 @@ const ai = new GoogleGenAI({
 });
 
 // ============================================================
+// SDK PARAMETER SCHEMA - Strict Type Definitions
+// ============================================================
+
+// Strict union types for validation
+export type BodyPreset = "default" | "muscular" | "thin" | "fat" | "tall" | "athletic" | "heroic" | "chibi" | "cute" | "slim" | "broad" | "stocky";
+export type ProportionType = "stylized" | "chibi" | "sd" | "mobile" | "minifig" | "cartoon" | "realistic";
+export type PolyLevel = "ultra_low" | "low" | "medium" | "high";
+export type Gender = "male" | "female" | "neutral";
+export type StylePreset = "stylized" | "chibi" | "heroic" | "cartoon" | "realistic" | "mobile" | "minifig" | "sd";
+export type ArmorStyle = "none" | "light" | "heavy" | "scifi" | "magic" | "plate" | "leather" | "cloth";
+export type Archetype = "warrior" | "knight" | "mage" | "rogue" | "robot" | "monster" | "chibi" | "civilian" | "humanoid";
+
+// Equipment item types
+export type HelmetType = "Knight_Helmet" | "SciFi_Helmet" | "Light_Hood" | null;
+export type ShoulderType = "Knight_Shoulder" | "SciFi_Shoulder" | null;
+export type ChestType = "Knight_Chestplate" | "SciFi_Chestplate" | null;
+export type GauntletType = "Knight_Gauntlet" | null;
+export type BootType = "Heavy_Boots" | "SciFi_Boots" | null;
+export type WeaponType = "Knight_Sword" | "SciFi_Blaster" | "Staff" | null;
+export type ShieldType = "Knight_Shield" | null;
+
+// Valid value arrays for runtime validation
+const VALID_BODY_PRESETS: BodyPreset[] = ["default", "muscular", "thin", "fat", "tall", "athletic", "heroic", "chibi", "cute", "slim", "broad", "stocky"];
+const VALID_PROPORTION_TYPES: ProportionType[] = ["stylized", "chibi", "sd", "mobile", "minifig", "cartoon", "realistic"];
+const VALID_POLY_LEVELS: PolyLevel[] = ["ultra_low", "low", "medium", "high"];
+const VALID_GENDERS: Gender[] = ["male", "female", "neutral"];
+const VALID_STYLE_PRESETS: StylePreset[] = ["stylized", "chibi", "heroic", "cartoon", "realistic", "mobile", "minifig", "sd"];
+const VALID_ARMOR_STYLES: ArmorStyle[] = ["none", "light", "heavy", "scifi", "magic", "plate", "leather", "cloth"];
+const VALID_ARCHETYPES: Archetype[] = ["warrior", "knight", "mage", "rogue", "robot", "monster", "chibi", "civilian", "humanoid"];
+const VALID_HELMETS: (string | null)[] = ["Knight_Helmet", "SciFi_Helmet", "Light_Hood", null];
+const VALID_SHOULDERS: (string | null)[] = ["Knight_Shoulder", "SciFi_Shoulder", null];
+const VALID_CHESTS: (string | null)[] = ["Knight_Chestplate", "SciFi_Chestplate", null];
+const VALID_GAUNTLETS: (string | null)[] = ["Knight_Gauntlet", null];
+const VALID_BOOTS: (string | null)[] = ["Heavy_Boots", "SciFi_Boots", null];
+const VALID_WEAPONS: (string | null)[] = ["Knight_Sword", "SciFi_Blaster", "Staff", null];
+const VALID_SHIELDS: (string | null)[] = ["Knight_Shield", null];
+
+export interface AkkuSDKParameters {
+  bodyType: {
+    preset: BodyPreset;
+    muscular: number;
+    fat: number;
+    height: number;
+    shoulderWidth: number;
+    hipWidth: number;
+  };
+  style: {
+    proportionType: ProportionType;
+    polyLevel: PolyLevel;
+    gender: Gender;
+  };
+  shader: {
+    baseColor: [number, number, number];
+    metallic: number;
+    roughness: number;
+    edgeBrightness: number;
+    cavityDarkness: number;
+    fresnelStrength: number;
+    stylePreset: StylePreset;
+  };
+  equipment: {
+    helmet: HelmetType;
+    shoulders: ShoulderType;
+    chest: ChestType;
+    gauntlets: GauntletType;
+    boots: BootType;
+    weapon: WeaponType;
+    shield: ShieldType;
+    armorStyle: ArmorStyle;
+  };
+  archetype: Archetype;
+  description: string;
+}
+
+// JSON Schema for validation
+export const SDK_PARAMETER_SCHEMA = {
+  type: "object",
+  required: ["bodyType", "style", "shader", "equipment", "archetype", "description"],
+  properties: {
+    bodyType: {
+      type: "object",
+      required: ["preset", "muscular", "fat", "height", "shoulderWidth", "hipWidth"],
+      properties: {
+        preset: { type: "string", enum: ["default", "muscular", "thin", "fat", "tall", "athletic", "heroic", "chibi", "cute", "slim", "broad", "stocky"] },
+        muscular: { type: "number", minimum: 0, maximum: 1 },
+        fat: { type: "number", minimum: 0, maximum: 1 },
+        height: { type: "number", minimum: 0.7, maximum: 1.3 },
+        shoulderWidth: { type: "number", minimum: 0.7, maximum: 1.5 },
+        hipWidth: { type: "number", minimum: 0.7, maximum: 1.3 }
+      }
+    },
+    style: {
+      type: "object",
+      required: ["proportionType", "polyLevel", "gender"],
+      properties: {
+        proportionType: { type: "string", enum: ["stylized", "chibi", "sd", "mobile", "minifig", "cartoon", "realistic"] },
+        polyLevel: { type: "string", enum: ["ultra_low", "low", "medium", "high"] },
+        gender: { type: "string", enum: ["male", "female", "neutral"] }
+      }
+    },
+    shader: {
+      type: "object",
+      required: ["baseColor", "metallic", "roughness", "stylePreset"],
+      properties: {
+        baseColor: { type: "array", items: { type: "number", minimum: 0, maximum: 1 }, minItems: 3, maxItems: 3 },
+        metallic: { type: "number", minimum: 0, maximum: 1 },
+        roughness: { type: "number", minimum: 0, maximum: 1 },
+        edgeBrightness: { type: "number", minimum: 0, maximum: 2 },
+        cavityDarkness: { type: "number", minimum: 0, maximum: 1 },
+        fresnelStrength: { type: "number", minimum: 0, maximum: 1 },
+        stylePreset: { type: "string", enum: ["stylized", "chibi", "heroic", "cartoon", "realistic", "mobile", "minifig", "sd"] }
+      }
+    },
+    equipment: {
+      type: "object",
+      properties: {
+        helmet: { type: ["string", "null"] },
+        shoulders: { type: ["string", "null"] },
+        chest: { type: ["string", "null"] },
+        gauntlets: { type: ["string", "null"] },
+        boots: { type: ["string", "null"] },
+        weapon: { type: ["string", "null"] },
+        shield: { type: ["string", "null"] },
+        armorStyle: { type: "string", enum: ["none", "light", "heavy", "scifi", "magic", "plate", "leather", "cloth"] }
+      }
+    },
+    archetype: { type: "string" },
+    description: { type: "string" }
+  }
+};
+
+// Prompt-to-Parameter Mapping Engine System Prompt
+const PARAMETER_MAPPING_PROMPT = `You are the Akku Engine Parameter Mapping AI. Your role is to convert natural language character descriptions into precise SDK parameters.
+
+## Your Task
+Analyze the user's character description and output a STRICT JSON object with exact numerical values for the Akku Low-poly SDK.
+
+## Output JSON Schema (FOLLOW EXACTLY)
+
+{
+  "bodyType": {
+    "preset": "default|muscular|thin|fat|tall|athletic|heroic|chibi|cute|slim|broad|stocky",
+    "muscular": 0.0-1.0,    // Muscle definition (0=none, 1=bodybuilder)
+    "fat": 0.0-1.0,         // Body fat (0=thin, 1=overweight)
+    "height": 0.7-1.3,      // Height multiplier (1.0=normal)
+    "shoulderWidth": 0.7-1.5, // Shoulder width (1.0=normal)
+    "hipWidth": 0.7-1.3     // Hip width (1.0=normal)
+  },
+  "style": {
+    "proportionType": "stylized|chibi|sd|mobile|minifig|cartoon|realistic",
+    "polyLevel": "ultra_low|low|medium|high",
+    "gender": "male|female|neutral"
+  },
+  "shader": {
+    "baseColor": [R, G, B], // RGB values 0.0-1.0
+    "metallic": 0.0-1.0,    // Metal appearance
+    "roughness": 0.0-1.0,   // Surface roughness
+    "edgeBrightness": 0.0-2.0, // Edge highlighting intensity
+    "cavityDarkness": 0.0-1.0, // Cavity/crease darkening
+    "fresnelStrength": 0.0-1.0, // Rim lighting
+    "stylePreset": "stylized|chibi|heroic|cartoon|realistic|mobile|minifig|sd"
+  },
+  "equipment": {
+    "helmet": "Knight_Helmet|SciFi_Helmet|Light_Hood|null",
+    "shoulders": "Knight_Shoulder|SciFi_Shoulder|null",
+    "chest": "Knight_Chestplate|SciFi_Chestplate|null",
+    "gauntlets": "Knight_Gauntlet|null",
+    "boots": "Heavy_Boots|SciFi_Boots|null",
+    "weapon": "Knight_Sword|SciFi_Blaster|Staff|null",
+    "shield": "Knight_Shield|null",
+    "armorStyle": "none|light|heavy|scifi|magic|plate|leather|cloth"
+  },
+  "archetype": "warrior|knight|mage|rogue|robot|monster|chibi|civilian",
+  "description": "Brief description"
+}
+
+## Mapping Rules
+
+### Character Archetypes → Body Type Presets
+| Archetype Keywords | Body Preset | Muscular | Fat | Shoulders | Style |
+|-------------------|-------------|----------|-----|-----------|-------|
+| 강력한/powerful/strong | heroic | 0.8 | 0.1 | 1.3 | stylized |
+| 전사/warrior/fighter | muscular | 0.7 | 0.15 | 1.2 | stylized |
+| 기사/knight/paladin | muscular | 0.6 | 0.2 | 1.25 | realistic |
+| 마법사/mage/wizard | thin | 0.2 | 0.1 | 0.9 | stylized |
+| 도적/rogue/assassin | athletic | 0.5 | 0.05 | 1.0 | stylized |
+| 로봇/robot/mech | default | 0.3 | 0.0 | 1.1 | stylized |
+| 몬스터/monster/beast | broad | 0.7 | 0.3 | 1.4 | cartoon |
+| 치비/chibi/cute | chibi | 0.0 | 0.2 | 0.8 | chibi |
+| 날씬한/slim/slender | slim | 0.2 | 0.0 | 0.85 | stylized |
+| 뚱뚱한/fat/heavy | stocky | 0.2 | 0.8 | 1.0 | cartoon |
+| 영웅/hero | heroic | 0.75 | 0.1 | 1.35 | stylized |
+
+### Armor Style Mappings
+| Keywords | Armor Style | Equipment Set |
+|----------|-------------|---------------|
+| 판금/plate/heavy armor | plate | Knight set (full) |
+| 가죽/leather/light armor | leather | Light_Hood + boots |
+| 천/cloth/robes | cloth | Light_Hood only |
+| SF/scifi/tech/사이버 | scifi | SciFi set (full) |
+| 마법/magic/enchanted | magic | Light_Hood + Staff |
+
+### Material Mappings
+| Keywords | Metallic | Roughness | Edge | Cavity |
+|----------|----------|-----------|------|--------|
+| 금속/metal/steel | 0.9 | 0.3 | 1.2 | 0.4 |
+| 광택/shiny/polished | 0.7 | 0.1 | 1.5 | 0.3 |
+| 무광/matte/dull | 0.2 | 0.8 | 0.8 | 0.5 |
+| 가죽/leather | 0.1 | 0.6 | 0.9 | 0.6 |
+| 천/cloth/fabric | 0.0 | 0.9 | 0.7 | 0.7 |
+| 크롬/chrome/mirror | 1.0 | 0.05 | 1.8 | 0.2 |
+| 금/gold/황금 | 0.95 | 0.2 | 1.4 | 0.3 |
+
+### Korean Color Mappings
+| 한글 | English | RGB |
+|------|---------|-----|
+| 빨간/빨강 | red | [0.8, 0.2, 0.2] |
+| 파란/파랑 | blue | [0.2, 0.4, 0.8] |
+| 녹색/초록 | green | [0.2, 0.7, 0.3] |
+| 노란/노랑 | yellow | [0.9, 0.8, 0.2] |
+| 보라 | purple | [0.6, 0.2, 0.8] |
+| 주황 | orange | [0.9, 0.5, 0.1] |
+| 분홍 | pink | [0.9, 0.5, 0.7] |
+| 검은/검정 | black | [0.1, 0.1, 0.1] |
+| 흰/하얀 | white | [0.95, 0.95, 0.95] |
+| 금색/황금 | gold | [0.85, 0.65, 0.2] |
+| 은색 | silver | [0.75, 0.75, 0.8] |
+| 하늘색 | sky blue | [0.5, 0.8, 1.0] |
+| 청록색 | cyan | [0.2, 0.8, 0.7] |
+| 갈색 | brown | [0.4, 0.25, 0.1] |
+| 회색 | gray | [0.5, 0.5, 0.5] |
+
+### Poly Level Selection
+| Keywords | Poly Level |
+|----------|------------|
+| 모바일/mobile/저폴리 | ultra_low |
+| 가벼운/lightweight | low |
+| 기본/default/standard | medium |
+| 고품질/highquality/detailed | high |
+
+## Examples
+
+Input: "강력한 전사"
+Output:
+{
+  "bodyType": {"preset": "heroic", "muscular": 0.8, "fat": 0.1, "height": 1.05, "shoulderWidth": 1.3, "hipWidth": 1.0},
+  "style": {"proportionType": "stylized", "polyLevel": "medium", "gender": "male"},
+  "shader": {"baseColor": [0.5, 0.5, 0.55], "metallic": 0.85, "roughness": 0.3, "edgeBrightness": 1.2, "cavityDarkness": 0.4, "fresnelStrength": 0.3, "stylePreset": "heroic"},
+  "equipment": {"helmet": "Knight_Helmet", "shoulders": "Knight_Shoulder", "chest": "Knight_Chestplate", "gauntlets": "Knight_Gauntlet", "boots": "Heavy_Boots", "weapon": "Knight_Sword", "shield": "Knight_Shield", "armorStyle": "plate"},
+  "archetype": "warrior",
+  "description": "Powerful warrior with full plate armor"
+}
+
+Input: "빨간 로봇"
+Output:
+{
+  "bodyType": {"preset": "default", "muscular": 0.3, "fat": 0.0, "height": 1.0, "shoulderWidth": 1.1, "hipWidth": 0.95},
+  "style": {"proportionType": "stylized", "polyLevel": "medium", "gender": "neutral"},
+  "shader": {"baseColor": [0.8, 0.2, 0.2], "metallic": 0.95, "roughness": 0.2, "edgeBrightness": 1.5, "cavityDarkness": 0.3, "fresnelStrength": 0.4, "stylePreset": "stylized"},
+  "equipment": {"helmet": "SciFi_Helmet", "shoulders": "SciFi_Shoulder", "chest": "SciFi_Chestplate", "gauntlets": null, "boots": "SciFi_Boots", "weapon": null, "shield": null, "armorStyle": "scifi"},
+  "archetype": "robot",
+  "description": "Red robot with sci-fi armor"
+}
+
+Input: "귀여운 치비 마법사"
+Output:
+{
+  "bodyType": {"preset": "chibi", "muscular": 0.0, "fat": 0.2, "height": 0.75, "shoulderWidth": 0.8, "hipWidth": 0.9},
+  "style": {"proportionType": "chibi", "polyLevel": "medium", "gender": "neutral"},
+  "shader": {"baseColor": [0.6, 0.2, 0.8], "metallic": 0.1, "roughness": 0.7, "edgeBrightness": 0.9, "cavityDarkness": 0.5, "fresnelStrength": 0.5, "stylePreset": "chibi"},
+  "equipment": {"helmet": "Light_Hood", "shoulders": null, "chest": null, "gauntlets": null, "boots": null, "weapon": "Staff", "shield": null, "armorStyle": "cloth"},
+  "archetype": "mage",
+  "description": "Cute chibi mage with purple robes and staff"
+}
+
+## Rules
+1. Output ONLY valid JSON, no explanations or markdown
+2. All numeric values must be within specified ranges
+3. Use null for equipment slots that should be empty
+4. Match Korean keywords first, then English
+5. Combine multiple attributes when present (e.g., "강력한 빨간 기사" = powerful + red + knight)
+6. Default to "stylized" proportionType and "medium" polyLevel if not specified`;
+
+// ============================================================
 // AKKU LOW-POLY SDK SYSTEM PROMPT
 // ============================================================
 
@@ -345,6 +629,222 @@ For robots: metallic=0.9, roughness=0.2
 For chibi: headScale=[1.5,1.5,1.5], armLength=0.6, legLength=0.6
 
 Output ONLY the JSON, no explanations or markdown.`;
+
+// ============================================================
+// PROMPT-TO-PARAMETER MAPPING ENGINE
+// ============================================================
+
+/**
+ * Map a natural language prompt to precise SDK parameters
+ * Uses Gemini to convert abstract descriptions to concrete numerical values
+ * 
+ * @param prompt User's character description (Korean/English)
+ * @param style Optional style override
+ * @param polyLevel Optional poly level override
+ * @returns AkkuSDKParameters with all generation parameters
+ */
+export async function mapPromptToParameters(
+  prompt: string,
+  style?: string,
+  polyLevel?: string
+): Promise<AkkuSDKParameters> {
+  try {
+    let userRequest = `Convert this character description to SDK parameters:\n\n"${prompt}"`;
+    
+    if (style) {
+      userRequest += `\n\nUse proportionType: "${style}"`;
+    }
+    if (polyLevel) {
+      userRequest += `\nUse polyLevel: "${polyLevel}"`;
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        { role: "user", parts: [{ text: PARAMETER_MAPPING_PROMPT }] },
+        { role: "model", parts: [{ text: "I understand. I will analyze character descriptions and output precise SDK parameter JSON following the strict schema." }] },
+        { role: "user", parts: [{ text: userRequest }] },
+      ],
+    });
+
+    const text = response.text || "";
+    let jsonStr = extractJSON(text);
+    const params = JSON.parse(jsonStr) as AkkuSDKParameters;
+    
+    // Validate and clamp parameters
+    const validated = validateSDKParameters(params);
+    
+    console.log(`[Gemini] Mapped prompt to parameters:`, {
+      archetype: validated.archetype,
+      bodyPreset: validated.bodyType.preset,
+      armorStyle: validated.equipment.armorStyle,
+      color: validated.shader.baseColor
+    });
+    
+    return validated;
+  } catch (error) {
+    console.error("Error mapping prompt to parameters:", error);
+    return getDefaultSDKParameters(prompt);
+  }
+}
+
+/**
+ * Validate and clamp SDK parameters to valid ranges
+ * Uses strict type validation for all enum fields
+ */
+function validateSDKParameters(params: AkkuSDKParameters): AkkuSDKParameters {
+  // Helper to validate equipment items
+  function validateEquipment<T>(value: unknown, validValues: (string | null)[], defaultValue: T): T {
+    if (value === null || validValues.includes(value as string)) {
+      return value as T;
+    }
+    return defaultValue;
+  }
+  
+  return {
+    bodyType: {
+      preset: validateEnum<BodyPreset>(params.bodyType?.preset, VALID_BODY_PRESETS, "default"),
+      muscular: clamp(params.bodyType?.muscular ?? 0.3, 0, 1),
+      fat: clamp(params.bodyType?.fat ?? 0.1, 0, 1),
+      height: clamp(params.bodyType?.height ?? 1.0, 0.7, 1.3),
+      shoulderWidth: clamp(params.bodyType?.shoulderWidth ?? 1.0, 0.7, 1.5),
+      hipWidth: clamp(params.bodyType?.hipWidth ?? 1.0, 0.7, 1.3),
+    },
+    style: {
+      proportionType: validateEnum<ProportionType>(params.style?.proportionType, VALID_PROPORTION_TYPES, "stylized"),
+      polyLevel: validateEnum<PolyLevel>(params.style?.polyLevel, VALID_POLY_LEVELS, "medium"),
+      gender: validateEnum<Gender>(params.style?.gender, VALID_GENDERS, "neutral"),
+    },
+    shader: {
+      baseColor: validateColor(params.shader?.baseColor, [0.5, 0.5, 0.55]),
+      metallic: clamp(params.shader?.metallic ?? 0.3, 0, 1),
+      roughness: clamp(params.shader?.roughness ?? 0.5, 0, 1),
+      edgeBrightness: clamp(params.shader?.edgeBrightness ?? 1.0, 0, 2),
+      cavityDarkness: clamp(params.shader?.cavityDarkness ?? 0.4, 0, 1),
+      fresnelStrength: clamp(params.shader?.fresnelStrength ?? 0.3, 0, 1),
+      stylePreset: validateEnum<StylePreset>(params.shader?.stylePreset, VALID_STYLE_PRESETS, "stylized"),
+    },
+    equipment: {
+      helmet: validateEquipment<HelmetType>(params.equipment?.helmet, VALID_HELMETS, null),
+      shoulders: validateEquipment<ShoulderType>(params.equipment?.shoulders, VALID_SHOULDERS, null),
+      chest: validateEquipment<ChestType>(params.equipment?.chest, VALID_CHESTS, null),
+      gauntlets: validateEquipment<GauntletType>(params.equipment?.gauntlets, VALID_GAUNTLETS, null),
+      boots: validateEquipment<BootType>(params.equipment?.boots, VALID_BOOTS, null),
+      weapon: validateEquipment<WeaponType>(params.equipment?.weapon, VALID_WEAPONS, null),
+      shield: validateEquipment<ShieldType>(params.equipment?.shield, VALID_SHIELDS, null),
+      armorStyle: validateEnum<ArmorStyle>(params.equipment?.armorStyle, VALID_ARMOR_STYLES, "none"),
+    },
+    archetype: validateEnum<Archetype>(params.archetype, VALID_ARCHETYPES, "humanoid"),
+    description: params.description || "Character",
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function validateEnum<T extends string>(value: unknown, validValues: T[], defaultValue: T): T {
+  if (typeof value === "string" && validValues.includes(value as T)) {
+    return value as T;
+  }
+  return defaultValue;
+}
+
+/**
+ * Get default SDK parameters with prompt-based detection
+ */
+function getDefaultSDKParameters(prompt: string): AkkuSDKParameters {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Detect archetype with proper types
+  let archetype: Archetype = "humanoid";
+  let bodyPreset: BodyPreset = "default";
+  let armorStyle: ArmorStyle = "none";
+  let muscular = 0.3;
+  let proportionType: ProportionType = "stylized";
+  let stylePreset: StylePreset = "stylized";
+  
+  if (lowerPrompt.includes("전사") || lowerPrompt.includes("warrior") || lowerPrompt.includes("fighter")) {
+    archetype = "warrior";
+    bodyPreset = "muscular";
+    armorStyle = "plate";
+    muscular = 0.7;
+    stylePreset = "heroic";
+  } else if (lowerPrompt.includes("기사") || lowerPrompt.includes("knight")) {
+    archetype = "knight";
+    bodyPreset = "muscular";
+    armorStyle = "heavy";
+    muscular = 0.6;
+    stylePreset = "heroic";
+  } else if (lowerPrompt.includes("마법사") || lowerPrompt.includes("mage") || lowerPrompt.includes("wizard")) {
+    archetype = "mage";
+    bodyPreset = "thin";
+    armorStyle = "cloth";
+    muscular = 0.2;
+    stylePreset = "stylized";
+  } else if (lowerPrompt.includes("로봇") || lowerPrompt.includes("robot")) {
+    archetype = "robot";
+    armorStyle = "scifi";
+    stylePreset = "stylized";
+  } else if (lowerPrompt.includes("치비") || lowerPrompt.includes("chibi") || lowerPrompt.includes("귀여")) {
+    archetype = "chibi";
+    bodyPreset = "chibi";
+    proportionType = "chibi";
+    muscular = 0.0;
+    stylePreset = "chibi";
+  }
+  
+  // Detect color
+  let baseColor: [number, number, number] = [0.5, 0.5, 0.55];
+  if (lowerPrompt.includes("빨간") || lowerPrompt.includes("red")) {
+    baseColor = [0.8, 0.2, 0.2];
+  } else if (lowerPrompt.includes("파란") || lowerPrompt.includes("blue")) {
+    baseColor = [0.2, 0.4, 0.8];
+  } else if (lowerPrompt.includes("금") || lowerPrompt.includes("gold")) {
+    baseColor = [0.85, 0.65, 0.2];
+  } else if (lowerPrompt.includes("녹색") || lowerPrompt.includes("green")) {
+    baseColor = [0.2, 0.7, 0.3];
+  } else if (lowerPrompt.includes("보라") || lowerPrompt.includes("purple")) {
+    baseColor = [0.6, 0.2, 0.8];
+  }
+  
+  return {
+    bodyType: {
+      preset: bodyPreset,
+      muscular: muscular,
+      fat: 0.1,
+      height: 1.0,
+      shoulderWidth: muscular > 0.5 ? 1.2 : 1.0,
+      hipWidth: 1.0,
+    },
+    style: {
+      proportionType: proportionType,
+      polyLevel: "medium",
+      gender: "neutral",
+    },
+    shader: {
+      baseColor: baseColor,
+      metallic: armorStyle === "plate" || armorStyle === "scifi" ? 0.8 : 0.2,
+      roughness: 0.4,
+      edgeBrightness: 1.0,
+      cavityDarkness: 0.4,
+      fresnelStrength: 0.3,
+      stylePreset: stylePreset,
+    },
+    equipment: {
+      helmet: armorStyle === "plate" ? "Knight_Helmet" : armorStyle === "scifi" ? "SciFi_Helmet" : null,
+      shoulders: armorStyle === "plate" ? "Knight_Shoulder" : armorStyle === "scifi" ? "SciFi_Shoulder" : null,
+      chest: armorStyle === "plate" ? "Knight_Chestplate" : armorStyle === "scifi" ? "SciFi_Chestplate" : null,
+      gauntlets: armorStyle === "plate" ? "Knight_Gauntlet" : null,
+      boots: armorStyle === "plate" ? "Heavy_Boots" : armorStyle === "scifi" ? "SciFi_Boots" : null,
+      weapon: archetype === "mage" ? "Staff" : armorStyle === "plate" ? "Knight_Sword" : null,
+      shield: armorStyle === "plate" ? "Knight_Shield" : null,
+      armorStyle: armorStyle,
+    },
+    archetype: archetype,
+    description: prompt,
+  };
+}
 
 /**
  * Generate an Akku SDK generation plan using Gemini
