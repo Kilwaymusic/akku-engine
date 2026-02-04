@@ -121,7 +121,17 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // Serve static files from public directory (for SDK downloads, etc.)
-  app.use(express.static(PUBLIC_DIR));
+  app.use("/models", express.static(path.join(PUBLIC_DIR, "models")));
+  
+  // SDK download endpoint
+  app.get("/akku_sdk_v3.6.tar.gz", (req, res) => {
+    const filePath = path.join(PUBLIC_DIR, "akku_sdk_v3.6.tar.gz");
+    if (existsSync(filePath)) {
+      res.download(filePath);
+    } else {
+      res.status(404).send("SDK file not found");
+    }
+  });
   
   // Get all jobs
   app.get("/api/jobs", async (req, res) => {
