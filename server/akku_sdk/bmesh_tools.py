@@ -1,6 +1,12 @@
 """
-Akku SDK v3.7 - BMesh Direct Manipulation Tools
+Akku SDK v3.8 - BMesh Direct Manipulation Tools
 Low-level mesh editing primitives for procedural character generation
+
+Features:
+- Bmesh Wrapper: Direct bmesh manipulation without bpy.ops
+- Loop Cut: Edge flow-based face splitting for joint creation
+- Rig-Aware Extrude: Weight inheritance from parent vertices
+- Normal Recalculate: Automatic normal fixing after all operations
 """
 
 import bpy
@@ -783,4 +789,770 @@ def mirror_and_weld(
     tools = BmeshTools(obj)
     result = tools.mirror_and_weld(axis, merge_threshold)
     tools.finish()
+    return result
+
+
+# =============================================================================
+# RIG-AWARE EXTRUDE - Weight Inheritance System
+# =============================================================================
+
+@dataclass
+class RigAwareExtrudeResult:
+    """Result of rig-aware extrude with weight inheritance"""
+    new_vert_indices: List[int] = field(default_factory=list)
+    new_face_indices: List[int] = field(default_factory=list)
+    inherited_weights: Dict[str, List[Tuple[int, float]]] = field(default_factory=dict)
+    source_bone: Optional[str] = None
+
+
+class RigAwareExtruder:
+    """
+    Extrude with automatic weight inheritance from parent vertices.
+    
+    When extruding geometry, new vertices automatically inherit
+    bone weights from their source vertices, maintaining rig integrity.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+        self._deform_layer = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        """Initialize bmesh with deform layer for weights"""
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+            self._deform_layer = self.bm.verts.layers.deform.verify()
+        return self.bm
+    
+    def _get_vertex_weights(self, vert: bmesh.types.BMVert) -> Dict[int, float]:
+        """Get all vertex group weights for a vertex"""
+        if self._deform_layer is None:
+            return {}
+        return dict(vert[self._deform_layer])
+    
+    def _set_vertex_weights(self, vert: bmesh.types.BMVert, weights: Dict[int, float]):
+        """Set vertex group weights for a vertex"""
+        if self._deform_layer is None:
+            return
+        for group_idx, weight in weights.items():
+            vert[self._deform_layer][group_idx] = weight
+    
+    def _average_weights(self, verts: List[bmesh.types.BMVert]) -> Dict[int, float]:
+        """Calculate average weights from multiple vertices"""
+        if not verts:
+            return {}
+        
+        weight_sums: Dict[int, float] = {}
+        weight_counts: Dict[int, int] = {}
+        
+        for vert in verts:
+            weights = self._get_vertex_weights(vert)
+            for group_idx, weight in weights.items():
+                weight_sums[group_idx] = weight_sums.get(group_idx, 0.0) + weight
+                weight_counts[group_idx] = weight_counts.get(group_idx, 0) + 1
+        
+        return {
+            group_idx: weight_sums[group_idx] / weight_counts[group_idx]
+            for group_idx in weight_sums
+        }
+    
+    def extrude_with_weight_inheritance(
+        self,
+        face_index: int,
+        length: float,
+        scale: Tuple[float, float] = (1.0, 1.0),
+        weight_falloff: float = 1.0
+    ) -> RigAwareExtrudeResult:
+        """
+        Extrude face with automatic weight inheritance.
+        
+        New vertices inherit bone weights from source vertices,
+        with optional falloff for gradual weight transition.
+        
+        Args:
+            face_index: Index of face to extrude
+            length: Extrusion distance along face normal
+            scale: (x, y) scale factors for extruded face
+            weight_falloff: 0.0-1.0, how much to preserve parent weights
+            
+        Returns:
+            RigAwareExtrudeResult with new geometry and weight info
+        """
+        result = RigAwareExtrudeResult()
+        
+        bm = self._ensure_bmesh()
+        bm.faces.ensure_lookup_table()
+        
+        if face_index >= len(bm.faces):
+            return result
+        
+        face = bm.faces[face_index]
+        normal = face.normal.copy()
+        
+        source_verts = list(face.verts)
+        source_weights = {v: self._get_vertex_weights(v) for v in source_verts}
+        avg_weights = self._average_weights(source_verts)
+        
+        extrude_result = bmesh.ops.extrude_face_region(bm, geom=[face])
+        
+        new_verts = [v for v in extrude_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+        
+        translation = normal * length
+        bmesh.ops.translate(bm, verts=new_verts, vec=translation)
+        
+        cap_face = None
+        for f in bm.faces:
+            if all(v in new_verts for v in f.verts):
+                if f.normal.dot(normal) > 0.9:
+                    cap_face = f
+                    break
+        
+        if scale != (1.0, 1.0) and cap_face:
+            cap_center = cap_face.calc_center_median()
+            for vert in cap_face.verts:
+                local_pos = vert.co - cap_center
+                vert.co.x = cap_center.x + local_pos.x * scale[0]
+                vert.co.y = cap_center.y + local_pos.y * scale[1]
+        
+        for new_vert in new_verts:
+            closest_source = None
+            min_dist = float('inf')
+            
+            for src_vert in source_verts:
+                src_pos = src_vert.co + translation
+                dist = (new_vert.co - src_pos).length
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_source = src_vert
+            
+            if closest_source and closest_source in source_weights:
+                inherited = source_weights[closest_source]
+            else:
+                inherited = avg_weights
+            
+            scaled_weights = {
+                group_idx: weight * weight_falloff
+                for group_idx, weight in inherited.items()
+            }
+            self._set_vertex_weights(new_vert, scaled_weights)
+        
+        bm.verts.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+        
+        result.new_vert_indices = [v.index for v in new_verts]
+        if cap_face:
+            result.new_face_indices = [cap_face.index]
+        
+        for group_idx, weight in avg_weights.items():
+            group_name = self._get_group_name(group_idx)
+            if group_name:
+                result.inherited_weights[group_name] = [
+                    (v.index, weight * weight_falloff) for v in new_verts
+                ]
+                if result.source_bone is None:
+                    result.source_bone = group_name
+        
+        self.bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def _get_group_name(self, group_index: int) -> Optional[str]:
+        """Get vertex group name from index"""
+        for group in self.obj.vertex_groups:
+            if group.index == group_index:
+                return group.name
+        return None
+    
+    def finish(self):
+        """Finalize and free bmesh"""
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# NORMAL RECALCULATOR - Automatic Normal Fixing
+# =============================================================================
+
+@dataclass
+class NormalRecalcResult:
+    """Result of normal recalculation"""
+    faces_processed: int = 0
+    faces_flipped: int = 0
+    is_manifold: bool = True
+    has_consistent_normals: bool = True
+
+
+class NormalRecalculator:
+    """
+    Automatic normal recalculation and fixing.
+    
+    Ensures mesh normals are consistent and properly oriented
+    after any mesh manipulation operations.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        """Initialize bmesh"""
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def recalculate_normals(self, inside: bool = False) -> NormalRecalcResult:
+        """
+        Recalculate all face normals to be consistent.
+        
+        Args:
+            inside: If True, orient normals inward (for hollow objects)
+            
+        Returns:
+            NormalRecalcResult with processing statistics
+        """
+        result = NormalRecalcResult()
+        
+        bm = self._ensure_bmesh()
+        
+        result.faces_processed = len(bm.faces)
+        
+        result.is_manifold = all(e.is_manifold for e in bm.edges)
+        
+        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+        
+        if inside:
+            for face in bm.faces:
+                face.normal_flip()
+                result.faces_flipped += 1
+        
+        bm.normal_update()
+        
+        if result.faces_processed > 0:
+            first_face = bm.faces[0]
+            for face in bm.faces[1:]:
+                for edge in face.edges:
+                    if edge in first_face.edges:
+                        if face.normal.dot(first_face.normal) < 0:
+                            result.has_consistent_normals = False
+                            break
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def flip_normals(self, face_indices: Optional[List[int]] = None) -> int:
+        """
+        Flip normals of specified faces (or all faces).
+        
+        Args:
+            face_indices: List of face indices to flip, or None for all
+            
+        Returns:
+            Number of faces flipped
+        """
+        bm = self._ensure_bmesh()
+        bm.faces.ensure_lookup_table()
+        
+        if face_indices is None:
+            faces_to_flip = list(bm.faces)
+        else:
+            faces_to_flip = [bm.faces[i] for i in face_indices if i < len(bm.faces)]
+        
+        for face in faces_to_flip:
+            face.normal_flip()
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return len(faces_to_flip)
+    
+    def smooth_vertex_normals(self, angle_threshold: float = 30.0):
+        """
+        Apply smooth shading based on angle threshold.
+        
+        Args:
+            angle_threshold: Edges sharper than this angle stay sharp (degrees)
+        """
+        import math
+        
+        bm = self._ensure_bmesh()
+        
+        threshold_rad = math.radians(angle_threshold)
+        
+        for edge in bm.edges:
+            if len(edge.link_faces) == 2:
+                angle = edge.calc_face_angle()
+                edge.smooth = angle < threshold_rad
+        
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+    
+    def finish(self):
+        """Finalize and free bmesh"""
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# EDGE LOOP CUTTER - Advanced Loop Cut System
+# =============================================================================
+
+@dataclass
+class EdgeLoopResult:
+    """Result of edge loop operation"""
+    loop_edge_indices: List[int] = field(default_factory=list)
+    loop_vert_indices: List[int] = field(default_factory=list)
+    is_closed_loop: bool = False
+    loop_length: float = 0.0
+
+
+class EdgeLoopCutter:
+    """
+    Advanced edge loop cutting for joint creation.
+    
+    Follows edge flow to create proper loop cuts that
+    enable smooth deformation at joints.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self.bm: Optional[bmesh.types.BMesh] = None
+    
+    def _ensure_bmesh(self) -> bmesh.types.BMesh:
+        """Initialize bmesh"""
+        if self.bm is None:
+            self.bm = bmesh.new()
+            self.bm.from_mesh(self.obj.data)
+        return self.bm
+    
+    def find_edge_loop(self, edge_index: int) -> EdgeLoopResult:
+        """
+        Find all edges in a loop starting from given edge.
+        
+        Args:
+            edge_index: Starting edge index
+            
+        Returns:
+            EdgeLoopResult with loop information
+        """
+        result = EdgeLoopResult()
+        
+        bm = self._ensure_bmesh()
+        bm.edges.ensure_lookup_table()
+        
+        if edge_index >= len(bm.edges):
+            return result
+        
+        start_edge = bm.edges[edge_index]
+        loop_edges = [start_edge]
+        visited = {start_edge}
+        
+        def find_opposite_edge(edge: bmesh.types.BMEdge, face: bmesh.types.BMFace) -> Optional[bmesh.types.BMEdge]:
+            """Find edge on opposite side of quad face"""
+            if len(face.edges) != 4:
+                return None
+            
+            face_edges = list(face.edges)
+            idx = face_edges.index(edge)
+            opposite_idx = (idx + 2) % 4
+            return face_edges[opposite_idx]
+        
+        for direction in [0, 1]:
+            current_edge = start_edge
+            current_vert = start_edge.verts[direction]
+            
+            while True:
+                other_vert = current_edge.other_vert(current_vert)
+                if other_vert is None:
+                    break
+                
+                next_edge = None
+                for face in current_edge.link_faces:
+                    if len(face.edges) == 4:
+                        opposite = find_opposite_edge(current_edge, face)
+                        if opposite and opposite not in visited:
+                            next_edge = opposite
+                            break
+                
+                if next_edge is None:
+                    break
+                
+                visited.add(next_edge)
+                
+                if direction == 0:
+                    loop_edges.append(next_edge)
+                else:
+                    loop_edges.insert(0, next_edge)
+                
+                shared_verts = set(current_edge.verts) & set(next_edge.verts)
+                if not shared_verts:
+                    for face in next_edge.link_faces:
+                        if current_edge in face.edges:
+                            shared_verts = set(next_edge.verts) - {other_vert}
+                            break
+                
+                if shared_verts:
+                    current_vert = list(shared_verts)[0]
+                else:
+                    break
+                
+                current_edge = next_edge
+                
+                if current_edge == start_edge:
+                    result.is_closed_loop = True
+                    break
+        
+        result.loop_edge_indices = [e.index for e in loop_edges]
+        
+        verts_in_loop = set()
+        for edge in loop_edges:
+            verts_in_loop.update(edge.verts)
+        result.loop_vert_indices = [v.index for v in verts_in_loop]
+        
+        result.loop_length = sum(e.calc_length() for e in loop_edges)
+        
+        return result
+    
+    def cut_loop(
+        self,
+        edge_index: int,
+        cuts: int = 1,
+        slide: float = 0.0,
+        inherit_weights: bool = True
+    ) -> LoopCutResult:
+        """
+        Cut edge loop with optional weight inheritance.
+        
+        Args:
+            edge_index: Starting edge in the loop
+            cuts: Number of cuts to make
+            slide: -1.0 to 1.0, position of cuts
+            inherit_weights: If True, new verts inherit weights from neighbors
+            
+        Returns:
+            LoopCutResult with new geometry
+        """
+        result = LoopCutResult()
+        result.slide_factor = slide
+        
+        bm = self._ensure_bmesh()
+        
+        loop_info = self.find_edge_loop(edge_index)
+        if not loop_info.loop_edge_indices:
+            return result
+        
+        bm.edges.ensure_lookup_table()
+        loop_edges = [bm.edges[i] for i in loop_info.loop_edge_indices if i < len(bm.edges)]
+        
+        original_verts = set(v.index for v in bm.verts)
+        original_edges = set(e.index for e in bm.edges)
+        
+        deform_layer = bm.verts.layers.deform.verify()
+        
+        edge_weights = {}
+        for edge in loop_edges:
+            v1_weights = dict(edge.verts[0][deform_layer])
+            v2_weights = dict(edge.verts[1][deform_layer])
+            edge_weights[edge] = (v1_weights, v2_weights)
+        
+        subdivide_result = bmesh.ops.subdivide_edges(
+            bm,
+            edges=loop_edges,
+            cuts=cuts,
+            use_grid_fill=False,
+        )
+        
+        bm.verts.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        
+        new_verts = [v for v in bm.verts if v.index not in original_verts]
+        
+        if slide != 0.0:
+            for vert in new_verts:
+                edges = list(vert.link_edges)
+                if len(edges) >= 2:
+                    v1 = edges[0].other_vert(vert)
+                    v2 = edges[1].other_vert(vert)
+                    
+                    if v1 and v2:
+                        direction = (v1.co - v2.co).normalized()
+                        max_slide = (v1.co - vert.co).length
+                        vert.co += direction * slide * max_slide * 0.5
+        
+        if inherit_weights:
+            for vert in new_verts:
+                neighbor_weights: Dict[int, List[float]] = {}
+                
+                for edge in vert.link_edges:
+                    other = edge.other_vert(vert)
+                    if other and other.index in original_verts:
+                        weights = dict(other[deform_layer])
+                        for group_idx, weight in weights.items():
+                            if group_idx not in neighbor_weights:
+                                neighbor_weights[group_idx] = []
+                            neighbor_weights[group_idx].append(weight)
+                
+                for group_idx, weights in neighbor_weights.items():
+                    avg_weight = sum(weights) / len(weights)
+                    vert[deform_layer][group_idx] = avg_weight
+        
+        result.new_vert_indices = [v.index for v in new_verts]
+        result.new_edge_indices = [e.index for e in bm.edges if e.index not in original_edges]
+        
+        bm.normal_update()
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        
+        return result
+    
+    def add_joint_loops(
+        self,
+        joint_position: Tuple[float, float, float],
+        loops_before: int = 1,
+        loops_after: int = 1,
+        spacing: float = 0.1
+    ) -> List[LoopCutResult]:
+        """
+        Add supporting loops around a joint position.
+        
+        Args:
+            joint_position: (x, y, z) position of joint
+            loops_before: Number of loops before joint
+            loops_after: Number of loops after joint
+            spacing: Distance between loops
+            
+        Returns:
+            List of LoopCutResult for each added loop
+        """
+        results = []
+        
+        bm = self._ensure_bmesh()
+        joint_vec = Vector(joint_position)
+        
+        closest_edge = None
+        closest_dist = float('inf')
+        
+        bm.edges.ensure_lookup_table()
+        for edge in bm.edges:
+            mid = (edge.verts[0].co + edge.verts[1].co) / 2
+            dist = (mid - joint_vec).length
+            if dist < closest_dist:
+                closest_dist = dist
+                closest_edge = edge
+        
+        if closest_edge is None:
+            return results
+        
+        for i in range(loops_before):
+            slide = -(i + 1) * spacing / closest_dist if closest_dist > 0 else 0
+            slide = max(-0.9, min(0.9, slide))
+            result = self.cut_loop(closest_edge.index, cuts=1, slide=slide)
+            results.append(result)
+        
+        for i in range(loops_after):
+            slide = (i + 1) * spacing / closest_dist if closest_dist > 0 else 0
+            slide = max(-0.9, min(0.9, slide))
+            result = self.cut_loop(closest_edge.index, cuts=1, slide=slide)
+            results.append(result)
+        
+        return results
+    
+    def finish(self):
+        """Finalize and free bmesh"""
+        if self.bm is not None:
+            self.bm.free()
+            self.bm = None
+
+
+# =============================================================================
+# ATOMIC OPERATIONS WRAPPER - Unified Interface
+# =============================================================================
+
+class AtomicMeshOps:
+    """
+    Unified interface for all atomic mesh operations.
+    
+    This class wraps all low-level operations into a single interface
+    that handles bmesh lifecycle, normal recalculation, and cleanup.
+    """
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Object must be a mesh")
+        self.obj = obj
+        self._tools = BmeshTools(obj)
+        self._rig_extruder: Optional[RigAwareExtruder] = None
+        self._loop_cutter: Optional[EdgeLoopCutter] = None
+        self._normal_calc: Optional[NormalRecalculator] = None
+    
+    def add_box(
+        self,
+        size: Tuple[float, float, float] = (1.0, 1.0, 1.0),
+        location: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+        name: str = "AkkuBox"
+    ) -> bpy.types.Object:
+        """Create a primitive box"""
+        return self._tools.add_primitive_box(size, location, name)
+    
+    def extrude(
+        self,
+        face_index: int,
+        length: float,
+        vertex_group: Optional[str] = None,
+        scale: Tuple[float, float] = (1.0, 1.0),
+        inherit_weights: bool = False
+    ):
+        """
+        Extrude face with optional weight inheritance.
+        
+        Args:
+            face_index: Face to extrude
+            length: Extrusion distance
+            vertex_group: Vertex group for new verts
+            scale: Scale factor for extruded face
+            inherit_weights: If True, inherit weights from source
+        """
+        if inherit_weights:
+            if self._rig_extruder is None:
+                self._rig_extruder = RigAwareExtruder(self.obj)
+            return self._rig_extruder.extrude_with_weight_inheritance(
+                face_index, length, scale
+            )
+        else:
+            return self._tools.smart_extrude(
+                face_index, length, vertex_group, scale
+            )
+    
+    def loop_cut(
+        self,
+        edge_index: int,
+        cuts: int = 1,
+        slide: float = 0.0,
+        inherit_weights: bool = True
+    ) -> LoopCutResult:
+        """
+        Add loop cuts following edge flow.
+        
+        Args:
+            edge_index: Starting edge
+            cuts: Number of cuts
+            slide: Position of cuts (-1 to 1)
+            inherit_weights: Inherit weights from neighbors
+        """
+        if self._loop_cutter is None:
+            self._loop_cutter = EdgeLoopCutter(self.obj)
+        return self._loop_cutter.cut_loop(edge_index, cuts, slide, inherit_weights)
+    
+    def mirror(
+        self,
+        axis: str = 'X',
+        merge_threshold: float = 0.001
+    ) -> MirrorResult:
+        """Mirror and weld geometry"""
+        return self._tools.mirror_and_weld(axis, merge_threshold)
+    
+    def recalculate_normals(self, inside: bool = False) -> NormalRecalcResult:
+        """Recalculate all face normals"""
+        if self._normal_calc is None:
+            self._normal_calc = NormalRecalculator(self.obj)
+        return self._normal_calc.recalculate_normals(inside)
+    
+    def finalize(self, recalc_normals: bool = True) -> bpy.types.Object:
+        """
+        Finalize all operations and clean up.
+        
+        Args:
+            recalc_normals: If True, recalculate normals before finishing
+            
+        Returns:
+            The modified object
+        """
+        if recalc_normals:
+            self.recalculate_normals()
+        
+        self._tools.finish()
+        
+        if self._rig_extruder:
+            self._rig_extruder.finish()
+        if self._loop_cutter:
+            self._loop_cutter.finish()
+        if self._normal_calc:
+            self._normal_calc.finish()
+        
+        return self.obj
+
+
+# =============================================================================
+# CONVENIENCE FUNCTIONS
+# =============================================================================
+
+def rig_aware_extrude(
+    obj: bpy.types.Object,
+    face_index: int,
+    length: float,
+    weight_falloff: float = 1.0
+) -> RigAwareExtrudeResult:
+    """
+    Extrude face with automatic weight inheritance.
+    
+    Args:
+        obj: Mesh object
+        face_index: Face to extrude
+        length: Extrusion distance
+        weight_falloff: Weight preservation factor (0-1)
+    """
+    extruder = RigAwareExtruder(obj)
+    result = extruder.extrude_with_weight_inheritance(face_index, length, weight_falloff=weight_falloff)
+    extruder.finish()
+    return result
+
+
+def recalculate_normals(obj: bpy.types.Object, inside: bool = False) -> NormalRecalcResult:
+    """
+    Recalculate and fix mesh normals.
+    
+    Args:
+        obj: Mesh object
+        inside: Orient normals inward if True
+    """
+    calc = NormalRecalculator(obj)
+    result = calc.recalculate_normals(inside)
+    calc.finish()
+    return result
+
+
+def cut_edge_loop(
+    obj: bpy.types.Object,
+    edge_index: int,
+    cuts: int = 1,
+    slide: float = 0.0,
+    inherit_weights: bool = True
+) -> LoopCutResult:
+    """
+    Cut edge loop following edge flow.
+    
+    Args:
+        obj: Mesh object
+        edge_index: Starting edge
+        cuts: Number of cuts
+        slide: Position (-1 to 1)
+        inherit_weights: Inherit weights from neighbors
+    """
+    cutter = EdgeLoopCutter(obj)
+    result = cutter.cut_loop(edge_index, cuts, slide, inherit_weights)
+    cutter.finish()
     return result

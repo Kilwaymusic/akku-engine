@@ -108,9 +108,19 @@ from .bmesh_tools import (
     smart_extrude,
     loop_cut_and_slide,
     mirror_and_weld,
+    RigAwareExtrudeResult,
+    RigAwareExtruder,
+    NormalRecalcResult,
+    NormalRecalculator,
+    EdgeLoopResult,
+    EdgeLoopCutter,
+    AtomicMeshOps,
+    rig_aware_extrude,
+    recalculate_normals,
+    cut_edge_loop,
 )
 
-__version__ = "3.7.1"
+__version__ = "3.8.0"
 __all__ = [
     # Core
     "AkkuConfig",
@@ -178,4 +188,15 @@ __all__ = [
     "smart_extrude",
     "loop_cut_and_slide",
     "mirror_and_weld",
+    # Atomic Operations
+    "RigAwareExtrudeResult",
+    "RigAwareExtruder",
+    "NormalRecalcResult",
+    "NormalRecalculator",
+    "EdgeLoopResult",
+    "EdgeLoopCutter",
+    "AtomicMeshOps",
+    "rig_aware_extrude",
+    "recalculate_normals",
+    "cut_edge_loop",
 ]

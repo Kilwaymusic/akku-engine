@@ -85,9 +85,9 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `server/gcp-app.py` | GCP Worker Flask server (v3.7) |
 | `server/image-analyzer.ts` | Gemini Vision image analysis for reference images (NEW) |
 | `client/src/components/BabylonViewer.tsx` | 3D model viewer component |
-| `server/akku_sdk/` | Modular Blender SDK package (v3.7) |
+| `server/akku_sdk/` | Modular Blender SDK package (v3.8) |
 
-### Akku SDK v3.7 Modules
+### Akku SDK v3.8 Modules
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
@@ -100,9 +100,9 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `rigging.py` | 324 | AutoWeightTransfer, WeightTransferResult (Data Transfer modifier) |
 | `finalize.py` | 1028 | FinalizePipeline, MeshOptimizer, DecimateEngine, MeshJoiner, LOD generation |
 | `procedural.py` | 600+ | ProceduralHumanoid, StyleProportions, PolyLevelPresets |
-| `bmesh_tools.py` | 550+ | BmeshTools, CharacterBuilder, smart_extrude, mirror_and_weld (NEW) |
+| `bmesh_tools.py` | 1200+ | BmeshTools, AtomicMeshOps, RigAwareExtruder, EdgeLoopCutter, NormalRecalculator |
 
-### v3.7.1 New Features (2026-02-04)
+### v3.8 New Features (2026-02-04)
 
 #### 1. Procedural Humanoid Generation
 - **No Mixamo dependency**: Characters can now be generated from scratch using bmesh primitives
@@ -122,13 +122,20 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 - **Better topology**: Improved mesh generation with proper edge flow
 - **Gender variations**: Subtle proportion adjustments for male/female
 
-#### 4. BMesh Direct Manipulation Tools
+#### 4. BMesh Direct Manipulation Tools (v3.8)
 Core low-level mesh editing primitives for procedural character building:
 - `add_primitive_box()`: Creates starting box for all modeling
-- `smart_extrude(face_index, length)`: Extrudes face with auto vertex group assignment for rigging
+- `smart_extrude(face_index, length)`: Extrudes face with auto vertex group assignment
 - `loop_cut_and_slide(edge_index, count)`: Adds edge loops for smooth joint deformation
 - `mirror_and_weld()`: Mirrors geometry and welds center vertices for symmetry
-- `CharacterBuilder`: High-level class for building characters piece by piece
+
+#### 5. Atomic Operations System (v3.8)
+Feature-based SDK with atomic mesh operations:
+- `RigAwareExtruder`: Extrude with automatic weight inheritance from parent vertices
+- `EdgeLoopCutter`: Advanced loop cutting that follows edge flow for joint creation
+- `NormalRecalculator`: Automatic normal recalculation after any mesh operation
+- `AtomicMeshOps`: Unified interface wrapping all atomic operations
+- `cut_edge_loop()`: Loop cuts with weight inheritance for smooth deformation
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |
