@@ -1,0 +1,81 @@
+composerkil@blender-worker:~/akku-engine$ cat -n akku_sdk/tools.py | head -80
+     1  """
+     2  Akku SDK Tools - Tool Registry and Style Analyzer
+     3  """
+     4
+     5  import bpy
+     6  import bmesh
+     7  import time
+     8  from datetime import datetime
+     9  from typing import Dict, Any, Callable, List, Tuple
+    10  from functools import wraps
+    11  from dataclasses import asdict
+    12
+    13  from .core import AkkuLogger, MeshStats, StepResult
+    14
+    15
+    16  class MeshAnalyzer:
+    17      """Analyzes mesh and provides statistics"""
+    18      
+    19      @staticmethod
+    20      def get_stats(obj) -> MeshStats:
+    21          """Get comprehensive mesh statistics"""
+    22          if obj.type != 'MESH':
+    23              return MeshStats()
+    24          
+    25          mesh = obj.data
+    26          
+    27          bm = bmesh.new()
+    28          bm.from_mesh(mesh)
+    29          bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    30          tri_count = len(bm.faces)
+    31          bm.free()
+    32          
+    33          from mathutils import Vector
+    34          bbox = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    35          min_co = (min(v.x for v in bbox), min(v.y for v in bbox), min(v.z for v in bbox))
+    36          max_co = (max(v.x for v in bbox), max(v.y for v in bbox), max(v.z for v in bbox))
+    37          height = max_co[2] - min_co[2]
+    38          
+    39          return MeshStats(
+    40              vertex_count=len(mesh.vertices),
+    41              face_count=len(mesh.polygons),
+    42              triangle_count=tri_count,
+    43              edge_count=len(mesh.edges),
+    44              material_count=len(obj.material_slots),
+    45              bounds_min=min_co,
+    46              bounds_max=max_co,
+    47              height=height
+    48          )
+    49      
+    50      @staticmethod
+    51      def log_stats(obj, label: str = ""):
+    52          """Log mesh statistics"""
+    53          stats = MeshAnalyzer.get_stats(obj)
+    54          AkkuLogger.info(f"Mesh Stats{' - ' + label if label else ''}", {
+    55              "object": obj.name,
+    56              "vertices": stats.vertex_count,
+    57              "faces": stats.face_count,
+    58              "triangles": stats.triangle_count,
+    59              "height": f"{stats.height:.3f}m"
+    60          })
+    61          return stats
+    62
+    63
+    64  class ToolRegistry:
+    65      """MCP-style tool registry with integrated error handling"""
+    66      
+    67      _tools: Dict[str, Dict[str, Any]] = {}
+    68      
+    69      @classmethod
+    70      def register(cls, name: str, description: str = "", category: str = "general"):
+    71          """Decorator to register a tool function with error handling"""
+    72          def decorator(func: Callable):
+    73              @wraps(func)
+    74              def wrapper(*args, **kwargs):
+    75                  start_time = time.time()
+    76                  
+    77                  AkkuLogger.info(f"Executing tool: {name}")
+    78                  
+    79                  try:
+    80                      result = func(*args, **kwargs)
