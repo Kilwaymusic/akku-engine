@@ -86,7 +86,7 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `client/src/components/BabylonViewer.tsx` | 3D model viewer component |
 | `server/akku_sdk/` | Modular Blender SDK package (v3.5) |
 
-### Akku SDK v3.5 Modules
+### Akku SDK v3.6 Modules
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
@@ -101,7 +101,9 @@ The system uses a **remote GCP Worker server** for Blender operations, solving R
 | `handlers.py` | 62 | FBXHandler, GLBHandler |
 | `main.py` | 444 | CLI interface and registered tools |
 | `run.py` | 25 | Blender entry script (safe subprocess invocation) |
-| `__init__.py` | 113 | Clean API with all exports, sys.path registration |
+| `__init__.py` | 135 | Clean API with all exports, sys.path registration |
+| `test_all_archetypes.py` | 450 | Comprehensive test suite for all archetypes |
+| `API_DOCS.md` | 350 | Complete SDK API documentation |
 
 ## API Endpoints
 
