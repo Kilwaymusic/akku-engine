@@ -2,126 +2,115 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertJobSchema } from "@shared/schema";
-import { spawn } from "child_process";
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import path from "path";
-import { analyzePromptWithGemini, generateAkkuPlan, type BlenderParams } from "./gemini";
-import { mcpManager } from "./mcp-manager";
 
 const MODELS_DIR = path.join(process.cwd(), "public", "models");
 
-// Configuration: Use MCP if available, fallback to CLI
-let useMCPMode = true;
+// GCP Worker server for Blender operations
+const GCP_WORKER_URL = "http://34.134.82.224:5000/generate";
 
-/**
- * Legacy CLI-based generation
- */
-async function generateModelCLI(jobId: string, prompt: string): Promise<string> {
-  console.log(`[CLI Mode] Analyzing prompt with Gemini AI for job ${jobId}...`);
-  const blenderParams = await analyzePromptWithGemini(prompt);
-  console.log(`Gemini AI generated parameters:`, JSON.stringify(blenderParams, null, 2));
-
-  return new Promise((resolve, reject) => {
-    if (!existsSync(MODELS_DIR)) {
-      mkdirSync(MODELS_DIR, { recursive: true });
-    }
-
-    const outputPath = path.join(MODELS_DIR, `${jobId}.glb`);
-    const scriptPath = path.join(process.cwd(), "scripts", "generate_humanoid.py");
-    const paramsJson = JSON.stringify(blenderParams);
-
-    console.log(`Starting Blender CLI generation for job ${jobId}`);
-
-    const blenderProcess = spawn("blender", [
-      "--background",
-      "--python",
-      scriptPath,
-      "--",
-      outputPath,
-      paramsJson,
-    ]);
-
-    let stdout = "";
-    let stderr = "";
-
-    blenderProcess.stdout.on("data", (data) => {
-      stdout += data.toString();
-      console.log(`Blender stdout: ${data}`);
-    });
-
-    blenderProcess.stderr.on("data", (data) => {
-      stderr += data.toString();
-      console.error(`Blender stderr: ${data}`);
-    });
-
-    blenderProcess.on("close", (code) => {
-      if (code === 0 && existsSync(outputPath)) {
-        console.log(`Blender CLI completed successfully for job ${jobId}`);
-        resolve(`/models/${jobId}.glb`);
-      } else {
-        console.error(`Blender failed with code ${code}`);
-        reject(new Error(`Blender process failed with code ${code}: ${stderr}`));
-      }
-    });
-
-    blenderProcess.on("error", (err) => {
-      console.error(`Blender process error: ${err.message}`);
-      reject(err);
-    });
-  });
-}
-
-/**
- * Akku SDK MCP-based generation with multi-step procedural workflow
- */
 interface GenerationOptions {
   prompt: string;
   style?: string;
   polyLevel?: string;
 }
 
-async function generateModelMCP(jobId: string, options: GenerationOptions): Promise<string> {
+// Timeout for GCP Worker requests (2 minutes)
+const GCP_WORKER_TIMEOUT = 120000;
+
+/**
+ * Remote GCP Worker-based generation
+ * Sends prompt to external Blender server and receives GLB file
+ */
+async function generateModelRemote(jobId: string, options: GenerationOptions): Promise<string> {
   const { prompt, style = "stylized", polyLevel = "medium" } = options;
-  console.log(`[Akku SDK Mode] Generating plan with Gemini AI for job ${jobId}...`);
-  console.log(`Style: ${style}, Poly Level: ${polyLevel}`);
   
-  const plan = await generateAkkuPlan(prompt, style, polyLevel);
-  console.log(`Akku SDK Plan:`, JSON.stringify(plan, null, 2));
-  console.log(`Total steps: ${plan.steps.length}`);
+  console.log(`[GCP Worker] Sending generation request for job ${jobId}...`);
+  console.log(`Prompt: ${prompt}`);
+  console.log(`Style: ${style}, Poly Level: ${polyLevel}`);
 
   if (!existsSync(MODELS_DIR)) {
     mkdirSync(MODELS_DIR, { recursive: true });
   }
 
   const outputPath = path.join(MODELS_DIR, `${jobId}.glb`);
-  
-  const result = await mcpManager.generateWithAkkuSDK(plan, outputPath);
-  
-  console.log(`Akku SDK Generation log:`);
-  result.log.forEach(line => console.log(`  ${line}`));
-  
-  if (result.success && existsSync(outputPath)) {
-    console.log(`Akku SDK generation completed successfully for job ${jobId}`);
-    return `/models/${jobId}.glb`;
-  } else {
-    throw new Error(result.error || 'Akku SDK generation failed');
+
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GCP_WORKER_TIMEOUT);
+
+  try {
+    const response = await fetch(GCP_WORKER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt,
+        style,
+        polyLevel,
+        jobId,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`GCP Worker returned ${response.status}: ${errorText}`);
+    }
+
+    // Validate content type
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      // Worker returned JSON error
+      const errorData = await response.json() as { error?: string };
+      throw new Error(`GCP Worker error: ${errorData.error || "Unknown error"}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Validate buffer size (GLB files should be at least a few KB)
+    if (buffer.length < 100) {
+      throw new Error(`Invalid GLB file: too small (${buffer.length} bytes)`);
+    }
+
+    // Validate GLB magic number (glTF binary starts with "glTF")
+    const magic = buffer.slice(0, 4).toString("ascii");
+    if (magic !== "glTF") {
+      throw new Error(`Invalid GLB file: bad magic number "${magic}"`);
+    }
+    
+    writeFileSync(outputPath, buffer);
+    
+    console.log(`[GCP Worker] GLB file saved: ${outputPath} (${buffer.length} bytes)`);
+    
+    if (existsSync(outputPath)) {
+      console.log(`[GCP Worker] Generation completed successfully for job ${jobId}`);
+      return `/models/${jobId}.glb`;
+    } else {
+      throw new Error("GLB file was not saved correctly");
+    }
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`GCP Worker timeout after ${GCP_WORKER_TIMEOUT / 1000} seconds`);
+    }
+    
+    console.error(`[GCP Worker] Generation failed:`, error);
+    throw error;
   }
 }
 
 /**
- * Main generation function - tries MCP first, falls back to CLI
+ * Main generation function - uses remote GCP Worker
  */
 async function generateModel(jobId: string, options: GenerationOptions): Promise<string> {
-  if (useMCPMode) {
-    try {
-      return await generateModelMCP(jobId, options);
-    } catch (error) {
-      console.warn(`MCP generation failed, falling back to CLI:`, error);
-      return await generateModelCLI(jobId, options.prompt);
-    }
-  } else {
-    return await generateModelCLI(jobId, options.prompt);
-  }
+  return await generateModelRemote(jobId, options);
 }
 
 export async function registerRoutes(
@@ -201,28 +190,11 @@ export async function registerRoutes(
   // Get system status
   app.get("/api/status", async (req, res) => {
     res.json({
-      mcpMode: useMCPMode,
-      sdkVersion: "Akku Low-poly SDK v1.0",
-      blenderReady: mcpManager.isBlenderReady(),
+      mode: "GCP Worker",
+      workerUrl: GCP_WORKER_URL,
+      sdkVersion: "Akku Low-poly SDK v1.0 (Remote)",
       modelsDir: existsSync(MODELS_DIR),
-      availableTools: {
-        baseGeneration: ["spawn_humanoid_base", "deform_body"],
-        kitbashing: ["attach_armor_plate", "add_scifi_detail"],
-        pbrShading: ["apply_akku_pbr", "set_material_property"],
-        rigging: ["finalize_and_bind", "test_animation"]
-      }
     });
-  });
-
-  // Toggle generation mode
-  app.post("/api/mode", async (req, res) => {
-    const { useMCP } = req.body;
-    if (typeof useMCP === 'boolean') {
-      useMCPMode = useMCP;
-      res.json({ mcpMode: useMCPMode });
-    } else {
-      res.status(400).json({ error: "Invalid mode setting" });
-    }
   });
 
   return httpServer;
