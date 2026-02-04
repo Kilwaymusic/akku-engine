@@ -5,15 +5,14 @@ Modules:
 - core: Configuration, Logging, Error Handling
 - tools: Tool Registry, Style Analyzer, Mesh Analyzer
 - mesh: Mesh Operations, Undo System, Boolean/Remesh
-- shader: Material and Stylized Shader System
-- body: Body Type System with Deformation
-- kitbash: Semantic Component Library for Equipment
+- shader: GLB-Compatible Material System
+- body: Body Type System with Direct Mesh Deformation
+- kitbash: Semantic Component Library with Direct Bone Parenting
 - rigging: Auto Weight Transfer System
 - finalize: Game Engine Optimization Pipeline
-- handlers: FBX Import and GLB Export
+- handlers: FBX Import, GLB Export, Mesh Freezing
 """
 
-# Ensure the package directory is in sys.path for Blender imports
 import sys
 import os
 
@@ -45,14 +44,17 @@ from .mesh import (
 )
 
 from .shader import (
-    MaterialSystem,
-    StylizedShaderParams,
+    GLBMaterialParams,
+    GLBMaterialSystem,
+    StyleToGLBConverter,
     StylizedShaderSystem,
+    MaterialSystem,
 )
 
 from .body import (
     BodyTypeParams,
     BodyTypePresets,
+    DirectMeshDeformer,
     BodyTypeSystem,
 )
 
@@ -60,6 +62,7 @@ from .kitbash import (
     SocketInfo,
     SemanticPart,
     KitbashLibrary,
+    DirectBoneParenting,
     KitbashEquipper,
 )
 
@@ -81,6 +84,7 @@ from .finalize import (
 
 from .handlers import (
     FBXHandler,
+    MeshFreezer,
     GLBHandler,
 )
 
@@ -103,18 +107,22 @@ __all__ = [
     "MeshSnapshot",
     "UndoManager",
     "BooleanRemeshTools",
-    # Shader
-    "MaterialSystem",
-    "StylizedShaderParams",
+    # Shader (GLB-compatible)
+    "GLBMaterialParams",
+    "GLBMaterialSystem",
+    "StyleToGLBConverter",
     "StylizedShaderSystem",
+    "MaterialSystem",
     # Body
     "BodyTypeParams",
     "BodyTypePresets",
+    "DirectMeshDeformer",
     "BodyTypeSystem",
     # Kitbash
     "SocketInfo",
     "SemanticPart",
     "KitbashLibrary",
+    "DirectBoneParenting",
     "KitbashEquipper",
     # Rigging
     "WeightTransferResult",
@@ -130,5 +138,6 @@ __all__ = [
     "FinalizePipeline",
     # Handlers
     "FBXHandler",
+    "MeshFreezer",
     "GLBHandler",
 ]
