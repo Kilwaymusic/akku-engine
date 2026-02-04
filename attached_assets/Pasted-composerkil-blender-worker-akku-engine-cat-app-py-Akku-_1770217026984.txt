@@ -1,0 +1,111 @@
+composerkil@blender-worker:~/akku-engine$ cat app.py
+"""
+Akku Engine - GCP Worker Flask Server v3.0
+MCP-style architecture with Blender character generation
+"""
+
+from flask import Flask, request, jsonify, send_file
+import subprocess
+import uuid
+import os
+import traceback
+
+app = Flask(__name__)
+
+# Configuration
+BASE_DIR = "/home/composerkil/akku-engine"
+SDK_SCRIPT = os.path.join(BASE_DIR, "akku-sdk-v3.py")
+OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+BLENDER_PATH = "blender"
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "healthy",
+        "version": "3.0.0",
+        "sdk": "akku-sdk-v3",
+        "architecture": "mcp-style"
+    })
+
+
+@app.route("/tools", methods=["GET"])
+def list_tools():
+    tools = [
+        {"name": "load_base_mesh", "description": "Load Mixamo FBX base mesh"},
+        {"name": "apply_stylized_shader", "description": "Apply Akku Stylized Shader"},
+        {"name": "generate_character", "description": "Complete character generation pipeline"}
+    ]
+    return jsonify({"tools": tools})
+
+
+@app.route("/generate", methods=["POST"])
+def generate():
+    try:
+        data = request.get_json()
+        
+        prompt = data.get("prompt", "default character")
+        style = data.get("style", "stylized")
+        poly_level = data.get("polyLevel", "medium")
+        job_id = data.get("jobId", str(uuid.uuid4()))
+        gender = data.get("gender", "male")
+        body_type = data.get("bodyType", "auto")
+        use_remesh = data.get("useRemesh", False)
+        
+        output_filename = f"{job_id}.glb"
+        output_path = os.path.join(OUTPUT_DIR, output_filename)
+        log_file = os.path.join(OUTPUT_DIR, f"{job_id}.log")
+        
+        cmd = [
+            BLENDER_PATH,
+            "--background",
+            "--python", SDK_SCRIPT,
+            "--",
+            prompt,
+            style,
+            poly_level,
+            output_path,
+            gender,
+            body_type,
+            str(use_remesh).lower()
+        ]
+        
+        with open(log_file, "w") as log:
+            result = subprocess.run(
+                cmd,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                timeout=120
+            )
+        
+        if not os.path.exists(output_path):
+            with open(log_file, "r") as f:
+                error_msg = f.read()[-2000:]
+            return jsonify({"error": f"GLB not created: {error_msg}"}), 500
+        
+        file_size = os.path.getsize(output_path)
+        if file_size < 100:
+            return jsonify({"error": f"GLB file too small ({file_size} bytes)"}), 500
+        
+        return send_file(
+            output_path,
+            mimetype="model/gltf-binary",
+            as_attachment=True,
+            download_name=output_filename
+        )
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Generation timeout (120s exceeded)"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("Akku Engine GCP Worker v3.0")
+    print("=" * 60)
+    from werkzeug.serving import WSGIRequestHandler
+    WSGIRequestHandler.protocol_version = "HTTP/1.1"
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
