@@ -1,7 +1,12 @@
 """
-Akku SDK v3.1 - Context-Independent Low-Poly Character Generation Toolkit
-MCP-style architecture with headless-safe mesh operations
-All bpy.ops calls replaced with direct bpy.data/bmesh manipulation
+Akku SDK v3.2 - Production-Ready Low-Poly Character Generation Toolkit
+Features:
+- MCP-style tool registry architecture
+- Context-independent headless operations
+- JSON error reporting system
+- Step-by-step logging with mesh statistics
+- Undo/rollback capability
+- Boolean + Voxel Remesh workflow
 """
 
 import bpy
@@ -11,9 +16,14 @@ import sys
 import os
 import json
 import re
+import copy
+import traceback
+from datetime import datetime
 from mathutils import Vector, Matrix
-from typing import Dict, Any, Callable, Optional, Tuple, List
+from typing import Dict, Any, Callable, Optional, Tuple, List, Union
 from functools import wraps
+from dataclasses import dataclass, asdict
+from enum import Enum
 
 # ========================================
 # CONFIGURATION
@@ -25,31 +35,408 @@ class AkkuConfig:
         "female": "/home/composerkil/akku-engine/assets/base_meshes/X_Bot.fbx"
     }
     OUTPUT_DIR = "/home/composerkil/akku-engine/outputs"
+    LOG_DIR = "/home/composerkil/akku-engine/logs"
     
-    # Mixamo FBX files are in centimeters, Blender uses meters
     FBX_UNIT_SCALE = 0.01
-    
-    # Target character height in meters
     TARGET_HEIGHT = 1.8
+    
+    # Voxel Remesh settings
+    VOXEL_SIZE_DEFAULT = 0.02
+    SMOOTH_ITERATIONS = 2
+    SMOOTH_FACTOR = 0.5
 
 
 # ========================================
-# TOOL REGISTRY (MCP-Style Pattern)
+# ERROR HANDLING & LOGGING SYSTEM
+# ========================================
+
+class LogLevel(Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
+@dataclass
+class MeshStats:
+    """Mesh statistics snapshot"""
+    vertex_count: int = 0
+    face_count: int = 0
+    triangle_count: int = 0
+    edge_count: int = 0
+    material_count: int = 0
+    bounds_min: Tuple[float, float, float] = (0, 0, 0)
+    bounds_max: Tuple[float, float, float] = (0, 0, 0)
+    height: float = 0.0
+
+
+@dataclass
+class StepResult:
+    """Result of a pipeline step"""
+    step_name: str
+    success: bool
+    message: str
+    mesh_stats: Optional[MeshStats] = None
+    duration_ms: float = 0.0
+    timestamp: str = ""
+    error_details: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class ErrorReport:
+    """Standardized JSON error report"""
+    error_code: str
+    error_type: str
+    message: str
+    step_name: str
+    timestamp: str
+    stack_trace: str
+    mesh_state: Optional[MeshStats] = None
+    recovery_attempted: bool = False
+    recovery_success: bool = False
+
+
+class AkkuLogger:
+    """Centralized logging system with JSON output"""
+    
+    _instance = None
+    _logs: List[Dict[str, Any]] = []
+    _step_results: List[StepResult] = []
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._logs = []
+            cls._step_results = []
+        return cls._instance
+    
+    @classmethod
+    def log(cls, level: LogLevel, message: str, data: Dict[str, Any] = None):
+        """Log a message with optional data"""
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level.value,
+            "message": message,
+            "data": data or {}
+        }
+        cls._logs.append(entry)
+        
+        # Print to console
+        prefix = f"[Akku SDK][{level.value}]"
+        print(f"{prefix} {message}")
+        if data:
+            print(f"  Data: {json.dumps(data, indent=2, ensure_ascii=False, default=str)}")
+    
+    @classmethod
+    def info(cls, message: str, data: Dict[str, Any] = None):
+        cls.log(LogLevel.INFO, message, data)
+    
+    @classmethod
+    def warning(cls, message: str, data: Dict[str, Any] = None):
+        cls.log(LogLevel.WARNING, message, data)
+    
+    @classmethod
+    def error(cls, message: str, data: Dict[str, Any] = None):
+        cls.log(LogLevel.ERROR, message, data)
+    
+    @classmethod
+    def debug(cls, message: str, data: Dict[str, Any] = None):
+        cls.log(LogLevel.DEBUG, message, data)
+    
+    @classmethod
+    def add_step_result(cls, result: StepResult):
+        """Add a step result to the log"""
+        cls._step_results.append(result)
+        status = "SUCCESS" if result.success else "FAILED"
+        cls.info(f"Step '{result.step_name}': {status}", {
+            "duration_ms": result.duration_ms,
+            "mesh_stats": asdict(result.mesh_stats) if result.mesh_stats else None
+        })
+    
+    @classmethod
+    def create_error_report(cls, exception: Exception, step_name: str, mesh_stats: MeshStats = None) -> ErrorReport:
+        """Create a standardized error report from an exception"""
+        return ErrorReport(
+            error_code=type(exception).__name__,
+            error_type=str(type(exception).__module__) + "." + type(exception).__name__,
+            message=str(exception),
+            step_name=step_name,
+            timestamp=datetime.now().isoformat(),
+            stack_trace=traceback.format_exc(),
+            mesh_state=mesh_stats
+        )
+    
+    @classmethod
+    def get_json_report(cls) -> str:
+        """Get full log as JSON string"""
+        report = {
+            "logs": cls._logs,
+            "step_results": [asdict(r) for r in cls._step_results],
+            "summary": {
+                "total_steps": len(cls._step_results),
+                "successful_steps": sum(1 for r in cls._step_results if r.success),
+                "failed_steps": sum(1 for r in cls._step_results if not r.success)
+            }
+        }
+        return json.dumps(report, indent=2, ensure_ascii=False, default=str)
+    
+    @classmethod
+    def clear(cls):
+        """Clear all logs"""
+        cls._logs = []
+        cls._step_results = []
+
+
+# ========================================
+# UNDO/SNAPSHOT SYSTEM
+# ========================================
+
+class MeshSnapshot:
+    """Stores a snapshot of mesh data for undo operations"""
+    
+    def __init__(self, obj: bpy.types.Object):
+        if obj.type != 'MESH':
+            raise ValueError("Can only snapshot mesh objects")
+        
+        self.object_name = obj.name
+        self.mesh_data = None
+        self._capture(obj)
+    
+    def _capture(self, obj: bpy.types.Object):
+        """Capture current mesh state"""
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        
+        # Store vertex positions
+        self.vertices = [(v.co.x, v.co.y, v.co.z) for v in bm.verts]
+        
+        # Store face indices
+        bm.verts.ensure_lookup_table()
+        self.faces = [[v.index for v in f.verts] for f in bm.faces]
+        
+        # Store materials
+        self.materials = [slot.material.name if slot.material else None 
+                         for slot in obj.material_slots]
+        
+        # Store transform
+        self.location = tuple(obj.location)
+        self.rotation = tuple(obj.rotation_euler)
+        self.scale = tuple(obj.scale)
+        
+        bm.free()
+        AkkuLogger.debug(f"Captured snapshot of '{obj.name}'", {
+            "vertices": len(self.vertices),
+            "faces": len(self.faces)
+        })
+    
+    def restore(self) -> bool:
+        """Restore mesh to snapshot state"""
+        obj = bpy.data.objects.get(self.object_name)
+        if not obj or obj.type != 'MESH':
+            AkkuLogger.error(f"Cannot restore: object '{self.object_name}' not found")
+            return False
+        
+        try:
+            bm = bmesh.new()
+            
+            # Recreate vertices
+            for co in self.vertices:
+                bm.verts.new(Vector(co))
+            
+            bm.verts.ensure_lookup_table()
+            
+            # Recreate faces
+            for face_indices in self.faces:
+                try:
+                    verts = [bm.verts[i] for i in face_indices]
+                    bm.faces.new(verts)
+                except:
+                    pass
+            
+            # Apply to mesh
+            obj.data.clear_geometry()
+            bm.to_mesh(obj.data)
+            bm.free()
+            
+            # Restore transform
+            obj.location = Vector(self.location)
+            obj.rotation_euler = self.rotation
+            obj.scale = Vector(self.scale)
+            
+            obj.data.update()
+            
+            AkkuLogger.info(f"Restored snapshot of '{self.object_name}'")
+            return True
+            
+        except Exception as e:
+            AkkuLogger.error(f"Failed to restore snapshot: {str(e)}")
+            return False
+
+
+class UndoManager:
+    """Manages undo states for mesh operations"""
+    
+    _snapshots: Dict[str, List[MeshSnapshot]] = {}
+    _max_history = 10
+    
+    @classmethod
+    def save_state(cls, obj: bpy.types.Object, label: str = ""):
+        """Save current state for potential undo"""
+        if obj.type != 'MESH':
+            return
+        
+        obj_name = obj.name
+        if obj_name not in cls._snapshots:
+            cls._snapshots[obj_name] = []
+        
+        snapshot = MeshSnapshot(obj)
+        cls._snapshots[obj_name].append(snapshot)
+        
+        # Limit history size
+        if len(cls._snapshots[obj_name]) > cls._max_history:
+            cls._snapshots[obj_name].pop(0)
+        
+        AkkuLogger.debug(f"Saved undo state for '{obj_name}'", {"label": label})
+    
+    @classmethod
+    def undo(cls, obj_name: str) -> bool:
+        """Undo to previous state"""
+        if obj_name not in cls._snapshots or not cls._snapshots[obj_name]:
+            AkkuLogger.warning(f"No undo history for '{obj_name}'")
+            return False
+        
+        snapshot = cls._snapshots[obj_name].pop()
+        return snapshot.restore()
+    
+    @classmethod
+    def clear(cls, obj_name: str = None):
+        """Clear undo history"""
+        if obj_name:
+            cls._snapshots.pop(obj_name, None)
+        else:
+            cls._snapshots.clear()
+
+
+# ========================================
+# MESH STATISTICS
+# ========================================
+
+class MeshAnalyzer:
+    """Analyzes mesh and provides statistics"""
+    
+    @staticmethod
+    def get_stats(obj: bpy.types.Object) -> MeshStats:
+        """Get comprehensive mesh statistics"""
+        if obj.type != 'MESH':
+            return MeshStats()
+        
+        mesh = obj.data
+        
+        # Get triangle count via bmesh
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+        tri_count = len(bm.faces)
+        bm.free()
+        
+        # Get bounds
+        bbox = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+        min_co = (min(v.x for v in bbox), min(v.y for v in bbox), min(v.z for v in bbox))
+        max_co = (max(v.x for v in bbox), max(v.y for v in bbox), max(v.z for v in bbox))
+        height = max_co[2] - min_co[2]
+        
+        return MeshStats(
+            vertex_count=len(mesh.vertices),
+            face_count=len(mesh.polygons),
+            triangle_count=tri_count,
+            edge_count=len(mesh.edges),
+            material_count=len(obj.material_slots),
+            bounds_min=min_co,
+            bounds_max=max_co,
+            height=height
+        )
+    
+    @staticmethod
+    def log_stats(obj: bpy.types.Object, label: str = ""):
+        """Log mesh statistics"""
+        stats = MeshAnalyzer.get_stats(obj)
+        AkkuLogger.info(f"Mesh Stats{' - ' + label if label else ''}", {
+            "object": obj.name,
+            "vertices": stats.vertex_count,
+            "faces": stats.face_count,
+            "triangles": stats.triangle_count,
+            "height": f"{stats.height:.3f}m"
+        })
+        return stats
+
+
+# ========================================
+# TOOL REGISTRY WITH ERROR HANDLING
 # ========================================
 
 class ToolRegistry:
-    """MCP-style tool registry for dynamic tool registration and execution"""
+    """MCP-style tool registry with integrated error handling"""
     
     _tools: Dict[str, Dict[str, Any]] = {}
     
     @classmethod
     def register(cls, name: str, description: str = ""):
-        """Decorator to register a tool function"""
+        """Decorator to register a tool function with error handling"""
         def decorator(func: Callable):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                print(f"[Akku SDK] Executing tool: {name}")
-                return func(*args, **kwargs)
+                import time
+                start_time = time.time()
+                
+                AkkuLogger.info(f"Executing tool: {name}")
+                
+                try:
+                    result = func(*args, **kwargs)
+                    duration = (time.time() - start_time) * 1000
+                    
+                    # Get mesh stats if available
+                    mesh_stats = None
+                    mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+                    if mesh_objects:
+                        mesh_stats = MeshAnalyzer.get_stats(mesh_objects[0])
+                    
+                    step_result = StepResult(
+                        step_name=name,
+                        success=True,
+                        message="Completed successfully",
+                        mesh_stats=mesh_stats,
+                        duration_ms=duration,
+                        timestamp=datetime.now().isoformat()
+                    )
+                    AkkuLogger.add_step_result(step_result)
+                    
+                    return result
+                    
+                except Exception as e:
+                    duration = (time.time() - start_time) * 1000
+                    
+                    # Get mesh stats for error context
+                    mesh_stats = None
+                    mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+                    if mesh_objects:
+                        mesh_stats = MeshAnalyzer.get_stats(mesh_objects[0])
+                    
+                    # Create error report
+                    error_report = AkkuLogger.create_error_report(e, name, mesh_stats)
+                    
+                    step_result = StepResult(
+                        step_name=name,
+                        success=False,
+                        message=str(e),
+                        mesh_stats=mesh_stats,
+                        duration_ms=duration,
+                        timestamp=datetime.now().isoformat(),
+                        error_details=asdict(error_report)
+                    )
+                    AkkuLogger.add_step_result(step_result)
+                    
+                    raise
             
             cls._tools[name] = {
                 "function": wrapper,
@@ -69,9 +456,11 @@ class ToolRegistry:
             result = cls._tools[tool_name]["function"](**(params or {}))
             return {"status": "success", "result": result}
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return {"status": "error", "message": str(e)}
+            return {
+                "status": "error",
+                "message": str(e),
+                "error_report": asdict(AkkuLogger.create_error_report(e, tool_name))
+            }
     
     @classmethod
     def list_tools(cls) -> List[Dict[str, str]]:
@@ -91,7 +480,6 @@ class StyleAnalyzer:
     """Analyzes prompts to extract style, colors, and archetypes"""
     
     COLORS = {
-        # Korean
         "빨강": (1.0, 0.1, 0.1), "빨간": (1.0, 0.1, 0.1), "레드": (1.0, 0.1, 0.1),
         "파랑": (0.1, 0.3, 1.0), "파란": (0.1, 0.3, 1.0), "블루": (0.1, 0.3, 1.0),
         "초록": (0.1, 0.8, 0.2), "녹색": (0.1, 0.8, 0.2), "그린": (0.1, 0.8, 0.2),
@@ -107,7 +495,6 @@ class StyleAnalyzer:
         "갈색": (0.4, 0.25, 0.1), "브라운": (0.4, 0.25, 0.1),
         "청록": (0.0, 0.8, 0.8), "시안": (0.0, 0.8, 0.8),
         "메탈릭": (0.6, 0.6, 0.7),
-        # English
         "red": (1.0, 0.1, 0.1), "blue": (0.1, 0.3, 1.0), "green": (0.1, 0.8, 0.2),
         "yellow": (1.0, 0.9, 0.1), "orange": (1.0, 0.5, 0.0), "purple": (0.6, 0.2, 0.8),
         "pink": (1.0, 0.5, 0.7), "black": (0.05, 0.05, 0.05), "white": (0.95, 0.95, 0.95),
@@ -136,34 +523,32 @@ class StyleAnalyzer:
     }
     
     PROPORTION_TYPES = {
-        "stylized": {"scale": 1.0, "description": "Standard balanced proportions"},
-        "chibi": {"scale": 0.6, "description": "Cute, big-head style"},
-        "sd": {"scale": 0.65, "description": "Super-deformed style"},
-        "mobile": {"scale": 0.8, "description": "Mobile-optimized"},
-        "minifig": {"scale": 0.5, "description": "Block figure style"},
-        "cartoon": {"scale": 0.85, "description": "Cartoon proportions"},
-        "realistic": {"scale": 1.0, "description": "Realistic human proportions"}
+        "stylized": {"scale": 1.0},
+        "chibi": {"scale": 0.6},
+        "sd": {"scale": 0.65},
+        "mobile": {"scale": 0.8},
+        "minifig": {"scale": 0.5},
+        "cartoon": {"scale": 0.85},
+        "realistic": {"scale": 1.0}
     }
     
     POLY_LEVELS = {
-        "ultra_low": {"decimate_ratio": 0.15, "max_tris": 300},
-        "low": {"decimate_ratio": 0.3, "max_tris": 800},
-        "medium": {"decimate_ratio": 0.5, "max_tris": 1500},
-        "high": {"decimate_ratio": 0.75, "max_tris": 3000}
+        "ultra_low": {"decimate_ratio": 0.15, "max_tris": 300, "voxel_size": 0.04},
+        "low": {"decimate_ratio": 0.3, "max_tris": 800, "voxel_size": 0.03},
+        "medium": {"decimate_ratio": 0.5, "max_tris": 1500, "voxel_size": 0.02},
+        "high": {"decimate_ratio": 0.75, "max_tris": 3000, "voxel_size": 0.015}
     }
     
     @classmethod
     def detect_color(cls, prompt: str) -> Tuple[float, float, float]:
-        """Extract primary color from prompt"""
         prompt_lower = prompt.lower()
         for keyword, color in cls.COLORS.items():
             if keyword in prompt_lower:
                 return color
-        return (0.5, 0.5, 0.6)  # Default gray
+        return (0.5, 0.5, 0.6)
     
     @classmethod
     def detect_archetype(cls, prompt: str) -> Dict[str, float]:
-        """Detect character archetype from prompt"""
         prompt_lower = prompt.lower()
         for keyword, props in cls.ARCHETYPES.items():
             if keyword in prompt_lower:
@@ -172,19 +557,15 @@ class StyleAnalyzer:
     
     @classmethod
     def get_proportion_scale(cls, style: str) -> float:
-        """Get scale factor for proportion type"""
         return cls.PROPORTION_TYPES.get(style, cls.PROPORTION_TYPES["stylized"])["scale"]
     
     @classmethod
     def get_poly_settings(cls, level: str) -> Dict[str, Any]:
-        """Get polygon reduction settings"""
         return cls.POLY_LEVELS.get(level, cls.POLY_LEVELS["medium"])
 
 
 # ========================================
 # CONTEXT-INDEPENDENT MESH OPERATIONS
-# All operations use direct bpy.data/bmesh manipulation
-# No bpy.ops calls that require context
 # ========================================
 
 class MeshTools:
@@ -192,40 +573,34 @@ class MeshTools:
     
     @staticmethod
     def clear_scene():
-        """Clear all objects from scene - Direct data manipulation"""
-        # Remove all objects directly via bpy.data
+        """Clear all objects from scene"""
         while bpy.data.objects:
             bpy.data.objects.remove(bpy.data.objects[0], do_unlink=True)
         
-        # Clear orphan meshes
         for mesh in list(bpy.data.meshes):
             if mesh.users == 0:
                 bpy.data.meshes.remove(mesh)
         
-        # Clear orphan materials
         for mat in list(bpy.data.materials):
             if mat.users == 0:
                 bpy.data.materials.remove(mat)
         
-        # Clear orphan armatures
         for arm in list(bpy.data.armatures):
             if arm.users == 0:
                 bpy.data.armatures.remove(arm)
         
-        # Clear orphan actions
         for action in list(bpy.data.actions):
             if action.users == 0:
                 bpy.data.actions.remove(action)
         
-        print("[Akku SDK] Scene cleared")
+        AkkuLogger.info("Scene cleared")
     
     @staticmethod
     def get_mesh_bounds(obj) -> Tuple[Vector, Vector, float]:
-        """Get mesh bounding box and height - Direct data access"""
+        """Get mesh bounding box and height"""
         if obj.type != 'MESH':
             return Vector((0, 0, 0)), Vector((0, 0, 0)), 0
         
-        # Get world-space bounds
         bbox = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
         min_co = Vector((min(v.x for v in bbox), min(v.y for v in bbox), min(v.z for v in bbox)))
         max_co = Vector((max(v.x for v in bbox), max(v.y for v in bbox), max(v.z for v in bbox)))
@@ -234,41 +609,22 @@ class MeshTools:
         return min_co, max_co, height
     
     @staticmethod
-    def apply_scale_to_mesh(obj):
-        """Apply object scale to mesh data directly - Context Independent"""
-        if obj.type != 'MESH':
-            return
-        
-        # Get the scale matrix
-        scale_matrix = Matrix.Diagonal(obj.scale).to_4x4()
-        
-        # Apply to mesh vertices directly
-        mesh = obj.data
-        for vert in mesh.vertices:
-            vert.co = scale_matrix @ vert.co
-        
-        # Reset object scale
-        obj.scale = (1.0, 1.0, 1.0)
-        
-        # Update mesh
-        mesh.update()
-    
-    @staticmethod
     def normalize_scale(obj, target_height: float = 1.8):
-        """Normalize object to target height - Context Independent"""
+        """Normalize object to target height using bmesh"""
         if obj.type != 'MESH':
             return 1.0
+        
+        # Save state for potential undo
+        UndoManager.save_state(obj, "before_normalize")
         
         _, _, current_height = MeshTools.get_mesh_bounds(obj)
         
         if current_height > 0:
             scale_factor = target_height / current_height
             
-            # Scale mesh vertices directly via bmesh
             bm = bmesh.new()
             bm.from_mesh(obj.data)
             
-            # Apply uniform scale to all vertices
             bmesh.ops.scale(
                 bm,
                 vec=Vector((scale_factor, scale_factor, scale_factor)),
@@ -279,44 +635,14 @@ class MeshTools:
             bm.to_mesh(obj.data)
             bm.free()
             
-            # Reset object transforms
             obj.scale = (1.0, 1.0, 1.0)
             obj.data.update()
             
-            print(f"[Akku SDK] Normalized scale: {current_height:.2f}m -> {target_height:.2f}m (factor: {scale_factor:.4f})")
+            AkkuLogger.info(f"Normalized scale: {current_height:.2f}m -> {target_height:.2f}m", {
+                "scale_factor": scale_factor
+            })
             return scale_factor
         return 1.0
-    
-    @staticmethod
-    def apply_decimate_bmesh(obj, ratio: float):
-        """Apply decimation using bmesh - Context Independent"""
-        if obj.type != 'MESH':
-            return
-        
-        # Use bmesh for decimation
-        bm = bmesh.new()
-        bm.from_mesh(obj.data)
-        
-        # Calculate target face count
-        original_faces = len(bm.faces)
-        target_faces = int(original_faces * max(0.1, min(1.0, ratio)))
-        
-        if target_faces < original_faces:
-            # Use collapse decimation
-            bmesh.ops.dissolve_limit(
-                bm,
-                angle_limit=math.radians(5.0),
-                use_dissolve_boundaries=False,
-                verts=bm.verts,
-                edges=bm.edges,
-                delimit={'NORMAL'}
-            )
-        
-        bm.to_mesh(obj.data)
-        bm.free()
-        
-        obj.data.update()
-        print(f"[Akku SDK] Applied decimation with ratio {ratio:.2f}")
     
     @staticmethod
     def apply_modifier_via_depsgraph(obj, modifier_name: str):
@@ -324,71 +650,56 @@ class MeshTools:
         if obj.type != 'MESH' or modifier_name not in obj.modifiers:
             return
         
-        # Get evaluated mesh via depsgraph
         depsgraph = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(depsgraph)
         mesh_eval = obj_eval.to_mesh()
         
-        # Copy evaluated mesh to original
         bm = bmesh.new()
         bm.from_mesh(mesh_eval)
-        
-        # Clear original mesh
         obj.data.clear_geometry()
-        
-        # Write evaluated mesh back
         bm.to_mesh(obj.data)
         bm.free()
         
-        # Remove evaluated mesh
         obj_eval.to_mesh_clear()
-        
-        # Remove modifier
         obj.modifiers.remove(obj.modifiers[modifier_name])
-        
         obj.data.update()
     
     @staticmethod
-    def decimate_with_modifier(obj, ratio: float):
-        """Add and apply decimate modifier - Context Independent"""
+    def decimate_mesh(obj, ratio: float):
+        """Decimate mesh with modifier + depsgraph"""
         if obj.type != 'MESH':
             return
         
-        # Add decimate modifier
+        UndoManager.save_state(obj, "before_decimate")
+        
         mod = obj.modifiers.new(name="AkkuDecimate", type='DECIMATE')
         mod.ratio = max(0.1, min(1.0, ratio))
         mod.use_collapse_triangulate = True
         
-        # Apply using depsgraph
         MeshTools.apply_modifier_via_depsgraph(obj, "AkkuDecimate")
-        
-        print(f"[Akku SDK] Applied decimate modifier with ratio {ratio:.2f}")
+        AkkuLogger.info(f"Applied decimation", {"ratio": ratio})
     
     @staticmethod
     def triangulate_mesh(obj):
-        """Triangulate mesh using bmesh - Context Independent"""
+        """Triangulate mesh using bmesh"""
         if obj.type != 'MESH':
             return
         
         bm = bmesh.new()
         bm.from_mesh(obj.data)
-        
-        # Triangulate all faces
         bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method='BEAUTY', ngon_method='BEAUTY')
-        
         bm.to_mesh(obj.data)
         bm.free()
-        
         obj.data.update()
-        print("[Akku SDK] Mesh triangulated")
+        
+        AkkuLogger.info("Mesh triangulated")
     
     @staticmethod
     def get_triangle_count(obj) -> int:
-        """Get triangle count for mesh - Direct calculation"""
+        """Get triangle count for mesh"""
         if obj.type != 'MESH':
             return 0
         
-        # Count triangulated faces
         bm = bmesh.new()
         bm.from_mesh(obj.data)
         bmesh.ops.triangulate(bm, faces=bm.faces[:])
@@ -396,37 +707,209 @@ class MeshTools:
         bm.free()
         
         return tri_count
+
+
+# ========================================
+# BOOLEAN + VOXEL REMESH WORKFLOW
+# ========================================
+
+class BooleanRemeshTools:
+    """Advanced mesh operations: Boolean Union, Voxel Remesh, Smoothing"""
     
     @staticmethod
-    def center_mesh_origin(obj):
-        """Center mesh origin to geometry - Context Independent"""
-        if obj.type != 'MESH':
-            return
+    def boolean_union(target_obj: bpy.types.Object, source_obj: bpy.types.Object) -> bool:
+        """
+        Perform Boolean Union operation using bmesh
+        Merges source_obj into target_obj
+        """
+        if target_obj.type != 'MESH' or source_obj.type != 'MESH':
+            AkkuLogger.error("Boolean union requires mesh objects")
+            return False
         
-        # Calculate center of mass
+        UndoManager.save_state(target_obj, "before_boolean_union")
+        
+        try:
+            # Create modifier
+            mod = target_obj.modifiers.new(name="AkkuBoolean", type='BOOLEAN')
+            mod.operation = 'UNION'
+            mod.object = source_obj
+            mod.solver = 'FAST'  # FAST solver is more reliable for low-poly
+            
+            # Apply via depsgraph
+            MeshTools.apply_modifier_via_depsgraph(target_obj, "AkkuBoolean")
+            
+            # Remove source object
+            bpy.data.objects.remove(source_obj, do_unlink=True)
+            
+            AkkuLogger.info("Boolean union completed", {
+                "target": target_obj.name
+            })
+            return True
+            
+        except Exception as e:
+            AkkuLogger.error(f"Boolean union failed: {str(e)}")
+            UndoManager.undo(target_obj.name)
+            return False
+    
+    @staticmethod
+    def union_all_meshes() -> Optional[bpy.types.Object]:
+        """
+        Union all mesh objects in scene into a single mesh
+        Returns the unified mesh object
+        """
+        mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+        
+        if len(mesh_objects) == 0:
+            AkkuLogger.warning("No mesh objects to union")
+            return None
+        
+        if len(mesh_objects) == 1:
+            AkkuLogger.info("Only one mesh object, no union needed")
+            return mesh_objects[0]
+        
+        # Use first mesh as target
+        target = mesh_objects[0]
+        UndoManager.save_state(target, "before_union_all")
+        
+        # Join all meshes using bmesh (context-independent)
         bm = bmesh.new()
-        bm.from_mesh(obj.data)
+        bm.from_mesh(target.data)
         
-        if len(bm.verts) == 0:
-            bm.free()
-            return
+        for obj in mesh_objects[1:]:
+            # Transform vertices to world space and add to bmesh
+            temp_bm = bmesh.new()
+            temp_bm.from_mesh(obj.data)
+            
+            # Transform to world coordinates
+            for v in temp_bm.verts:
+                v.co = obj.matrix_world @ v.co
+            
+            # Merge into main bmesh
+            temp_bm.to_mesh(target.data)
+            bm.from_mesh(target.data)
+            temp_bm.free()
+            
+            # Remove source object
+            bpy.data.objects.remove(obj, do_unlink=True)
         
-        # Calculate center
-        center = Vector((0, 0, 0))
-        for v in bm.verts:
-            center += v.co
-        center /= len(bm.verts)
-        
-        # Offset all vertices
-        for v in bm.verts:
-            v.co -= center
-        
-        bm.to_mesh(obj.data)
+        bm.to_mesh(target.data)
         bm.free()
+        target.data.update()
         
-        # Move object location
-        obj.location += center
-        obj.data.update()
+        AkkuLogger.info("Unified all meshes", {
+            "result_name": target.name,
+            "original_count": len(mesh_objects)
+        })
+        
+        return target
+    
+    @staticmethod
+    def voxel_remesh(obj: bpy.types.Object, voxel_size: float = 0.02) -> bool:
+        """
+        Apply Voxel Remesh to create organic, connected geometry
+        """
+        if obj.type != 'MESH':
+            AkkuLogger.error("Voxel remesh requires mesh object")
+            return False
+        
+        UndoManager.save_state(obj, "before_voxel_remesh")
+        
+        try:
+            # Add remesh modifier
+            mod = obj.modifiers.new(name="AkkuRemesh", type='REMESH')
+            mod.mode = 'VOXEL'
+            mod.voxel_size = voxel_size
+            mod.use_smooth_shade = False
+            mod.adaptivity = 0.0
+            
+            # Apply via depsgraph
+            MeshTools.apply_modifier_via_depsgraph(obj, "AkkuRemesh")
+            
+            stats = MeshAnalyzer.get_stats(obj)
+            AkkuLogger.info("Voxel remesh completed", {
+                "voxel_size": voxel_size,
+                "new_vertex_count": stats.vertex_count,
+                "new_face_count": stats.face_count
+            })
+            return True
+            
+        except Exception as e:
+            AkkuLogger.error(f"Voxel remesh failed: {str(e)}")
+            UndoManager.undo(obj.name)
+            return False
+    
+    @staticmethod
+    def smooth_mesh(obj: bpy.types.Object, iterations: int = 2, factor: float = 0.5) -> bool:
+        """
+        Apply smoothing to create low-poly silhouette
+        """
+        if obj.type != 'MESH':
+            return False
+        
+        UndoManager.save_state(obj, "before_smooth")
+        
+        try:
+            # Use bmesh smooth
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+            
+            for _ in range(iterations):
+                bmesh.ops.smooth_vert(
+                    bm,
+                    verts=bm.verts,
+                    factor=factor,
+                    use_axis_x=True,
+                    use_axis_y=True,
+                    use_axis_z=True
+                )
+            
+            bm.to_mesh(obj.data)
+            bm.free()
+            obj.data.update()
+            
+            AkkuLogger.info("Smoothing completed", {
+                "iterations": iterations,
+                "factor": factor
+            })
+            return True
+            
+        except Exception as e:
+            AkkuLogger.error(f"Smoothing failed: {str(e)}")
+            UndoManager.undo(obj.name)
+            return False
+    
+    @staticmethod
+    def union_and_smooth(voxel_size: float = 0.02, smooth_iterations: int = 2) -> Optional[bpy.types.Object]:
+        """
+        Complete workflow: Union all parts -> Voxel Remesh -> Smooth
+        Creates organic, connected low-poly character
+        """
+        AkkuLogger.info("Starting Union and Smooth workflow", {
+            "voxel_size": voxel_size,
+            "smooth_iterations": smooth_iterations
+        })
+        
+        # Step 1: Union all meshes
+        unified = BooleanRemeshTools.union_all_meshes()
+        if not unified:
+            return None
+        
+        MeshAnalyzer.log_stats(unified, "After Union")
+        
+        # Step 2: Voxel Remesh
+        if not BooleanRemeshTools.voxel_remesh(unified, voxel_size):
+            AkkuLogger.warning("Voxel remesh failed, continuing without")
+        else:
+            MeshAnalyzer.log_stats(unified, "After Voxel Remesh")
+        
+        # Step 3: Smooth
+        if not BooleanRemeshTools.smooth_mesh(unified, smooth_iterations, 0.5):
+            AkkuLogger.warning("Smoothing failed, continuing without")
+        else:
+            MeshAnalyzer.log_stats(unified, "After Smooth")
+        
+        AkkuLogger.info("Union and Smooth workflow completed")
+        return unified
 
 
 # ========================================
@@ -434,7 +917,7 @@ class MeshTools:
 # ========================================
 
 class MaterialSystem:
-    """PBR Material creation system - Direct node manipulation"""
+    """PBR Material creation system"""
     
     @staticmethod
     def create_material(
@@ -444,32 +927,26 @@ class MaterialSystem:
         roughness: float = 0.5,
         emission: float = 0.0
     ) -> bpy.types.Material:
-        """Create a PBR material - No ops calls"""
+        """Create a PBR material"""
         mat = bpy.data.materials.new(name=name)
         mat.use_nodes = True
         
         nodes = mat.node_tree.nodes
         links = mat.node_tree.links
-        
-        # Clear default nodes
         nodes.clear()
         
-        # Create nodes
         output = nodes.new('ShaderNodeOutputMaterial')
         output.location = (400, 0)
         
         principled = nodes.new('ShaderNodeBsdfPrincipled')
         principled.location = (0, 0)
         
-        # Set properties
         principled.inputs['Base Color'].default_value = (*color, 1.0)
         principled.inputs['Metallic'].default_value = metallic
         principled.inputs['Roughness'].default_value = roughness
         
-        # Handle emission (Blender version compatibility)
         if emission > 0:
-            emission_inputs = ['Emission', 'Emission Color']
-            for emission_input in emission_inputs:
+            for emission_input in ['Emission', 'Emission Color']:
                 try:
                     principled.inputs[emission_input].default_value = (*color, 1.0)
                     break
@@ -481,72 +958,52 @@ class MaterialSystem:
             except KeyError:
                 pass
         
-        # Connect nodes
         links.new(principled.outputs['BSDF'], output.inputs['Surface'])
         
         return mat
     
     @staticmethod
     def apply_material(obj, material: bpy.types.Material):
-        """Apply material to object - Direct data manipulation"""
+        """Apply material to object"""
         if obj.type != 'MESH':
             return
         
-        # Clear existing materials
         obj.data.materials.clear()
         obj.data.materials.append(material)
 
 
 # ========================================
-# FBX IMPORT HANDLER
-# Note: FBX import requires bpy.ops but we use minimal context
+# FBX & GLB HANDLERS
 # ========================================
 
 class FBXHandler:
-    """FBX Import/Export handling with minimal context requirements"""
-    
     @staticmethod
     def import_fbx(filepath: str) -> List[bpy.types.Object]:
-        """Import FBX file - Uses ops but with override context"""
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"FBX file not found: {filepath}")
         
-        # Store existing objects
         existing_objects = set(bpy.data.objects.keys())
         
-        # Import FBX (ops is unavoidable here)
         bpy.ops.import_scene.fbx(
             filepath=filepath,
             use_custom_normals=True,
             use_image_search=False,
             ignore_leaf_bones=True,
             automatic_bone_orientation=True,
-            global_scale=1.0,
-            use_manual_orientation=False
+            global_scale=1.0
         )
         
-        # Get newly imported objects
         new_objects = [obj for obj in bpy.data.objects if obj.name not in existing_objects]
-        
-        print(f"[Akku SDK] Imported FBX: {filepath}")
-        print(f"[Akku SDK] New objects: {[obj.name for obj in new_objects]}")
+        AkkuLogger.info(f"Imported FBX: {filepath}", {"new_objects": len(new_objects)})
         
         return new_objects
 
 
-# ========================================
-# GLB EXPORT HANDLER
-# ========================================
-
 class GLBHandler:
-    """GLB Export handling"""
-    
     @staticmethod
     def export_glb(filepath: str) -> bool:
-        """Export scene to GLB - Uses ops but with minimal context"""
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         
-        # Export GLB
         bpy.ops.export_scene.gltf(
             filepath=filepath,
             export_format='GLB',
@@ -561,7 +1018,7 @@ class GLBHandler:
         
         if os.path.exists(filepath):
             file_size = os.path.getsize(filepath)
-            print(f"[Akku SDK] Exported GLB: {filepath} ({file_size} bytes)")
+            AkkuLogger.info(f"Exported GLB", {"path": filepath, "size": file_size})
             return True
         return False
 
@@ -573,25 +1030,20 @@ class GLBHandler:
 @tool("load_base_mesh", "Load Mixamo FBX base mesh")
 def load_base_mesh(gender: str = "male") -> Dict[str, Any]:
     """Load and normalize a Mixamo FBX base mesh"""
-    
-    # Clear scene first
     MeshTools.clear_scene()
+    AkkuLogger.clear()
     
-    # Get mesh path
     mesh_path = AkkuConfig.BASE_MESHES.get(gender, AkkuConfig.BASE_MESHES["male"])
-    
-    # Import FBX
     new_objects = FBXHandler.import_fbx(mesh_path)
     
-    # Find mesh objects
     mesh_objects = [obj for obj in new_objects if obj.type == 'MESH']
     
     if not mesh_objects:
         raise RuntimeError("No mesh objects found in FBX file")
     
-    # Normalize scale for each mesh
     for obj in mesh_objects:
         MeshTools.normalize_scale(obj, AkkuConfig.TARGET_HEIGHT)
+        MeshAnalyzer.log_stats(obj, "After normalization")
     
     return {
         "mesh_count": len(mesh_objects),
@@ -604,19 +1056,18 @@ def load_base_mesh(gender: str = "male") -> Dict[str, Any]:
 def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium") -> Dict[str, Any]:
     """Apply style transformations based on prompt analysis"""
     
-    # Analyze prompt
     color = StyleAnalyzer.detect_color(prompt)
     archetype = StyleAnalyzer.detect_archetype(prompt)
     proportion_scale = StyleAnalyzer.get_proportion_scale(style)
     poly_settings = StyleAnalyzer.get_poly_settings(poly_level)
     
-    print(f"[Akku SDK] Style Analysis:")
-    print(f"  Color: {color}")
-    print(f"  Archetype: {archetype}")
-    print(f"  Proportion Scale: {proportion_scale}")
-    print(f"  Poly Level: {poly_level}")
+    AkkuLogger.info("Style Analysis", {
+        "color": color,
+        "archetype": archetype,
+        "proportion_scale": proportion_scale,
+        "poly_level": poly_level
+    })
     
-    # Create material
     material = MaterialSystem.create_material(
         name="AkkuCharacterMat",
         color=color,
@@ -625,14 +1076,11 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
         emission=archetype.get("emission", 0.0)
     )
     
-    # Apply to all mesh objects
     mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
     
     for obj in mesh_objects:
-        # Apply material
         MaterialSystem.apply_material(obj, material)
         
-        # Apply proportion scale (using bmesh, not ops)
         if proportion_scale != 1.0:
             bm = bmesh.new()
             bm.from_mesh(obj.data)
@@ -646,13 +1094,9 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
             bm.free()
             obj.data.update()
         
-        # Apply polygon reduction using modifier + depsgraph
-        MeshTools.decimate_with_modifier(obj, poly_settings["decimate_ratio"])
-        
-        # Triangulate for game export
+        MeshTools.decimate_mesh(obj, poly_settings["decimate_ratio"])
         MeshTools.triangulate_mesh(obj)
     
-    # Count final triangles
     total_tris = sum(MeshTools.get_triangle_count(obj) for obj in mesh_objects)
     
     return {
@@ -664,10 +1108,28 @@ def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"
     }
 
 
+@tool("union_and_smooth", "Apply Boolean Union + Voxel Remesh + Smooth workflow")
+def union_and_smooth_tool(voxel_size: float = 0.02, smooth_iterations: int = 2) -> Dict[str, Any]:
+    """Combine all meshes with organic smoothing for low-poly style"""
+    
+    result = BooleanRemeshTools.union_and_smooth(voxel_size, smooth_iterations)
+    
+    if result:
+        stats = MeshAnalyzer.get_stats(result)
+        return {
+            "success": True,
+            "result_object": result.name,
+            "vertex_count": stats.vertex_count,
+            "face_count": stats.face_count,
+            "triangle_count": stats.triangle_count
+        }
+    else:
+        return {"success": False, "message": "Union and smooth failed"}
+
+
 @tool("export_glb", "Export scene as GLB file")
 def export_glb(output_path: str) -> Dict[str, Any]:
     """Export scene to GLB format"""
-    
     success = GLBHandler.export_glb(output_path)
     
     if success:
@@ -675,7 +1137,8 @@ def export_glb(output_path: str) -> Dict[str, Any]:
         return {
             "path": output_path,
             "size_bytes": file_size,
-            "success": True
+            "success": True,
+            "log_report": AkkuLogger.get_json_report()
         }
     else:
         raise RuntimeError(f"GLB export failed: {output_path}")
@@ -687,23 +1150,23 @@ def generate_character(
     style: str = "stylized",
     poly_level: str = "medium",
     output_path: str = None,
-    gender: str = "male"
+    gender: str = "male",
+    use_remesh: bool = False
 ) -> Dict[str, Any]:
     """Generate a complete low-poly character from prompt"""
     
     print(f"\n{'='*60}")
-    print(f"[Akku SDK v3.1] Character Generation - Context Independent")
+    print(f"[Akku SDK v3.2] Character Generation")
     print(f"{'='*60}")
     print(f"Prompt: {prompt}")
-    print(f"Style: {style}")
-    print(f"Poly Level: {poly_level}")
-    print(f"Gender: {gender}")
+    print(f"Style: {style}, Poly Level: {poly_level}")
+    print(f"Gender: {gender}, Use Remesh: {use_remesh}")
     print(f"{'='*60}\n")
     
     # Step 1: Load base mesh
     load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
     if load_result["status"] == "error":
-        raise RuntimeError(f"Failed to load base mesh: {load_result['message']}")
+        raise RuntimeError(f"Load failed: {load_result['message']}")
     
     # Step 2: Apply style
     style_result = ToolRegistry.execute("apply_style", {
@@ -712,15 +1175,24 @@ def generate_character(
         "poly_level": poly_level
     })
     if style_result["status"] == "error":
-        raise RuntimeError(f"Failed to apply style: {style_result['message']}")
+        raise RuntimeError(f"Style failed: {style_result['message']}")
     
-    # Step 3: Export
+    # Step 3: Optional - Union and Smooth for organic look
+    remesh_result = None
+    if use_remesh:
+        poly_settings = StyleAnalyzer.get_poly_settings(poly_level)
+        remesh_result = ToolRegistry.execute("union_and_smooth", {
+            "voxel_size": poly_settings.get("voxel_size", 0.02),
+            "smooth_iterations": 2
+        })
+    
+    # Step 4: Export
     if output_path is None:
         output_path = os.path.join(AkkuConfig.OUTPUT_DIR, "character.glb")
     
     export_result = ToolRegistry.execute("export_glb", {"output_path": output_path})
     if export_result["status"] == "error":
-        raise RuntimeError(f"Failed to export: {export_result['message']}")
+        raise RuntimeError(f"Export failed: {export_result['message']}")
     
     return {
         "prompt": prompt,
@@ -729,6 +1201,7 @@ def generate_character(
         "output_path": output_path,
         "load_info": load_result["result"],
         "style_info": style_result["result"],
+        "remesh_info": remesh_result["result"] if remesh_result else None,
         "export_info": export_result["result"]
     }
 
@@ -742,7 +1215,7 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     
     if len(args) < 4:
-        print("Usage: blender --background --python akku-sdk.py -- <prompt> <style> <poly_level> <output_path> [gender]")
+        print("Usage: blender --background --python akku-sdk.py -- <prompt> <style> <poly_level> <output_path> [gender] [use_remesh]")
         sys.exit(1)
     
     prompt = args[0]
@@ -750,6 +1223,7 @@ def main():
     poly_level = args[2]
     output_path = args[3]
     gender = args[4] if len(args) > 4 else "male"
+    use_remesh = args[5].lower() == "true" if len(args) > 5 else False
     
     try:
         result = ToolRegistry.execute("generate_character", {
@@ -757,19 +1231,21 @@ def main():
             "style": style,
             "poly_level": poly_level,
             "output_path": output_path,
-            "gender": gender
+            "gender": gender,
+            "use_remesh": use_remesh
         })
         
         if result["status"] == "success":
             print(f"\n[Akku SDK] Generation completed successfully!")
-            print(json.dumps(result["result"], indent=2, ensure_ascii=False))
+            print(json.dumps(result["result"], indent=2, ensure_ascii=False, default=str))
         else:
             print(f"\n[Akku SDK] Generation failed: {result['message']}")
+            if "error_report" in result:
+                print(json.dumps(result["error_report"], indent=2, ensure_ascii=False))
             sys.exit(1)
             
     except Exception as e:
         print(f"\n[Akku SDK] Error: {str(e)}")
-        import traceback
         traceback.print_exc()
         sys.exit(1)
 
