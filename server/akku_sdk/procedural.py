@@ -1091,15 +1091,15 @@ class ProceduralHumanoid:
         radius: float,
         poly_settings
     ) -> bpy.types.Object:
-        """Create a limb segment with tapered ends"""
+        """Create a limb segment with muscle bulge and natural taper"""
         mesh = bpy.data.meshes.new(name)
         obj = bpy.data.objects.new(name, mesh)
         bpy.context.collection.objects.link(obj)
         
         bm = bmesh.new()
         
-        segments = max(6, poly_settings.limb_segments)
-        height_segments = max(4, poly_settings.limb_segments // 2)
+        segments = max(8, poly_settings.limb_segments)
+        height_segments = max(6, poly_settings.limb_segments)
         
         direction = (end - start).normalized()
         length = (end - start).length
@@ -1115,12 +1115,17 @@ class ProceduralHumanoid:
             t = h / height_segments
             pos = start.lerp(end, t)
             
-            taper = 1.0 - abs(t - 0.5) * 0.3
+            muscle_bulge = math.sin(t * math.pi) * 0.25
+            end_taper_start = 1.0 - (abs(t - 0.5) * 0.15)
+            end_taper_end = 1.0 - (t * 0.1 if t > 0.7 else 0)
+            scale = (1.0 + muscle_bulge) * end_taper_start * end_taper_end
             
             row = []
             for s in range(segments):
                 angle = (s / segments) * 2 * math.pi
-                offset = (side * math.cos(angle) + forward * math.sin(angle)) * radius * taper
+                front_back_scale = 1.0 + 0.1 * abs(math.sin(angle))
+                r = radius * scale * front_back_scale
+                offset = (side * math.cos(angle) + forward * math.sin(angle)) * r
                 v = bm.verts.new(pos + offset)
                 row.append(v)
             verts.append(row)
@@ -1171,47 +1176,70 @@ class ProceduralHumanoid:
         height: float,
         side: int
     ) -> bpy.types.Object:
-        """Create a foot mesh"""
+        """Create a detailed foot mesh with rounded shape"""
         mesh = bpy.data.meshes.new(name)
         obj = bpy.data.objects.new(name, mesh)
         bpy.context.collection.objects.link(obj)
         
         bm = bmesh.new()
         
-        foot_center = ankle + Vector((0, length * 0.3, -height / 2))
+        foot_center = ankle + Vector((0, length * 0.35, -height / 2))
         
-        hw = width / 2
-        hl = length / 2
-        hh = height / 2
+        segments_w = 4
+        segments_l = 6
+        segments_h = 3
         
-        corners = [
-            foot_center + Vector((-hw, -hl * 0.3, -hh)),
-            foot_center + Vector((hw, -hl * 0.3, -hh)),
-            foot_center + Vector((hw, hl, -hh)),
-            foot_center + Vector((-hw, hl, -hh)),
-            foot_center + Vector((-hw * 0.8, -hl * 0.2, hh)),
-            foot_center + Vector((hw * 0.8, -hl * 0.2, hh)),
-            foot_center + Vector((hw * 0.7, hl * 0.8, hh)),
-            foot_center + Vector((-hw * 0.7, hl * 0.8, hh)),
-        ]
+        verts = []
         
-        verts = [bm.verts.new(c) for c in corners]
+        for h in range(segments_h + 1):
+            ht = h / segments_h
+            z = foot_center.z - height/2 + height * ht
+            
+            h_scale = 1.0 - abs(ht - 0.3) * 0.3
+            
+            row = []
+            for li in range(segments_l + 1):
+                lt = li / segments_l
+                y = foot_center.y - length/2 + length * lt
+                
+                toe_taper = 1.0 - lt * 0.3 if lt > 0.5 else 1.0
+                heel_round = 1.0 - (1-lt) * 0.2 if lt < 0.3 else 1.0
+                
+                for wi in range(segments_w + 1):
+                    wt = wi / segments_w
+                    x = foot_center.x - width/2 * toe_taper * heel_round * h_scale + width * toe_taper * heel_round * h_scale * wt
+                    
+                    v = bm.verts.new(Vector((x, y, z)))
+                    row.append(v)
+            verts.append(row)
+        
         bm.verts.ensure_lookup_table()
         
-        faces = [
-            [0, 1, 2, 3],
-            [4, 7, 6, 5],
-            [0, 4, 5, 1],
-            [1, 5, 6, 2],
-            [2, 6, 7, 3],
-            [3, 7, 4, 0],
-        ]
+        stride = segments_w + 1
+        for h in range(segments_h):
+            for li in range(segments_l):
+                for wi in range(segments_w):
+                    idx = li * stride + wi
+                    v1 = verts[h][idx]
+                    v2 = verts[h][idx + 1]
+                    v3 = verts[h + 1][idx + 1]
+                    v4 = verts[h + 1][idx]
+                    try:
+                        bm.faces.new([v1, v2, v3, v4])
+                    except:
+                        pass
         
-        for f in faces:
-            try:
-                bm.faces.new([verts[i] for i in f])
-            except:
-                pass
+        for li in range(segments_l):
+            for wi in range(segments_w):
+                idx = li * stride + wi
+                try:
+                    bm.faces.new([verts[0][idx], verts[0][idx + stride], verts[0][idx + stride + 1], verts[0][idx + 1]])
+                except:
+                    pass
+                try:
+                    bm.faces.new([verts[-1][idx], verts[-1][idx + 1], verts[-1][idx + stride + 1], verts[-1][idx + stride]])
+                except:
+                    pass
         
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         bm.to_mesh(mesh)
@@ -1228,7 +1256,7 @@ class ProceduralHumanoid:
         elbow: Vector,
         size: float
     ) -> bpy.types.Object:
-        """Create a hand mesh"""
+        """Create a detailed hand mesh with rounded palm shape"""
         mesh = bpy.data.meshes.new(name)
         obj = bpy.data.objects.new(name, mesh)
         bpy.context.collection.objects.link(obj)
@@ -1237,46 +1265,78 @@ class ProceduralHumanoid:
         
         direction = (wrist - elbow).normalized()
         hand_end = wrist + direction * size
-        hand_center = wrist.lerp(hand_end, 0.5)
         
         hw = size * 0.5
-        hl = size * 0.3
-        hh = size * 0.15
+        hh = size * 0.2
         
         if abs(direction.z) < 0.99:
-            side = direction.cross(Vector((0, 0, 1))).normalized()
+            side_vec = direction.cross(Vector((0, 0, 1))).normalized()
         else:
-            side = direction.cross(Vector((1, 0, 0))).normalized()
-        up = direction.cross(side).normalized()
+            side_vec = direction.cross(Vector((1, 0, 0))).normalized()
+        up = direction.cross(side_vec).normalized()
         
-        corners = [
-            wrist + side * (-hw * 0.7) + up * (-hh),
-            wrist + side * (hw * 0.7) + up * (-hh),
-            hand_end + side * (hw * 0.5) + up * (-hh * 0.8),
-            hand_end + side * (-hw * 0.5) + up * (-hh * 0.8),
-            wrist + side * (-hw * 0.6) + up * (hh),
-            wrist + side * (hw * 0.6) + up * (hh),
-            hand_end + side * (hw * 0.4) + up * (hh * 0.6),
-            hand_end + side * (-hw * 0.4) + up * (hh * 0.6),
-        ]
+        segments_along = 5
+        segments_across = 4
+        segments_thick = 2
         
-        verts = [bm.verts.new(c) for c in corners]
+        verts = []
+        for ti in range(segments_thick + 1):
+            tt = ti / segments_thick
+            thickness_offset = up * (hh * (tt - 0.5) * 2)
+            
+            palm_bulge = math.sin(tt * math.pi) * 0.15
+            
+            layer = []
+            for ai in range(segments_along + 1):
+                at = ai / segments_along
+                pos_along = wrist.lerp(hand_end, at)
+                
+                finger_taper = 1.0 - at * 0.4
+                
+                for wi in range(segments_across + 1):
+                    wt = wi / segments_across
+                    side_offset = side_vec * (hw * finger_taper * (wt - 0.5) * 2)
+                    
+                    knuckle_bump = math.sin(wt * math.pi) * 0.05 * (1.0 + palm_bulge) if at > 0.6 else 0
+                    
+                    pos = pos_along + thickness_offset * (1.0 + palm_bulge) + side_offset + up * knuckle_bump
+                    v = bm.verts.new(pos)
+                    layer.append(v)
+            verts.append(layer)
+        
         bm.verts.ensure_lookup_table()
         
-        faces = [
-            [0, 1, 2, 3],
-            [4, 7, 6, 5],
-            [0, 4, 5, 1],
-            [1, 5, 6, 2],
-            [2, 6, 7, 3],
-            [3, 7, 4, 0],
-        ]
+        stride = segments_across + 1
+        for ti in range(segments_thick):
+            for ai in range(segments_along):
+                for wi in range(segments_across):
+                    idx = ai * stride + wi
+                    try:
+                        bm.faces.new([
+                            verts[ti][idx], verts[ti][idx + 1],
+                            verts[ti + 1][idx + 1], verts[ti + 1][idx]
+                        ])
+                    except:
+                        pass
         
-        for f in faces:
-            try:
-                bm.faces.new([verts[i] for i in f])
-            except:
-                pass
+        for ti in range(segments_thick):
+            for ai in range(segments_along):
+                idx = ai * stride
+                try:
+                    bm.faces.new([
+                        verts[ti][idx], verts[ti + 1][idx],
+                        verts[ti + 1][idx + stride], verts[ti][idx + stride]
+                    ])
+                except:
+                    pass
+                idx = ai * stride + segments_across
+                try:
+                    bm.faces.new([
+                        verts[ti][idx], verts[ti][idx + stride],
+                        verts[ti + 1][idx + stride], verts[ti + 1][idx]
+                    ])
+                except:
+                    pass
         
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         bm.to_mesh(mesh)
