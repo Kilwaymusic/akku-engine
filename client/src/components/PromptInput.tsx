@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface GenerationOptions {
   prompt: string;
+  referenceImage?: string;
 }
 
 interface ImageAnalysisResult {
@@ -122,10 +123,19 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
   };
 
   const handleSubmit = () => {
-    if (prompt.trim() && !isLoading) {
-      onSubmit({ prompt: prompt.trim() });
+    // Allow submit with either prompt OR image (or both)
+    const hasPrompt = prompt.trim().length > 0;
+    const hasImage = !!referenceImage;
+    
+    if ((hasPrompt || hasImage) && !isLoading) {
+      onSubmit({ 
+        prompt: prompt.trim() || "(이미지 기반 생성)",
+        referenceImage: referenceImage || undefined
+      });
     }
   };
+  
+  const canSubmit = (prompt.trim().length > 0 || !!referenceImage) && !isLoading;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -216,7 +226,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
             size="icon"
             className="absolute right-2 bottom-2"
             onClick={handleSubmit}
-            disabled={!prompt.trim() || isLoading}
+            disabled={!canSubmit}
             data-testid="button-generate"
           >
             {isLoading ? (
@@ -229,7 +239,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
 
         <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
           <p className="font-medium mb-1">프롬프트 팁:</p>
-          <p>스타일(치비, 리얼리스틱), 폴리곤(로우폴리, 하이폴리), 체형(근육질, 마른), 성별 등을 프롬프트에 직접 포함하세요. Gemini가 이를 이해하고 Blender 코드를 생성합니다.</p>
+          <p>텍스트 프롬프트, 이미지, 또는 둘 다 사용할 수 있습니다. 이미지만 업로드하면 Gemini Vision이 자동으로 캐릭터를 분석하여 생성합니다.</p>
         </div>
 
         <div className="space-y-2">

@@ -114,6 +114,7 @@ export default function Home() {
       
       const response = await apiRequest("POST", endpoint, {
         prompt: options.prompt,
+        referenceImage: options.referenceImage,
         maxIterations: 3,
       });
       return response.json();

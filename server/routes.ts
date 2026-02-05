@@ -844,26 +844,64 @@ echo "Deployment complete!"
    */
   app.post("/api/jobs/agent", async (req, res) => {
     try {
-      const { prompt } = req.body;
+      const { prompt, referenceImage } = req.body;
       
-      if (!prompt) {
-        return res.status(400).json({ error: "Prompt is required" });
+      if (!prompt && !referenceImage) {
+        return res.status(400).json({ error: "Prompt or reference image is required" });
       }
       
       console.log(`\n${"=".repeat(60)}`);
       console.log(`[Autonomous 3D Agent] Starting generation`);
       console.log(`${"=".repeat(60)}`);
       console.log(`Prompt: ${prompt}`);
+      console.log(`Has reference image: ${!!referenceImage}`);
       
       // Step 1: Create job
       const job = await storage.createJob({ 
-        prompt, 
+        prompt: prompt || "(Image-based generation)", 
         style: "stylized", 
         polyLevel: "medium" 
       });
       await storage.updateJob(job.id, { status: "processing", progressStage: "analyzing_prompt" });
       
       console.log(`[Agent] Job created: ${job.id}`);
+      
+      // Step 1.5: If reference image provided, analyze it and enhance prompt
+      let effectivePrompt = prompt || "";
+      if (referenceImage) {
+        console.log(`[Agent] Analyzing reference image with Gemini Vision...`);
+        try {
+          // Extract base64 data from data URL
+          const base64Match = referenceImage.match(/^data:image\/\w+;base64,(.+)$/);
+          if (base64Match) {
+            const imageBase64 = base64Match[1];
+            const mimeType = referenceImage.match(/^data:(image\/\w+);/)?.[1] || "image/png";
+            
+            const attributes = await analyzeImage(imageBase64, mimeType);
+            const generationOptions = attributesToGenerationOptions(attributes);
+            
+            // Combine user prompt with image analysis
+            if (prompt && prompt !== "(이미지 기반 생성)") {
+              effectivePrompt = `${prompt}. 참고 이미지 분석: ${generationOptions.prompt}`;
+            } else {
+              effectivePrompt = generationOptions.prompt;
+            }
+            
+            console.log(`[Agent] Image analysis complete: ${attributes.archetype}`);
+            console.log(`[Agent] Effective prompt: ${effectivePrompt}`);
+          }
+        } catch (imageError) {
+          console.warn(`[Agent] Image analysis failed, using text prompt only:`, imageError);
+          if (!effectivePrompt) {
+            effectivePrompt = "stylized humanoid character";
+          }
+        }
+      }
+      
+      if (!effectivePrompt) {
+        await storage.updateJob(job.id, { status: "failed", progressStage: null });
+        return res.status(400).json({ error: "Could not generate effective prompt" });
+      }
       
       // Step 2: Verify GCP Worker supports code execution
       console.log(`[Agent] Checking GCP Worker capabilities...`);
@@ -900,7 +938,7 @@ echo "Deployment complete!"
       let blenderCode: string;
       
       try {
-        blenderCode = await generateBlenderCode(prompt);
+        blenderCode = await generateBlenderCode(effectivePrompt);
         console.log(`[Agent] Code generated: ${blenderCode.length} characters`);
       } catch (codeError) {
         console.error(`[Agent] Code generation failed:`, codeError);
@@ -1030,26 +1068,62 @@ echo "Deployment complete!"
   // ==========================================================================
   app.post("/api/jobs/agent-iterative", async (req, res) => {
     try {
-      const { prompt, maxIterations = 3 } = req.body;
+      const { prompt, referenceImage, maxIterations = 3 } = req.body;
       
-      if (!prompt || typeof prompt !== "string") {
-        return res.status(400).json({ error: "Prompt is required" });
+      if (!prompt && !referenceImage) {
+        return res.status(400).json({ error: "Prompt or reference image is required" });
       }
       
       console.log(`\n${"=".repeat(60)}`);
       console.log(`[Iterative Agent] Starting self-review loop`);
       console.log(`[Iterative Agent] Prompt: "${prompt}"`);
+      console.log(`[Iterative Agent] Has reference image: ${!!referenceImage}`);
       console.log(`[Iterative Agent] Max iterations: ${maxIterations}`);
       console.log(`${"=".repeat(60)}\n`);
       
       // Create job record
       const job = await storage.createJob({
-        prompt,
+        prompt: prompt || "(Image-based generation)",
         style: "stylized",
         polyLevel: "medium"
       });
       
       await storage.updateJob(job.id, { status: "processing", progressStage: "analyzing_prompt" });
+      
+      // If reference image provided, analyze it and enhance prompt
+      let effectivePrompt = prompt || "";
+      if (referenceImage) {
+        console.log(`[Iterative Agent] Analyzing reference image with Gemini Vision...`);
+        try {
+          const base64Match = referenceImage.match(/^data:image\/\w+;base64,(.+)$/);
+          if (base64Match) {
+            const imageBase64 = base64Match[1];
+            const mimeType = referenceImage.match(/^data:(image\/\w+);/)?.[1] || "image/png";
+            
+            const attributes = await analyzeImage(imageBase64, mimeType);
+            const generationOptions = attributesToGenerationOptions(attributes);
+            
+            if (prompt && prompt !== "(이미지 기반 생성)") {
+              effectivePrompt = `${prompt}. 참고 이미지 분석: ${generationOptions.prompt}`;
+            } else {
+              effectivePrompt = generationOptions.prompt;
+            }
+            
+            console.log(`[Iterative Agent] Image analysis: ${attributes.archetype}`);
+            console.log(`[Iterative Agent] Effective prompt: ${effectivePrompt}`);
+          }
+        } catch (imageError) {
+          console.warn(`[Iterative Agent] Image analysis failed:`, imageError);
+          if (!effectivePrompt) {
+            effectivePrompt = "stylized humanoid character";
+          }
+        }
+      }
+      
+      if (!effectivePrompt) {
+        await storage.updateJob(job.id, { status: "failed", progressStage: null });
+        return res.status(400).json({ error: "Could not generate effective prompt" });
+      }
       
       // Verify GCP Worker is available
       try {
@@ -1066,7 +1140,7 @@ echo "Deployment complete!"
       await storage.updateJob(job.id, { progressStage: "generating_code" });
       let currentCode: string;
       try {
-        currentCode = await generateBlenderCode(prompt);
+        currentCode = await generateBlenderCode(effectivePrompt);
         console.log(`[Iterative Agent] Initial code: ${currentCode.length} chars`);
       } catch (codeGenError: any) {
         console.error(`[Iterative Agent] Code generation failed:`, codeGenError.message);
