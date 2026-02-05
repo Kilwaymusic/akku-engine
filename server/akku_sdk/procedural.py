@@ -968,7 +968,11 @@ class ProceduralHumanoid:
         # Stylized shader settings
         bsdf.inputs['Metallic'].default_value = 0.1  # Slight metallic
         bsdf.inputs['Roughness'].default_value = 0.7  # Slightly rough for matte look
-        bsdf.inputs['Specular IOR Level'].default_value = 0.3  # Reduced specular
+        # Handle Blender version differences (3.x uses 'Specular', 4.x uses 'Specular IOR Level')
+        if 'Specular IOR Level' in bsdf.inputs:
+            bsdf.inputs['Specular IOR Level'].default_value = 0.3
+        elif 'Specular' in bsdf.inputs:
+            bsdf.inputs['Specular'].default_value = 0.3
         
         # Connect to output
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
