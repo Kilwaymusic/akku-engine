@@ -1,5 +1,38 @@
 import { GoogleGenAI } from "@google/genai";
 import type { AkkuGenerationPlan, CharacterGenerationPlan } from "./blender-mcp-client";
+import * as fs from "fs";
+import * as path from "path";
+
+// RAG Guide Loading System
+const GUIDES_DIR = path.join(process.cwd(), "server", "guides");
+
+function loadGuide(guideName: string): string {
+  try {
+    const guidePath = path.join(GUIDES_DIR, `${guideName}.md`);
+    return fs.readFileSync(guidePath, "utf-8");
+  } catch (error) {
+    console.warn(`[RAG] Failed to load guide: ${guideName}`, error);
+    return "";
+  }
+}
+
+// Cached guides for performance
+let modelerGuideCache: string | null = null;
+let criticGuideCache: string | null = null;
+
+function getModelerGuide(): string {
+  if (!modelerGuideCache) {
+    modelerGuideCache = loadGuide("modeler-guide");
+  }
+  return modelerGuideCache;
+}
+
+function getCriticGuide(): string {
+  if (!criticGuideCache) {
+    criticGuideCache = loadGuide("critic-guide");
+  }
+  return criticGuideCache;
+}
 
 // Primary AI client (user's key or Replit integration)
 const primaryApiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
@@ -1788,9 +1821,13 @@ CRITICAL: Create characters like a professional 3D modeler - use TAPERED shapes,
 /**
  * Generate Blender Python code for a character based on prompt
  * This is the core of the Autonomous 3D Agent - Gemini directly controls Blender
+ * Uses RAG approach: loads modeler-guide dynamically for SDK instructions
  */
 export async function generateBlenderCode(prompt: string): Promise<string> {
   console.log(`[Gemini Code Gen] Generating Blender code for: "${prompt}"`);
+  
+  // RAG: Load modeler guide for SDK instructions
+  const modelerGuide = getModelerGuide();
   
   const response = await generateContentWithFallback(
     "gemini-2.5-flash",
@@ -1800,6 +1837,8 @@ export async function generateBlenderCode(prompt: string): Promise<string> {
         parts: [
           {
             text: `${BLENDER_CODE_GENERATION_PROMPT}
+
+${modelerGuide ? `## SDK 가이드 (RAG)\n${modelerGuide}\n` : ""}
 
 ## USER REQUEST
 Create a character based on this description: "${prompt}"
@@ -1977,18 +2016,17 @@ export async function analyzeScreenshotForCodeImprovement(
   suggestions: string[];
   confidence: number;
 }> {
+  // RAG: Load critic guide for evaluation criteria
+  const criticGuide = getCriticGuide();
+  
   const analysisPrompt = `Analyze this screenshot of a generated 3D character.
 
 ORIGINAL REQUEST: "${originalPrompt}"
 ITERATION: ${iteration}/3
 
-Evaluate:
-1. Does it match the requested character type? (warrior, mage, cat, robot, etc.)
-2. Are body proportions correct? (no floating parts, symmetric limbs)
-3. Are distinctive features present? (cat ears for cat, helmet for knight, etc.)
-4. Is the overall silhouette readable and appealing?
+${criticGuide ? `## EVALUATION GUIDE (RAG)\n${criticGuide}\n` : ""}
 
-Respond with JSON only:
+Evaluate silhouette, proportions, and features. Respond with JSON only:
 {
   "satisfactory": true/false,
   "issues": ["issue1", "issue2"],
@@ -1996,8 +2034,7 @@ Respond with JSON only:
   "confidence": 0.0-1.0
 }
 
-Set satisfactory=true if the character is acceptable (minor issues OK).
-Set satisfactory=false if major issues exist that need fixing.`;
+satisfactory=true if acceptable, false if major issues need fixing.`;
 
   try {
     const response = await generateContentWithFallback(
