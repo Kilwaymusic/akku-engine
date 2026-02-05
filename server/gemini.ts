@@ -161,9 +161,9 @@ export const SDK_PARAMETER_SCHEMA = {
         preset: { type: "string", enum: ["default", "muscular", "thin", "fat", "tall", "athletic", "heroic", "chibi", "cute", "slim", "broad", "stocky"] },
         muscular: { type: "number", minimum: 0, maximum: 1 },
         fat: { type: "number", minimum: 0, maximum: 1 },
-        height: { type: "number", minimum: 0.7, maximum: 1.3 },
-        shoulderWidth: { type: "number", minimum: 0.7, maximum: 1.5 },
-        hipWidth: { type: "number", minimum: 0.7, maximum: 1.3 }
+        height: { type: "number", minimum: -0.5, maximum: 0.5 },
+        shoulderWidth: { type: "number", minimum: -1.0, maximum: 1.0 },
+        hipWidth: { type: "number", minimum: -1.0, maximum: 1.0 }
       }
     },
     style: {
@@ -219,9 +219,9 @@ Analyze the user's character description and output a STRICT JSON object with ex
     "preset": "default|muscular|thin|fat|tall|athletic|heroic|chibi|cute|slim|broad|stocky",
     "muscular": 0.0-1.0,    // Muscle definition (0=none, 1=bodybuilder)
     "fat": 0.0-1.0,         // Body fat (0=thin, 1=overweight)
-    "height": 0.7-1.3,      // Height multiplier (1.0=normal)
-    "shoulderWidth": 0.7-1.5, // Shoulder width (1.0=normal)
-    "hipWidth": 0.7-1.3     // Hip width (1.0=normal)
+    "height": -0.5 to +0.5, // Height delta (0=normal, +0.5=tall, -0.3=short)
+    "shoulderWidth": -1.0 to +1.0, // Shoulder width delta (+1=broad warrior, -1=narrow mage)
+    "hipWidth": -1.0 to +1.0     // Hip width delta (+0.5=wide, -0.5=narrow)
   },
   "style": {
     "proportionType": "stylized|chibi|sd|mobile|minifig|cartoon|realistic",
@@ -254,20 +254,51 @@ Analyze the user's character description and output a STRICT JSON object with ex
 ## Mapping Rules
 
 ### Character Archetypes → Body Type Presets
-IMPORTANT: USE MAXIMUM VALUES (1.0) for dramatic visual differences! Don't be conservative!
-| Archetype Keywords | Body Preset | Muscular | Fat | Shoulders | Style |
-|-------------------|-------------|----------|-----|-----------|-------|
-| 강력한/powerful/strong | heroic | 1.0 | 0.0 | 1.5 | stylized |
-| 전사/warrior/fighter | muscular | 1.0 | 0.0 | 1.4 | stylized |
-| 기사/knight/paladin | muscular | 0.9 | 0.1 | 1.4 | realistic |
-| 마법사/mage/wizard | thin | 0.0 | 0.0 | 0.7 | stylized |
-| 도적/rogue/assassin | athletic | 0.6 | 0.0 | 1.0 | stylized |
-| 로봇/robot/mech | muscular | 0.8 | 0.0 | 1.3 | stylized |
-| 몬스터/monster/beast | broad | 1.0 | 0.5 | 1.5 | cartoon |
-| 치비/chibi/cute | chibi | 0.0 | 0.3 | 0.7 | chibi |
-| 날씬한/slim/slender | slim | 0.0 | 0.0 | 0.7 | stylized |
-| 뚱뚱한/fat/heavy | stocky | 0.0 | 1.0 | 1.0 | cartoon |
-| 영웅/hero | heroic | 1.0 | 0.0 | 1.5 | stylized |
+CRITICAL: Body proportions MUST vary dramatically based on BOTH archetype AND gender!
+- Warriors/Knights = broad shoulders (+), muscular
+- Mages/Wizards = narrow shoulders (-), thin
+- Female characters = narrower shoulders than male equivalents
+- Use EXTREME delta values for clear visual distinction!
+
+NOTE: shoulderWidth and hipWidth use DELTA format (-1.0 to +1.0):
+- 0.0 = normal width
+- +1.0 = maximum wide (about 45% wider)
+- -1.0 = minimum narrow (about 45% narrower)
+
+#### Male Characters (남성)
+| Archetype Keywords | Body Preset | Muscular | Fat | Shoulders | HipWidth | Height |
+|-------------------|-------------|----------|-----|-----------|----------|--------|
+| 전사/warrior/fighter | muscular | 1.0 | 0.0 | +1.0 | -0.2 | 0.1 |
+| 기사/knight/paladin | heroic | 0.9 | 0.1 | +1.0 | 0.0 | 0.15 |
+| 마법사/mage/wizard | thin | 0.1 | 0.0 | -0.8 | -0.2 | 0.05 |
+| 도적/rogue/assassin | athletic | 0.5 | 0.0 | 0.0 | -0.2 | 0.0 |
+| 로봇/robot/mech | muscular | 0.8 | 0.0 | +0.8 | 0.0 | 0.1 |
+| 야만인/barbarian | heroic | 1.0 | 0.1 | +1.0 | 0.0 | 0.2 |
+| 궁수/archer/ranger | athletic | 0.4 | 0.0 | +0.2 | -0.2 | 0.05 |
+
+#### Female Characters (여성)
+| Archetype Keywords | Body Preset | Muscular | Fat | Shoulders | HipWidth | Height |
+|-------------------|-------------|----------|-----|-----------|----------|--------|
+| 여전사/female warrior | athletic | 0.6 | 0.0 | +0.3 | +0.2 | 0.0 |
+| 여기사/female knight | athletic | 0.5 | 0.0 | +0.2 | +0.1 | 0.0 |
+| 여마법사/female mage/sorceress | slim | 0.0 | 0.0 | -1.0 | +0.3 | -0.05 |
+| 여도적/female rogue | slim | 0.3 | 0.0 | -0.5 | 0.0 | -0.05 |
+| 여궁수/female archer | slim | 0.2 | 0.0 | -0.3 | +0.1 | -0.02 |
+| 공주/princess | slim | 0.0 | 0.0 | -0.8 | +0.3 | -0.05 |
+| 마녀/witch | thin | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+
+#### Universal (성별 무관)
+| Archetype Keywords | Body Preset | Muscular | Fat | Shoulders | HipWidth | Height |
+|-------------------|-------------|----------|-----|-----------|----------|--------|
+| 강력한/powerful/strong | heroic | 1.0 | 0.0 | +1.0 | 0.0 | 0.15 |
+| 몬스터/monster/beast | broad | 1.0 | 0.5 | +1.0 | +0.5 | 0.3 |
+| 치비/chibi/cute | chibi | 0.0 | 0.3 | -0.5 | 0.0 | -0.3 |
+| 날씬한/slim/slender | slim | 0.0 | 0.0 | -0.5 | 0.0 | 0.0 |
+| 뚱뚱한/fat/heavy | stocky | 0.0 | 1.0 | +0.2 | +0.6 | -0.05 |
+| 영웅/hero | heroic | 1.0 | 0.0 | +1.0 | 0.0 | 0.1 |
+| 거인/giant | heroic | 0.8 | 0.2 | +0.8 | +0.2 | 0.5 |
+| 드워프/dwarf | stocky | 0.7 | 0.3 | +0.6 | +0.2 | -0.3 |
+| 엘프/elf | slim | 0.2 | 0.0 | -0.4 | -0.2 | 0.1 |
 
 ### Armor Style Mappings
 | Keywords | Armor Style | Equipment Set |
@@ -318,21 +349,21 @@ IMPORTANT: USE MAXIMUM VALUES (1.0) for dramatic visual differences! Don't be co
 
 ## Examples
 
-Input: "강력한 전사"
+Input: "강력한 전사" (powerful male warrior - VERY BROAD shoulders)
 Output:
 {
-  "bodyType": {"preset": "heroic", "muscular": 1.0, "fat": 0.0, "height": 1.15, "shoulderWidth": 1.5, "hipWidth": 1.0},
+  "bodyType": {"preset": "heroic", "muscular": 1.0, "fat": 0.0, "height": 0.15, "shoulderWidth": 1.0, "hipWidth": 0.0},
   "style": {"proportionType": "stylized", "polyLevel": "medium", "gender": "male"},
   "shader": {"baseColor": [0.5, 0.5, 0.55], "metallic": 0.95, "roughness": 0.2, "edgeBrightness": 1.5, "cavityDarkness": 0.5, "fresnelStrength": 0.4, "stylePreset": "heroic"},
   "equipment": {"helmet": "Knight_Helmet", "shoulders": "Knight_Shoulder", "chest": "Knight_Chestplate", "gauntlets": "Knight_Gauntlet", "boots": "Heavy_Boots", "weapon": "Knight_Sword", "shield": "Knight_Shield", "armorStyle": "plate"},
   "archetype": "warrior",
-  "description": "Powerful warrior with full plate armor and massive muscular build"
+  "description": "Powerful warrior with full plate armor and massive muscular build, very broad shoulders"
 }
 
 Input: "빨간 로봇"
 Output:
 {
-  "bodyType": {"preset": "default", "muscular": 0.3, "fat": 0.0, "height": 1.0, "shoulderWidth": 1.1, "hipWidth": 0.95},
+  "bodyType": {"preset": "default", "muscular": 0.3, "fat": 0.0, "height": 0.0, "shoulderWidth": 0.3, "hipWidth": 0.0},
   "style": {"proportionType": "stylized", "polyLevel": "medium", "gender": "neutral"},
   "shader": {"baseColor": [0.8, 0.2, 0.2], "metallic": 0.95, "roughness": 0.2, "edgeBrightness": 1.5, "cavityDarkness": 0.3, "fresnelStrength": 0.4, "stylePreset": "stylized"},
   "equipment": {"helmet": "SciFi_Helmet", "shoulders": "SciFi_Shoulder", "chest": "SciFi_Chestplate", "gauntlets": null, "boots": "SciFi_Boots", "weapon": null, "shield": null, "armorStyle": "scifi"},
@@ -343,12 +374,34 @@ Output:
 Input: "귀여운 치비 마법사"
 Output:
 {
-  "bodyType": {"preset": "chibi", "muscular": 0.0, "fat": 0.2, "height": 0.75, "shoulderWidth": 0.8, "hipWidth": 0.9},
+  "bodyType": {"preset": "chibi", "muscular": 0.0, "fat": 0.2, "height": -0.25, "shoulderWidth": -0.5, "hipWidth": 0.0},
   "style": {"proportionType": "chibi", "polyLevel": "medium", "gender": "neutral"},
   "shader": {"baseColor": [0.6, 0.2, 0.8], "metallic": 0.1, "roughness": 0.7, "edgeBrightness": 0.9, "cavityDarkness": 0.5, "fresnelStrength": 0.5, "stylePreset": "chibi"},
   "equipment": {"helmet": "Light_Hood", "shoulders": null, "chest": null, "gauntlets": null, "boots": null, "weapon": "Staff", "shield": null, "armorStyle": "cloth"},
   "archetype": "mage",
   "description": "Cute chibi mage with purple robes and staff"
+}
+
+Input: "여마법사" (female mage - VERY NARROW shoulders, -1.0!)
+Output:
+{
+  "bodyType": {"preset": "slim", "muscular": 0.0, "fat": 0.0, "height": -0.05, "shoulderWidth": -1.0, "hipWidth": 0.3},
+  "style": {"proportionType": "stylized", "polyLevel": "medium", "gender": "female"},
+  "shader": {"baseColor": [0.5, 0.3, 0.7], "metallic": 0.1, "roughness": 0.7, "edgeBrightness": 0.9, "cavityDarkness": 0.4, "fresnelStrength": 0.5, "stylePreset": "stylized"},
+  "equipment": {"helmet": "Light_Hood", "shoulders": null, "chest": null, "gauntlets": null, "boots": null, "weapon": "Staff", "shield": null, "armorStyle": "cloth"},
+  "archetype": "mage",
+  "description": "Female mage with slim build and very narrow shoulders"
+}
+
+Input: "여전사" (female warrior - moderately broad, less than male warrior)
+Output:
+{
+  "bodyType": {"preset": "athletic", "muscular": 0.6, "fat": 0.0, "height": 0.0, "shoulderWidth": 0.3, "hipWidth": 0.2},
+  "style": {"proportionType": "stylized", "polyLevel": "medium", "gender": "female"},
+  "shader": {"baseColor": [0.6, 0.55, 0.5], "metallic": 0.8, "roughness": 0.3, "edgeBrightness": 1.2, "cavityDarkness": 0.4, "fresnelStrength": 0.4, "stylePreset": "stylized"},
+  "equipment": {"helmet": null, "shoulders": "Knight_Shoulder", "chest": "Knight_Chestplate", "gauntlets": "Knight_Gauntlet", "boots": "Heavy_Boots", "weapon": "Knight_Sword", "shield": null, "armorStyle": "plate"},
+  "archetype": "warrior",
+  "description": "Female warrior with athletic build - muscular but narrower shoulders than male (+0.3 vs +1.0)"
 }
 
 ## Rules
@@ -357,7 +410,18 @@ Output:
 3. Use null for equipment slots that should be empty
 4. Match Korean keywords first, then English
 5. Combine multiple attributes when present (e.g., "강력한 빨간 기사" = powerful + red + knight)
-6. Default to "stylized" proportionType and "medium" polyLevel if not specified`;
+6. Default to "stylized" proportionType and "medium" polyLevel if not specified
+7. CRITICAL - shoulderWidth/hipWidth use DELTA format:
+   - Use +1.0 for maximum broad (warriors, knights, heroes)
+   - Use -1.0 for minimum narrow (mages, witches, princesses)
+   - Male characters: broader shoulders, narrower hips
+   - Female characters: narrower shoulders, wider hips
+8. CRITICAL - Gender-aware body proportions:
+   - Male warriors/knights: shoulderWidth +1.0, muscular 0.8-1.0
+   - Female warriors/knights: shoulderWidth +0.3, muscular 0.5-0.6
+   - Male mages: shoulderWidth -0.8, thin build
+   - Female mages: shoulderWidth -1.0, slim build with wider hips (+0.3)
+   - Always set gender field based on context (male/female/neutral)`;
 
 // ============================================================
 // AKKU LOW-POLY SDK SYSTEM PROMPT
@@ -764,9 +828,9 @@ function validateSDKParameters(params: AkkuSDKParameters): AkkuSDKParameters {
       preset: validateEnum<BodyPreset>(params.bodyType?.preset, VALID_BODY_PRESETS, "default"),
       muscular: clamp(params.bodyType?.muscular ?? 0.3, 0, 1),
       fat: clamp(params.bodyType?.fat ?? 0.1, 0, 1),
-      height: clamp(params.bodyType?.height ?? 1.0, 0.7, 1.3),
-      shoulderWidth: clamp(params.bodyType?.shoulderWidth ?? 1.0, 0.7, 1.5),
-      hipWidth: clamp(params.bodyType?.hipWidth ?? 1.0, 0.7, 1.3),
+      height: clamp(params.bodyType?.height ?? 0.0, -0.5, 0.5),
+      shoulderWidth: clamp(params.bodyType?.shoulderWidth ?? 0.0, -1.0, 1.0),
+      hipWidth: clamp(params.bodyType?.hipWidth ?? 0.0, -1.0, 1.0),
     },
     style: {
       proportionType: validateEnum<ProportionType>(params.style?.proportionType, VALID_PROPORTION_TYPES, "stylized"),
@@ -866,19 +930,40 @@ function getDefaultSDKParameters(prompt: string): AkkuSDKParameters {
     baseColor = [0.6, 0.2, 0.8];
   }
   
+  // Determine gender from prompt
+  const isFemale = lowerPrompt.includes("여") || lowerPrompt.includes("female") || 
+                   lowerPrompt.includes("girl") || lowerPrompt.includes("princess") ||
+                   lowerPrompt.includes("마녀") || lowerPrompt.includes("witch");
+  const gender: Gender = isFemale ? "female" : "neutral";
+  
+  // Calculate shoulder width based on archetype and gender (delta format: -1.0 to +1.0)
+  let shoulderWidth = 0.0;  // default: neutral
+  let hipWidth = 0.0;
+  
+  if (archetype === "warrior" || archetype === "knight") {
+    shoulderWidth = isFemale ? 0.3 : 1.0;  // Female warrior: moderate, Male warrior: maximum
+    hipWidth = isFemale ? 0.2 : -0.2;
+  } else if (archetype === "mage") {
+    shoulderWidth = isFemale ? -1.0 : -0.8;  // Female mage: minimum, Male mage: narrow
+    hipWidth = isFemale ? 0.3 : 0.0;
+  } else if (archetype === "chibi") {
+    shoulderWidth = -0.5;
+    hipWidth = 0.0;
+  }
+  
   return {
     bodyType: {
       preset: bodyPreset,
       muscular: muscular,
       fat: 0.1,
-      height: 1.0,
-      shoulderWidth: muscular > 0.5 ? 1.2 : 1.0,
-      hipWidth: 1.0,
+      height: 0.0,  // delta: 0 = normal
+      shoulderWidth: shoulderWidth,
+      hipWidth: hipWidth,
     },
     style: {
       proportionType: proportionType,
       polyLevel: "medium",
-      gender: "neutral",
+      gender: gender,
     },
     shader: {
       baseColor: baseColor,
