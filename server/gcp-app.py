@@ -146,13 +146,44 @@ def generate():
             try:
                 gemini_params = json.loads(gemini_params_raw) if isinstance(gemini_params_raw, str) else gemini_params_raw
                 print(f"[Gemini] Received analyzed params: archetype={gemini_params.get('archetype', 'unknown')}")
+                
+                # Override style/polyLevel from Gemini analysis if available
+                if gemini_params.get('style'):
+                    gemini_style = gemini_params['style']
+                    if gemini_style.get('proportionType'):
+                        style = gemini_style['proportionType']
+                        print(f"[Gemini] Using analyzed style: {style}")
+                    if gemini_style.get('polyLevel'):
+                        poly_level = gemini_style['polyLevel']
+                        print(f"[Gemini] Using analyzed polyLevel: {poly_level}")
+                    if gemini_style.get('gender'):
+                        gender = gemini_style['gender']
+                        print(f"[Gemini] Using analyzed gender: {gender}")
+                
+                # Override equipment from Gemini analysis if available
+                if gemini_params.get('equipment'):
+                    armor_style = gemini_params['equipment'].get('armorStyle', 'none')
+                    equipment_map = {
+                        'plate': 'armor', 'heavy': 'armor', 'scifi': 'armor',
+                        'cloth': 'robe', 'magic': 'robe', 'light': 'robe', 'leather': 'robe',
+                        'none': 'default'
+                    }
+                    equipment = equipment_map.get(armor_style, 'default')
+                    print(f"[Gemini] Using analyzed equipment: {equipment} (from armorStyle: {armor_style})")
+                    
             except (json.JSONDecodeError, TypeError):
                 print(f"[Gemini] Failed to parse geminiParams")
                 gemini_params = None
         
-        # Parse bodyType - can be JSON string with detailed params or simple preset name
+        # Parse bodyType - prefer gemini_params.bodyType over request bodyType
         body_type_params = None
-        if isinstance(body_type_raw, str):
+        
+        # First priority: Use Gemini analyzed bodyType if available
+        if gemini_params and gemini_params.get('bodyType'):
+            body_type_params = gemini_params.get('bodyType')
+            print(f"[Gemini] Using analyzed bodyType: {body_type_params}")
+        # Fallback: Parse from request body
+        elif isinstance(body_type_raw, str):
             try:
                 body_type_params = json.loads(body_type_raw)
             except (json.JSONDecodeError, TypeError):

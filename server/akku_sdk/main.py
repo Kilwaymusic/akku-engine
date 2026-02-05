@@ -151,10 +151,22 @@ def generate_procedural_base(
 
 
 @tool("apply_style", "Apply style-based transformations")
-def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium"):
-    """Apply style transformations based on prompt analysis"""
+def apply_style(prompt: str, style: str = "stylized", poly_level: str = "medium", base_color: list = None):
+    """Apply style transformations based on prompt analysis
     
-    base_color = StyleAnalyzer.detect_color(prompt)
+    Args:
+        prompt: Character description for style detection
+        style: Style preset (stylized, chibi, etc.)
+        poly_level: Polygon complexity level
+        base_color: Optional RGB color [r, g, b] from Gemini analysis (0.0-1.0 range)
+    """
+    
+    # Use provided color or detect from prompt
+    if base_color and isinstance(base_color, (list, tuple)) and len(base_color) >= 3:
+        base_color = tuple(base_color[:3])
+        AkkuLogger.info("Using provided base color from Gemini", {"color": base_color})
+    else:
+        base_color = StyleAnalyzer.detect_color(prompt)
     archetype = StyleAnalyzer.detect_archetype(prompt)
     proportion_scale = StyleAnalyzer.get_proportion_scale(style)
     poly_settings = StyleAnalyzer.get_poly_settings(poly_level)
@@ -501,7 +513,8 @@ def generate_character(
     body_type_params: dict = None,
     use_remesh: bool = False,
     use_procedural: bool = True,
-    equipment: str = "default"
+    equipment: str = "default",
+    base_color: list = None
 ):
     """Generate a complete low-poly character from prompt.
     
@@ -516,6 +529,7 @@ def generate_character(
         use_remesh: Whether to apply voxel remesh
         use_procedural: Use procedural mesh generation (default: True, False = legacy Mixamo)
         equipment: Equipment type for vertex colors (armor, robe, default)
+        base_color: RGB color [r, g, b] from Gemini analysis (0.0-1.0 range)
     """
     
     if equipment == "default":
@@ -583,11 +597,17 @@ def generate_character(
                 "body_type": body_type
             })
     
-    style_result = ToolRegistry.execute("apply_style", {
+    style_params = {
         "prompt": prompt,
         "style": style,
         "poly_level": poly_level
-    })
+    }
+    # Use Gemini-analyzed color if provided
+    if base_color:
+        style_params["base_color"] = base_color
+        AkkuLogger.info("Using Gemini-analyzed base color", {"color": base_color})
+    
+    style_result = ToolRegistry.execute("apply_style", style_params)
     if style_result["status"] == "error":
         raise RuntimeError(f"Style failed: {style_result['message']}")
     
@@ -725,6 +745,13 @@ def main():
             AkkuLogger.info("Failed to parse Gemini params, using defaults")
             gemini_params = None
     
+    # Extract color from Gemini params if available
+    gemini_color = None
+    if gemini_params and "shader" in gemini_params:
+        gemini_color = gemini_params["shader"].get("baseColor")
+        if gemini_color:
+            AkkuLogger.info("Using Gemini-analyzed color", {"color": gemini_color})
+    
     # Parse body type - can be JSON with detailed params or simple preset name
     body_type_params = None
     body_type = "auto"
@@ -740,7 +767,7 @@ def main():
         body_type_params = {"preset": body_type_raw}
     
     try:
-        result = ToolRegistry.execute("generate_character", {
+        generate_params = {
             "prompt": prompt,
             "style": style,
             "use_procedural": True,
@@ -751,7 +778,13 @@ def main():
             "body_type_params": body_type_params,
             "use_remesh": use_remesh,
             "equipment": equipment
-        })
+        }
+        
+        # Add Gemini-analyzed color if available
+        if gemini_color:
+            generate_params["base_color"] = gemini_color
+        
+        result = ToolRegistry.execute("generate_character", generate_params)
         
         if result["status"] == "success":
             print(f"\n[Akku SDK] Generation completed successfully!")
