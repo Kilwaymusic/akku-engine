@@ -670,9 +670,29 @@ class ProceduralHumanoid:
         hand_len = arm_length * 0.1
         arm_thick = limb_thickness * 0.6  # Thinner arms
         
-        for side_face, direction, side in [(f_left, Vector((-1, 0, 0)), "left"), 
-                                            (f_right, Vector((1, 0, 0)), "right")]:
-            if not side_face.is_valid:
+        # Re-find side faces at shoulder level (faces may have been invalidated)
+        # Look for faces with X-facing normals at the shoulder Z level
+        shoulder_z = torso_top_z - torso_height * 0.1  # Just below shoulder top
+        new_f_left = None
+        new_f_right = None
+        
+        for f in bm.faces:
+            if not f.is_valid:
+                continue
+            center = f.calc_center_median()
+            # Check if face is at shoulder level
+            if abs(center.z - shoulder_z) < torso_height * 0.3:
+                normal = f.normal
+                # Left face has normal pointing -X
+                if normal.x < -0.5 and new_f_left is None:
+                    new_f_left = f
+                # Right face has normal pointing +X  
+                elif normal.x > 0.5 and new_f_right is None:
+                    new_f_right = f
+        
+        for side_face, direction, side in [(new_f_left, Vector((-1, 0, 0)), "left"), 
+                                            (new_f_right, Vector((1, 0, 0)), "right")]:
+            if side_face is None or not side_face.is_valid:
                 continue
                 
             direction = direction.normalized()
