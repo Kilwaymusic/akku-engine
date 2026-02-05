@@ -1542,14 +1542,14 @@ Generate the complete Blender Python code now. Output ONLY the Python code, noth
     validationErrors.push("Missing 'bmesh' operations");
   }
   
-  // Required structure
-  if (!code.includes("def create_character") && !code.includes("def create_")) {
-    validationErrors.push("Missing create_character() or create_* function");
-  }
-  
-  // Check for mesh creation
+  // Check for mesh creation (function not required for simple template approach)
   if (!code.includes("bpy.data.meshes.new") && !code.includes("bmesh.new()")) {
     validationErrors.push("Missing mesh creation");
+  }
+  
+  // Check for object creation
+  if (!code.includes("bpy.data.objects.new")) {
+    validationErrors.push("Missing object creation");
   }
   
   // Security: Block dangerous modules
