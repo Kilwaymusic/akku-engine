@@ -78,10 +78,10 @@ const GENDER_OPTIONS = [
 ];
 
 const EXAMPLE_PROMPTS = [
-  "귀여운 고양이 캐릭터, 큰 눈, 분홍색 귀",
-  "SF 로봇 전사, 메탈릭 블루 아머",
-  "판타지 엘프 마법사, 녹색 로브",
-  "카툰 스타일 용, 날개와 뿔",
+  "로우폴리 기사 캐릭터, 은색 갑옷, 검을 들고 있음",
+  "귀여운 고양이 휴머노이드, 분홍색 귀, 큰 눈, 꼬리 있음",
+  "SF 로봇 전사, 메탈릭 블루, 각진 어깨, 바이저 헬멧",
+  "판타지 마법사 엘프, 뾰족한 귀, 보라색 로브, 지팡이",
 ];
 
 export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
