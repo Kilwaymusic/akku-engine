@@ -6,7 +6,7 @@ import { insertJobSchema } from "@shared/schema";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import path from "path";
 import { analyzeImage, attributesToGenerationOptions } from "./image-analyzer";
-import { mapPromptToParameters, analyzeScreenshotForRefinement, type AkkuSDKParameters, type ScreenshotAnalysis } from "./gemini";
+import { mapPromptToParameters, analyzeScreenshotForRefinement, generateBlenderCode, type AkkuSDKParameters, type ScreenshotAnalysis } from "./gemini";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
 
@@ -830,6 +830,192 @@ echo "Deployment complete!"
     } catch (error) {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to fetch screenshot" 
+      });
+    }
+  });
+
+  // ============================================================
+  // AUTONOMOUS 3D AGENT - Gemini Code Generation Endpoint
+  // ============================================================
+  
+  /**
+   * Generate character using Gemini-generated Blender Python code
+   * This is the creative agent mode - Gemini directly controls mesh creation
+   */
+  app.post("/api/jobs/agent", async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+      
+      console.log(`\n${"=".repeat(60)}`);
+      console.log(`[Autonomous 3D Agent] Starting generation`);
+      console.log(`${"=".repeat(60)}`);
+      console.log(`Prompt: ${prompt}`);
+      
+      // Step 1: Create job
+      const job = await storage.createJob({ 
+        prompt, 
+        style: "stylized", 
+        polyLevel: "medium" 
+      });
+      await storage.updateJob(job.id, { status: "processing" });
+      
+      console.log(`[Agent] Job created: ${job.id}`);
+      
+      // Step 2: Verify GCP Worker supports code execution
+      console.log(`[Agent] Checking GCP Worker capabilities...`);
+      try {
+        const healthResponse = await fetch(`${GCP_WORKER_URL}/health`, {
+          signal: AbortSignal.timeout(5000)
+        });
+        if (!healthResponse.ok) {
+          throw new Error("GCP Worker health check failed");
+        }
+        const healthData = await healthResponse.json() as { version?: string };
+        console.log(`[Agent] GCP Worker version: ${healthData.version}`);
+        
+        // Require version 5.0.0+ for code execution
+        if (!healthData.version || !healthData.version.startsWith("5.")) {
+          await storage.updateJob(job.id, { status: "failed" });
+          return res.status(503).json({
+            error: "GCP Worker outdated",
+            details: "Code execution requires GCP Worker v5.0.0+. Please update the worker."
+          });
+        }
+      } catch (healthError) {
+        console.error(`[Agent] GCP Worker health check failed:`, healthError);
+        await storage.updateJob(job.id, { status: "failed" });
+        return res.status(503).json({
+          error: "GCP Worker unavailable",
+          details: "Cannot connect to GCP Worker for code execution"
+        });
+      }
+      
+      // Step 3: Generate Blender code with Gemini
+      console.log(`[Agent] Generating Blender code with Gemini...`);
+      let blenderCode: string;
+      
+      try {
+        blenderCode = await generateBlenderCode(prompt);
+        console.log(`[Agent] Code generated: ${blenderCode.length} characters`);
+      } catch (codeError) {
+        console.error(`[Agent] Code generation failed:`, codeError);
+        await storage.updateJob(job.id, { 
+          status: "failed" 
+        });
+        return res.status(500).json({ 
+          error: "Failed to generate Blender code",
+          details: codeError instanceof Error ? codeError.message : String(codeError)
+        });
+      }
+      
+      // Step 4: Send code to GCP Worker for execution
+      console.log(`[Agent] Sending code to GCP Worker...`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), GCP_WORKER_TIMEOUT);
+      
+      try {
+        const gcpResponse = await fetch(`${GCP_WORKER_URL}/execute-code`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: blenderCode,
+            jobId: job.id,
+            prompt
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // Check if response is JSON
+        const contentType = gcpResponse.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await gcpResponse.text();
+          console.error(`[Agent] GCP Worker returned non-JSON response:`, text.substring(0, 200));
+          await storage.updateJob(job.id, { status: "failed" });
+          return res.status(500).json({
+            error: "GCP Worker returned invalid response",
+            details: gcpResponse.status === 404 
+              ? "Endpoint /execute-code not found - please update GCP Worker" 
+              : `Status ${gcpResponse.status}`
+          });
+        }
+        
+        const result = await gcpResponse.json() as { 
+          success: boolean; 
+          glb_path?: string; 
+          glb_filename?: string;
+          file_size?: number;
+          error?: string;
+          execution_time?: number;
+        };
+        
+        if (!result.success) {
+          console.error(`[Agent] Execution failed:`, result.error);
+          await storage.updateJob(job.id, { status: "failed" });
+          return res.status(500).json({ 
+            error: "Blender execution failed",
+            details: result.error
+          });
+        }
+        
+        console.log(`[Agent] GLB created: ${result.glb_filename} (${result.file_size} bytes)`);
+        
+        // Step 5: Fetch GLB from GCP Worker
+        const glbResponse = await fetch(`${GCP_WORKER_URL}/download/${result.glb_filename}`);
+        
+        if (!glbResponse.ok) {
+          throw new Error(`Failed to download GLB: ${glbResponse.status}`);
+        }
+        
+        const glbBuffer = await glbResponse.arrayBuffer();
+        
+        // Save locally
+        if (!existsSync(MODELS_DIR)) {
+          mkdirSync(MODELS_DIR, { recursive: true });
+        }
+        
+        const localPath = path.join(MODELS_DIR, `${job.id}.glb`);
+        writeFileSync(localPath, Buffer.from(glbBuffer));
+        
+        const modelUrl = `/models/${job.id}.glb`;
+        await storage.updateJob(job.id, { 
+          status: "completed", 
+          modelUrl 
+        });
+        
+        console.log(`[Agent] Completed! Model: ${modelUrl}`);
+        console.log(`${"=".repeat(60)}\n`);
+        
+        res.json({
+          success: true,
+          jobId: job.id,
+          modelUrl,
+          codeLength: blenderCode.length,
+          executionTime: result.execution_time
+        });
+        
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          console.error(`[Agent] Request timed out`);
+          await storage.updateJob(job.id, { status: "failed" });
+          return res.status(504).json({ error: "Request timed out" });
+        }
+        
+        throw fetchError;
+      }
+      
+    } catch (error) {
+      console.error(`[Autonomous 3D Agent] Error:`, error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Agent generation failed" 
       });
     }
   });

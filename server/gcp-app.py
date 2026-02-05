@@ -518,6 +518,139 @@ def get_glb(session_id, filename):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/execute-code', methods=['POST'])
+def execute_code():
+    """
+    Execute Gemini-generated Blender Python code
+    This is the core of the Autonomous 3D Agent - LLM directly controls Blender
+    """
+    try:
+        data = request.get_json()
+        
+        code = data.get('code', '')
+        job_id = data.get('jobId', str(uuid.uuid4()))
+        prompt = data.get('prompt', 'unknown')
+        
+        if not code:
+            return jsonify({"error": "No code provided"}), 400
+        
+        print(f"\n{'='*60}")
+        print(f"[Autonomous Agent] Executing Gemini-generated code")
+        print(f"{'='*60}")
+        print(f"  Job ID: {job_id}")
+        print(f"  Prompt: {prompt}")
+        print(f"  Code length: {len(code)} chars")
+        print(f"{'='*60}\n")
+        
+        # Create temporary Python script
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        script_path = f"/tmp/akku_script_{job_id}_{timestamp}.py"
+        output_filename = f"{job_id}_{timestamp}.glb"
+        output_path = os.path.join(OUTPUT_DIR, output_filename)
+        
+        # Wrap the code to add GLB export at the end
+        wrapped_code = f'''
+{code}
+
+# === AUTO-ADDED: Export to GLB ===
+import bpy
+output_path = "{output_path}"
+
+# Ensure we're in object mode
+if bpy.context.active_object and bpy.context.active_object.mode != 'OBJECT':
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+# Select all mesh objects
+bpy.ops.object.select_all(action='DESELECT')
+for obj in bpy.data.objects:
+    if obj.type == 'MESH':
+        obj.select_set(True)
+
+# Export as GLB
+bpy.ops.export_scene.gltf(
+    filepath=output_path,
+    export_format='GLB',
+    use_selection=True,
+    export_apply=True
+)
+
+print(f"[Akku] Exported to: {{output_path}}")
+'''
+        
+        # Write script to file
+        with open(script_path, 'w') as f:
+            f.write(wrapped_code)
+        
+        print(f"[Autonomous Agent] Script written to: {script_path}")
+        
+        # Execute in Blender
+        cmd = [
+            BLENDER_PATH,
+            "--background",
+            "--python", script_path
+        ]
+        
+        print(f"[Autonomous Agent] Running Blender...")
+        start_time = time.time()
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        
+        elapsed = time.time() - start_time
+        print(f"[Autonomous Agent] Blender completed in {elapsed:.2f}s")
+        
+        # Check output
+        if result.returncode != 0:
+            print(f"[ERROR] Blender stderr: {result.stderr}")
+            return jsonify({
+                "success": False,
+                "error": f"Blender execution failed: {result.stderr[:500]}",
+                "stdout": result.stdout[-1000:] if result.stdout else "",
+                "stderr": result.stderr[-1000:] if result.stderr else ""
+            }), 500
+        
+        # Verify GLB was created
+        if not os.path.exists(output_path):
+            return jsonify({
+                "success": False,
+                "error": "GLB file was not created",
+                "stdout": result.stdout[-1000:] if result.stdout else ""
+            }), 500
+        
+        file_size = os.path.getsize(output_path)
+        print(f"[Autonomous Agent] GLB created: {output_path} ({file_size} bytes)")
+        
+        # Cleanup temp script
+        try:
+            os.remove(script_path)
+        except:
+            pass
+        
+        return jsonify({
+            "success": True,
+            "glb_path": output_path,
+            "glb_filename": output_filename,
+            "file_size": file_size,
+            "execution_time": elapsed
+        })
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            "success": False,
+            "error": "Blender execution timed out (120s)"
+        }), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("Akku Engine GCP Worker v4.0")

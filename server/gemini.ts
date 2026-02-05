@@ -1329,3 +1329,237 @@ export async function runIterativeGeneration(
     analyses
   };
 }
+
+// ============================================================
+// BLENDER CODE GENERATION - Creative Mesh Generation
+// ============================================================
+
+const BLENDER_CODE_GENERATION_PROMPT = `You are an expert Blender Python developer and 3D character artist. Your task is to generate Blender Python code that creates a low-poly humanoid character based on the user's description.
+
+## CRITICAL DESIGN PRINCIPLES
+
+### 1. Extrude-First Methodology
+Create a SINGLE CONNECTED MESH - all body parts must be extruded from the base, NOT assembled from separate primitives:
+
+\`\`\`python
+# CORRECT: Extrude from base
+bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": (0, 0, height)})
+
+# WRONG: Separate primitives
+bpy.ops.mesh.primitive_cube_add()  # head
+bpy.ops.mesh.primitive_cube_add()  # body - DON'T DO THIS
+\`\`\`
+
+### 2. Low-Poly Game-Ready Style
+- Target: 500-2000 triangles total
+- Flat, faceted surfaces (like the reference image)
+- Clean topology for animation
+- No smooth shading - use flat shading
+
+### 3. Creative Interpretation
+Transform the prompt into visual features:
+- "늑대" (wolf) → Pointed ears extruded from head, elongated snout, wolf-like proportions
+- "로봇" (robot) → Angular/boxy shapes, mechanical joints
+- "오크" (orc) → Massive shoulders, jutting jaw, hunched posture
+- "요정" (fairy) → Delicate proportions, elongated ears, slender limbs
+
+## CODE STRUCTURE
+
+Your code MUST follow this exact structure:
+
+\`\`\`python
+import bpy
+import bmesh
+from mathutils import Vector, Matrix
+import math
+
+def create_character():
+    """Create the character mesh"""
+    
+    # Clear existing mesh objects
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in bpy.data.objects:
+        if obj.type == 'MESH':
+            obj.select_set(True)
+    bpy.ops.object.delete()
+    
+    # Create base mesh
+    mesh = bpy.data.meshes.new("Character")
+    obj = bpy.data.objects.new("Character", mesh)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    
+    # Create BMesh for mesh manipulation
+    bm = bmesh.new()
+    
+    # === YOUR CREATIVE MESH CODE HERE ===
+    # Use bmesh operations to build the character:
+    # - bmesh.ops.create_cube(bm, size=1.0) for base torso
+    # - bm.faces.ensure_lookup_table()
+    # - bmesh.ops.extrude_face_region() for limbs
+    # - bmesh.ops.translate() for positioning
+    # - bmesh.ops.scale() for proportions
+    
+    # Example: Create torso as starting point
+    bmesh.ops.create_cube(bm, size=0.5)
+    bmesh.ops.scale(bm, vec=(0.6, 0.3, 0.8), verts=bm.verts[:])
+    bmesh.ops.translate(bm, vec=(0, 0, 1.0), verts=bm.verts[:])
+    
+    # ... continue with head, limbs, features ...
+    
+    # Finalize mesh
+    bm.to_mesh(mesh)
+    bm.free()
+    
+    # Set flat shading for low-poly look
+    for poly in mesh.polygons:
+        poly.use_smooth = False
+    
+    # Apply material with vertex color
+    mat = bpy.data.materials.new(name="CharacterMaterial")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    
+    # Clear and rebuild nodes
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    # Set color (RGB 0-1)
+    bsdf.inputs['Base Color'].default_value = (0.5, 0.4, 0.3, 1.0)  # Adjust for character
+    bsdf.inputs['Roughness'].default_value = 0.8
+    links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    
+    obj.data.materials.append(mat)
+    
+    return obj
+
+# Execute
+create_character()
+\`\`\`
+
+## BMESH REFERENCE
+
+Key operations you can use:
+- \`bmesh.ops.create_cube(bm, size=1.0)\` - Create cube
+- \`bmesh.ops.create_cone(bm, segments=8, radius1=0.5, radius2=0, depth=1)\` - Create cone
+- \`bmesh.ops.extrude_face_region(bm, geom=[face])\` - Extrude faces
+- \`bmesh.ops.translate(bm, vec=(x,y,z), verts=verts)\` - Move vertices
+- \`bmesh.ops.scale(bm, vec=(x,y,z), verts=verts)\` - Scale vertices
+- \`bmesh.ops.rotate(bm, cent=(0,0,0), matrix=Matrix.Rotation(angle, 4, 'Z'), verts=verts)\`
+
+## IMPORTANT GUIDELINES
+
+1. Output ONLY valid Python code - no explanations before or after
+2. Code must be complete and executable in Blender 3.4+
+3. Create visually distinctive characters based on the prompt
+4. Use appropriate colors matching the character concept
+5. Keep polygon count low (game-ready)
+6. Character should be in T-pose or A-pose for rigging
+7. Character height should be approximately 1.8 units (human scale)
+
+## COLOR GUIDELINES
+- Brown/wolf: (0.4, 0.25, 0.15, 1.0)
+- Green/orc: (0.3, 0.5, 0.2, 1.0)
+- Blue/robot: (0.3, 0.4, 0.6, 1.0)
+- Gray/metal: (0.5, 0.5, 0.55, 1.0)
+- Skin tone: (0.8, 0.6, 0.5, 1.0)
+
+Remember: Be CREATIVE! Transform the prompt into a unique, visually interesting character.`;
+
+/**
+ * Generate Blender Python code for a character based on prompt
+ * This is the core of the Autonomous 3D Agent - Gemini directly controls Blender
+ */
+export async function generateBlenderCode(prompt: string): Promise<string> {
+  console.log(`[Gemini Code Gen] Generating Blender code for: "${prompt}"`);
+  
+  const response = await generateContentWithFallback(
+    "gemini-2.5-flash",
+    [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `${BLENDER_CODE_GENERATION_PROMPT}
+
+## USER REQUEST
+Create a character based on this description: "${prompt}"
+
+Generate the complete Blender Python code now. Output ONLY the Python code, nothing else.`
+          }
+        ]
+      }
+    ]
+  );
+  
+  const text = response.text || "";
+  
+  // Extract Python code from response (handle markdown code blocks)
+  let code = text;
+  
+  // Remove markdown code block markers if present
+  const codeBlockMatch = text.match(/```python\n?([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    code = codeBlockMatch[1];
+  } else {
+    // Try without language specifier
+    const genericBlockMatch = text.match(/```\n?([\s\S]*?)```/);
+    if (genericBlockMatch) {
+      code = genericBlockMatch[1];
+    }
+  }
+  
+  // Validate code has minimum required elements
+  const validationErrors: string[] = [];
+  
+  // Required imports
+  if (!code.includes("import bpy")) {
+    validationErrors.push("Missing 'import bpy'");
+  }
+  if (!code.includes("bmesh")) {
+    validationErrors.push("Missing 'bmesh' operations");
+  }
+  
+  // Required structure
+  if (!code.includes("def create_character") && !code.includes("def create_")) {
+    validationErrors.push("Missing create_character() or create_* function");
+  }
+  
+  // Check for mesh creation
+  if (!code.includes("bpy.data.meshes.new") && !code.includes("bmesh.new()")) {
+    validationErrors.push("Missing mesh creation");
+  }
+  
+  // Security: Block dangerous modules
+  const dangerousPatterns = [
+    /import\s+os(?:\s|$|\.)/,
+    /import\s+subprocess/,
+    /import\s+sys(?:\s|$|\.)/,
+    /from\s+os\s+import/,
+    /exec\s*\(/,
+    /eval\s*\(/,
+    /__import__/,
+    /open\s*\([^)]*['"](\/|\\)/,  // Absolute path file access
+    /shutil/,
+    /socket/,
+    /urllib/,
+    /requests/
+  ];
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(code)) {
+      validationErrors.push(`Security: Blocked pattern detected: ${pattern.source}`);
+    }
+  }
+  
+  if (validationErrors.length > 0) {
+    console.error("[Gemini Code Gen] Validation failed:", validationErrors);
+    throw new Error(`Generated code failed validation: ${validationErrors.join(", ")}`);
+  }
+  
+  console.log(`[Gemini Code Gen] Generated ${code.length} characters of code (validated)`);
+  
+  return code.trim();
+}

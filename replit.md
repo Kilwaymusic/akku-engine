@@ -55,19 +55,40 @@ Preferred communication style: Simple, everyday language.
 - **Parameter Schema**: AkkuSDKParameters interface with validated fields for bodyType (preset, muscular, fat, height), style (proportionType, polyLevel, gender), shader (baseColor, metallic, roughness), equipment (helmet, shoulders, chest, weapon)
 - **Korean Support**: Recognizes Korean keywords for archetypes (전사, 마법사, 기사, 도적) and body types
 
-### Autonomous 3D Agent (v4.0)
-- **Self-Verification Loop**: Iterative generation with Gemini VLM analysis
-- **Process Flow**:
-    1. Get initial parameters from `mapPromptToParameters()`
-    2. Generate character with GCP Worker (with screenshot capture)
-    3. Fetch screenshot and send to Gemini VLM for analysis
-    4. If not satisfactory, apply refinements and repeat (up to 3 iterations)
-    5. Return final GLB when satisfactory or max iterations reached
+### Autonomous 3D Agent (v5.0) - Code Generation Mode
+- **NEW: Gemini Code Generation**: Gemini directly generates Blender Python code based on prompts
+- **Creative Interpretation**: Unlike parameter-based approach, this allows true creative freedom:
+    - "갈색 늑대" → Gemini generates code for wolf ears, snout, proportions
+    - "로봇 전사" → Gemini generates code for angular, mechanical features
+    - Full bmesh operations for custom silhouettes
+- **Process Flow (Code Generation)**:
+    1. User submits prompt (e.g., "남성, 갈색 늑대")
+    2. `generateBlenderCode()` sends prompt to Gemini with bmesh reference
+    3. Gemini generates complete Blender Python script using bmesh operations
+    4. Code sent to GCP Worker `/execute-code` endpoint
+    5. GCP Worker executes code in Blender and exports GLB
+    6. GLB returned to Replit and served to frontend
 - **Endpoints**:
-    - `POST /api/jobs/iterative`: Orchestrates the full iterative loop
+    - `POST /api/jobs/agent`: Autonomous code generation mode (NEW)
+    - `POST /api/jobs/iterative`: Parameter-based iterative loop (legacy)
     - `GET /api/iterative/:sessionId/screenshot/:iteration`: Fetch iteration screenshot
+- **Code Safety**: Generated code is wrapped with auto-export and executed in headless Blender
 - **Screenshot Handler**: Headless-safe Eevee rendering with auto-framing based on mesh bounds
 - **LLM-Friendly Tools**: JSON schemas in LLM_TOOLS.md for SDK tool documentation
+
+### Bone Naming Convention
+- **Standard**: All procedural humanoids use `mixamorig:` prefix for bone names
+- **Examples**: `mixamorig:Head`, `mixamorig:Spine2`, `mixamorig:LeftShoulder`
+- **Purpose**: Ensures compatibility with Kitbash equipment attachment and Mixamo animations
+
+### Security Considerations (Code Generation Mode)
+- **Current Status**: Internal/development use only
+- **Code Validation**: Blocklist for dangerous modules (os, subprocess, exec, eval, socket, etc.)
+- **Required Validation**: Structure checks for create_character() function and bmesh operations
+- **Future Improvements** (for production):
+    - AST-based validation with allowlisted nodes
+    - Container/sandbox isolation for code execution
+    - Strict templated code generation instead of freeform LLM output
 
 ### Build System
 - **Client**: Vite for React application.
