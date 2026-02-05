@@ -665,35 +665,35 @@ class ProceduralHumanoid:
         bm.verts.ensure_lookup_table()
         
         # === PHASE 3: Extrude arms from side faces ===
-        upper_arm_len = arm_length * 0.45
-        lower_arm_len = arm_length * 0.45
+        upper_arm_len = arm_length * 0.5
+        lower_arm_len = arm_length * 0.4
         hand_len = arm_length * 0.1
-        arm_thick = limb_thickness * 0.8
+        arm_thick = limb_thickness * 0.6  # Thinner arms
         
-        for side_face, direction, side in [(f_left, Vector((-1, 0, -0.2)), "left"), 
-                                            (f_right, Vector((1, 0, -0.2)), "right")]:
+        for side_face, direction, side in [(f_left, Vector((-1, 0, 0)), "left"), 
+                                            (f_right, Vector((1, 0, 0)), "right")]:
             if not side_face.is_valid:
                 continue
                 
             direction = direction.normalized()
             
-            # Extrude shoulder
+            # Extrude shoulder (small bump)
             shoulder_result = bmesh.ops.extrude_face_region(bm, geom=[side_face])
             shoulder_verts = [v for v in shoulder_result['geom'] if isinstance(v, bmesh.types.BMVert)]
             
-            # Move and scale for shoulder
-            bmesh.ops.translate(bm, verts=shoulder_verts, vec=direction * (shoulder_width * 0.15))
+            # Move shoulder outward (smaller distance)
+            bmesh.ops.translate(bm, verts=shoulder_verts, vec=direction * (shoulder_width * 0.08))
             
-            # Scale shoulder
+            # Scale shoulder down significantly (thinner connection)
             shoulder_center = sum((v.co for v in shoulder_verts), Vector()) / len(shoulder_verts)
             for v in shoulder_verts:
                 diff = v.co - shoulder_center
-                diff *= 0.5
+                diff *= 0.35  # Much smaller shoulder
                 v.co = shoulder_center + diff
             
             bm.faces.ensure_lookup_table()
             
-            # Find shoulder end face
+            # Find shoulder end face (facing outward)
             shoulder_end_face = None
             for f in bm.faces:
                 if f.is_valid and all(v in shoulder_verts for v in f.verts):
@@ -705,17 +705,18 @@ class ProceduralHumanoid:
             if not shoulder_end_face:
                 continue
             
-            # Extrude upper arm
+            # Extrude upper arm (more downward angle)
             upper_result = bmesh.ops.extrude_face_region(bm, geom=[shoulder_end_face])
             upper_verts = [v for v in upper_result['geom'] if isinstance(v, bmesh.types.BMVert)]
-            arm_dir = Vector((-1 if side == "left" else 1, 0.1, -0.4)).normalized()
+            # More downward angle: X outward, Z down significantly
+            arm_dir = Vector((-1 if side == "left" else 1, 0.05, -0.6)).normalized()
             bmesh.ops.translate(bm, verts=upper_verts, vec=arm_dir * upper_arm_len)
             
             # Taper upper arm
             upper_center = sum((v.co for v in upper_verts), Vector()) / len(upper_verts)
             for v in upper_verts:
                 diff = v.co - upper_center
-                diff *= 0.8
+                diff *= 0.7  # Thinner
                 v.co = upper_center + diff
             
             bm.faces.ensure_lookup_table()
@@ -730,17 +731,18 @@ class ProceduralHumanoid:
             if not upper_end_face:
                 continue
             
-            # Extrude lower arm
+            # Extrude lower arm (continues downward)
             lower_result = bmesh.ops.extrude_face_region(bm, geom=[upper_end_face])
             lower_verts = [v for v in lower_result['geom'] if isinstance(v, bmesh.types.BMVert)]
-            lower_dir = Vector((-1 if side == "left" else 1, 0.15, -0.3)).normalized()
+            # Slightly forward and down
+            lower_dir = Vector((-1 if side == "left" else 1, 0.1, -0.5)).normalized()
             bmesh.ops.translate(bm, verts=lower_verts, vec=lower_dir * lower_arm_len)
             
-            # Taper lower arm
+            # Taper lower arm (thinner at wrist)
             lower_center = sum((v.co for v in lower_verts), Vector()) / len(lower_verts)
             for v in lower_verts:
                 diff = v.co - lower_center
-                diff *= 0.7
+                diff *= 0.6  # Thinner at wrist
                 v.co = lower_center + diff
             
             bm.faces.ensure_lookup_table()
@@ -755,7 +757,8 @@ class ProceduralHumanoid:
             if lower_end_face:
                 hand_result = bmesh.ops.extrude_face_region(bm, geom=[lower_end_face])
                 hand_verts = [v for v in hand_result['geom'] if isinstance(v, bmesh.types.BMVert)]
-                hand_dir = Vector((-1 if side == "left" else 1, 0.2, -0.2)).normalized()
+                # Hand goes slightly forward
+                hand_dir = Vector((-1 if side == "left" else 1, 0.3, -0.2)).normalized()
                 bmesh.ops.translate(bm, verts=hand_verts, vec=hand_dir * hand_len)
         
         bm.faces.ensure_lookup_table()

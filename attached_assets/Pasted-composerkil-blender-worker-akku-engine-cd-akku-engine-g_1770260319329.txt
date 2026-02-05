@@ -1,0 +1,37 @@
+composerkil@blender-worker:~/akku-engine$ cd ~/akku-engine
+git pull origin main
+pkill -f gcp-app.py
+nohup python3 server/gcp-app.py > flask.log 2>&1 &
+[1]-  Done                    nohup python3 server/gcp-app.py > flask.log 2>&1
+remote: Enumerating objects: 31, done.
+remote: Counting objects: 100% (31/31), done.
+remote: Compressing objects: 100% (9/9), done.
+remote: Total 22 (delta 13), reused 22 (delta 13), pack-reused 0 (from 0)
+Unpacking objects: 100% (22/22), 1.66 MiB | 9.18 MiB/s, done.
+From https://github.com/Kilwaymusic/akku-engine
+ * branch            main       -> FETCH_HEAD
+   d557293..ff96a72  main       -> origin/main
+Updating d557293..ff96a72
+Fast-forward
+ ...erkil-blender-worker-akku-engine-tail-50-akku-eng_1770259518682.txt |   2 +
+ attached_assets/image_1770259611194.png                                | Bin 0 -> 144655 bytes
+ attached_assets/image_1770259705403.png                                | Bin 0 -> 144655 bytes
+ attached_assets/image_1770259725258.png                                | Bin 0 -> 309742 bytes
+ attached_assets/image_1770259776050.png                                | Bin 0 -> 320841 bytes
+ attached_assets/image_1770259788258.png                                | Bin 0 -> 244021 bytes
+ attached_assets/image_1770259811835.png                                | Bin 0 -> 712280 bytes
+ public/models/5d2c7f58-921a-4fc1-81dc-646b4298b780.glb                 | Bin 0 -> 15516 bytes
+ public/outputs/5d2c7f58-921a-4fc1-81dc-646b4298b780.glb                | Bin 0 -> 15516 bytes
+ replit.md                                                              |   2 +-
+ server/akku_sdk/procedural.py                                          | 115 +++++++++++++++++++++++----------
+ 11 files changed, 84 insertions(+), 35 deletions(-)
+ create mode 100644 attached_assets/Pasted-composerkil-blender-worker-akku-engine-tail-50-akku-eng_1770259518682.txt
+ create mode 100644 attached_assets/image_1770259611194.png
+ create mode 100644 attached_assets/image_1770259705403.png
+ create mode 100644 attached_assets/image_1770259725258.png
+ create mode 100644 attached_assets/image_1770259776050.png
+ create mode 100644 attached_assets/image_1770259788258.png
+ create mode 100644 attached_assets/image_1770259811835.png
+ create mode 100644 public/models/5d2c7f58-921a-4fc1-81dc-646b4298b780.glb
+ create mode 100644 public/outputs/5d2c7f58-921a-4fc1-81dc-646b4298b780.glb
+[3] 14195
