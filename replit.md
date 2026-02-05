@@ -26,8 +26,13 @@ Preferred communication style: Simple, everyday language.
 
 ### 3D Model Generation Pipeline (GCP Worker)
 - **Architecture**: Leverages a remote GCP Worker server to run Blender for 3D model generation, bypassing local headless Blender limitations.
-- **Process**: The Replit backend sends a POST request with character parameters to the GCP Worker, which returns a GLB file.
-- **SDK**: Utilizes a modular Akku SDK (v3.8) for procedural character building, featuring:
+- **Process Flow**: 
+    1. Replit backend receives text prompt from user
+    2. Gemini analyzes prompt via `mapPromptToParameters()` to extract SDK parameters (bodyType, style, equipment, shader)
+    3. Parameters are sent to GCP Worker as `geminiParams` JSON
+    4. GCP Worker parses and passes parameters to Blender SDK
+    5. GLB file is returned to Replit and served to frontend
+- **SDK**: Utilizes a modular Akku SDK (v4.0) for procedural character building, featuring:
     - Procedural Humanoid Generation: Creates characters from scratch with various styles (realistic, stylized, chibi, etc.) and polygon levels (ultra_low to high). Includes auto-rigging.
     - BMesh Direct Manipulation Tools: Low-level mesh editing primitives for precise control.
     - Atomic Operations System: Feature-based SDK with operations like `RigAwareExtruder` and `EdgeLoopCutter`.
@@ -40,8 +45,13 @@ Preferred communication style: Simple, everyday language.
     - Body Type System: 12 presets with Korean language support, using lattice/vertex deformation.
 
 ### AI Integration (Gemini)
-- **Purpose**: Used for prompt analysis and multi-step Akku SDK generation planning.
-- **Functionality**: Analyzes text prompts and reference images (via Gemini Vision Integration) to extract character attributes (style, body type, colors, archetype, equipment). Supports Korean.
+- **Purpose**: Intelligent prompt-to-parameter mapping for SDK orchestration.
+- **Functionality**:
+    - `mapPromptToParameters()`: Analyzes text prompts and outputs precise SDK parameters (bodyType, style, shader, equipment)
+    - `analyzeImage()`: Vision API for reference image analysis
+    - `generateAkkuPlan()`: Multi-step generation planning for complex characters
+- **Parameter Schema**: AkkuSDKParameters interface with validated fields for bodyType (preset, muscular, fat, height), style (proportionType, polyLevel, gender), shader (baseColor, metallic, roughness), equipment (helmet, shoulders, chest, weapon)
+- **Korean Support**: Recognizes Korean keywords for archetypes (전사, 마법사, 기사, 도적) and body types
 
 ### Build System
 - **Client**: Vite for React application.

@@ -63,6 +63,17 @@ def generate():
         body_type_raw = data.get('bodyType', 'auto')
         use_remesh = data.get('useRemesh', False)
         equipment = data.get('equipment', 'default')
+        gemini_params_raw = data.get('geminiParams', None)
+        
+        # Parse Gemini params from Replit server
+        gemini_params = None
+        if gemini_params_raw:
+            try:
+                gemini_params = json.loads(gemini_params_raw) if isinstance(gemini_params_raw, str) else gemini_params_raw
+                print(f"[Gemini] Received analyzed params: archetype={gemini_params.get('archetype', 'unknown')}")
+            except (json.JSONDecodeError, TypeError):
+                print(f"[Gemini] Failed to parse geminiParams")
+                gemini_params = None
         
         # Parse bodyType - can be JSON string with detailed params or simple preset name
         body_type_params = None
@@ -92,6 +103,12 @@ def generate():
         print(f"  Equipment: {equipment}")
         print(f"  Body Type Params: {json.dumps(body_type_params)}")
         print(f"  Use Remesh: {use_remesh}")
+        print(f"  Gemini Params: {'Yes' if gemini_params else 'No'}")
+        if gemini_params:
+            print(f"    Archetype: {gemini_params.get('archetype', 'unknown')}")
+            print(f"    Body Preset: {gemini_params.get('bodyType', {}).get('preset', 'unknown')}")
+            print(f"    Armor Style: {gemini_params.get('equipment', {}).get('armorStyle', 'none')}")
+            print(f"    Shader Color: {gemini_params.get('shader', {}).get('baseColor', [0.5, 0.5, 0.5])}")
         print(f"  Output: {output_path}")
         print(f"{'='*60}\n")
         
@@ -99,6 +116,7 @@ def generate():
         # Use safe entry script with arguments passed via command line
         # Pass body type params as JSON string for detailed control
         body_type_json = json.dumps(body_type_params)
+        gemini_json = json.dumps(gemini_params) if gemini_params else ""
         cmd = [
             BLENDER_PATH,
             "--background",
@@ -111,7 +129,8 @@ def generate():
             gender,
             body_type_json,
             "true" if use_remesh else "false",
-            equipment
+            equipment,
+            gemini_json  # Pass Gemini params to SDK
         ]
         
         # Run Blender

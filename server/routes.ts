@@ -6,6 +6,7 @@ import { insertJobSchema } from "@shared/schema";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import path from "path";
 import { analyzeImage, attributesToGenerationOptions } from "./image-analyzer";
+import { mapPromptToParameters, type AkkuSDKParameters } from "./gemini";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
 
@@ -29,6 +30,7 @@ interface GenerationOptions {
   polyLevel?: string;
   bodyType?: BodyTypeParams;
   gender?: string;
+  geminiParams?: AkkuSDKParameters;
 }
 
 // Timeout for GCP Worker requests (2 minutes)
@@ -39,13 +41,21 @@ const GCP_WORKER_TIMEOUT = 120000;
  * Sends prompt to external Blender server and receives GLB file
  */
 async function generateModelRemote(jobId: string, options: GenerationOptions): Promise<string> {
-  const { prompt, style = "stylized", polyLevel = "medium", bodyType, gender = "male" } = options;
+  const { prompt, style = "stylized", polyLevel = "medium", bodyType, gender = "male", geminiParams } = options;
   
   console.log(`[GCP Worker] Sending generation request for job ${jobId}...`);
   console.log(`Prompt: ${prompt}`);
   console.log(`Style: ${style}, Poly Level: ${polyLevel}`);
   console.log(`Body Type:`, bodyType);
   console.log(`Gender: ${gender}`);
+  if (geminiParams) {
+    console.log(`[Gemini] Parameters:`, {
+      archetype: geminiParams.archetype,
+      bodyPreset: geminiParams.bodyType.preset,
+      armorStyle: geminiParams.equipment.armorStyle,
+      color: geminiParams.shader.baseColor
+    });
+  }
 
   if (!existsSync(MODELS_DIR)) {
     mkdirSync(MODELS_DIR, { recursive: true });
@@ -57,20 +67,51 @@ async function generateModelRemote(jobId: string, options: GenerationOptions): P
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), GCP_WORKER_TIMEOUT);
 
+  // Normalize armorStyle to SDK-compatible equipment value
+  function mapArmorStyleToEquipment(armorStyle: string | undefined): string {
+    if (!armorStyle) return "default";
+    switch (armorStyle) {
+      case "plate":
+      case "heavy":
+      case "scifi":
+        return "armor";
+      case "cloth":
+      case "magic":
+      case "leather":
+        return "robe";
+      case "none":
+      case "light":
+      default:
+        return "default";
+    }
+  }
+
+  // Use Gemini params if available, otherwise fallback to basic params
+  const requestBody = geminiParams ? {
+    prompt,
+    style: geminiParams.style?.proportionType || style,
+    polyLevel: geminiParams.style?.polyLevel || polyLevel,
+    jobId,
+    gender: geminiParams.style?.gender || gender,
+    bodyType: JSON.stringify(geminiParams.bodyType || {}),
+    equipment: mapArmorStyleToEquipment(geminiParams.equipment?.armorStyle),
+    geminiParams: JSON.stringify(geminiParams),
+  } : {
+    prompt,
+    style,
+    polyLevel,
+    jobId,
+    gender,
+    bodyType: bodyType ? JSON.stringify(bodyType) : undefined,
+  };
+
   try {
     const response = await fetch(`${GCP_WORKER_URL}/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        prompt,
-        style,
-        polyLevel,
-        jobId,
-        gender,
-        bodyType: bodyType ? JSON.stringify(bodyType) : undefined,
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
 
@@ -314,7 +355,26 @@ echo "=== Pull Complete ==="
         try {
           await storage.updateJob(job.id, { status: "processing" });
           
-          // Convert string bodyType to BodyTypeParams
+          // Use Gemini to analyze prompt and map to SDK parameters
+          console.log(`[Job ${job.id}] Analyzing prompt with Gemini...`);
+          let geminiParams: AkkuSDKParameters | undefined;
+          try {
+            geminiParams = await mapPromptToParameters(
+              job.prompt,
+              result.data.style,
+              result.data.polyLevel
+            );
+            console.log(`[Job ${job.id}] Gemini analysis complete:`, {
+              archetype: geminiParams.archetype,
+              bodyPreset: geminiParams.bodyType?.preset,
+              armorStyle: geminiParams.equipment?.armorStyle
+            });
+          } catch (geminiError) {
+            console.warn(`[Job ${job.id}] Gemini analysis failed, using fallback:`, geminiError);
+            geminiParams = undefined;
+          }
+          
+          // Convert string bodyType to BodyTypeParams as fallback
           let bodyTypeParams: BodyTypeParams | undefined;
           const rawBodyType = (req.body as { bodyType?: string }).bodyType;
           if (rawBodyType && typeof rawBodyType === 'string') {
@@ -327,6 +387,7 @@ echo "=== Pull Complete ==="
             polyLevel: result.data.polyLevel,
             bodyType: bodyTypeParams,
             gender: (req.body as { gender?: string }).gender || 'male',
+            geminiParams,
           });
           
           await storage.updateJob(job.id, {

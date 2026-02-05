@@ -612,12 +612,13 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     
     if len(args) < 4:
-        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [equipment]")
+        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [equipment] [gemini_params]")
         print("\nStyles: realistic, stylized, chibi, sd, mobile, minifig, cartoon")
         print("Poly Levels: ultra_low, low, medium, high")
         print("Body Types: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant")
         print("Equipment: default, armor, robe")
         print("\nEquipment determines Vertex Colors and Hard-Surface details")
+        print("Gemini Params: JSON object from Replit Gemini analysis")
         sys.exit(1)
     
     prompt = args[0]
@@ -628,6 +629,37 @@ def main():
     body_type_raw = args[5] if len(args) > 5 else "auto"
     use_remesh = args[6].lower() == "true" if len(args) > 6 else False
     equipment = args[7] if len(args) > 7 else "default"
+    gemini_params_raw = args[8] if len(args) > 8 else ""
+    
+    # Parse Gemini params from Replit server
+    gemini_params = None
+    if gemini_params_raw and gemini_params_raw.startswith("{"):
+        try:
+            gemini_params = json.loads(gemini_params_raw)
+            AkkuLogger.info("Received Gemini-analyzed parameters", {
+                "archetype": gemini_params.get("archetype", "unknown"),
+                "body_preset": gemini_params.get("bodyType", {}).get("preset", "unknown"),
+                "armor_style": gemini_params.get("equipment", {}).get("armorStyle", "none")
+            })
+            
+            # Override parameters with Gemini analysis
+            if "style" in gemini_params:
+                style = gemini_params["style"].get("proportionType", style)
+                poly_level = gemini_params["style"].get("polyLevel", poly_level)
+                gender = gemini_params["style"].get("gender", gender)
+            
+            if "equipment" in gemini_params:
+                gemini_armor = gemini_params["equipment"].get("armorStyle", "none")
+                if gemini_armor == "plate" or gemini_armor == "heavy":
+                    equipment = "armor"
+                elif gemini_armor == "cloth" or gemini_armor == "magic":
+                    equipment = "robe"
+            
+            if "bodyType" in gemini_params:
+                body_type_raw = json.dumps(gemini_params["bodyType"])
+        except json.JSONDecodeError:
+            AkkuLogger.info("Failed to parse Gemini params, using defaults")
+            gemini_params = None
     
     # Parse body type - can be JSON with detailed params or simple preset name
     body_type_params = None
