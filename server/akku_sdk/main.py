@@ -125,7 +125,8 @@ def generate_procedural_base(
             "mode": "procedural_hierarchical"
         }
     else:
-        mesh_obj = ProceduralHumanoid.generate(
+        # Use Extrude-First unified mesh approach for better quality
+        mesh_obj = ProceduralHumanoid.generate_unified_mesh(
             style=style,
             poly_level=poly_level,
             gender=gender

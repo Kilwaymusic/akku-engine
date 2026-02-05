@@ -474,6 +474,359 @@ class ProceduralHumanoid:
         }
     
     @classmethod
+    def generate_unified_mesh(
+        cls,
+        style: str = "stylized",
+        poly_level: str = "medium",
+        gender: str = "male"
+    ) -> bpy.types.Object:
+        """
+        Generate a unified humanoid mesh using Extrude-First approach.
+        
+        Instead of creating separate primitives, starts with a torso box
+        and extrudes all limbs from it, creating a single connected mesh.
+        
+        Args:
+            style: Character style preset
+            poly_level: Polygon complexity
+            gender: Gender for proportion adjustments
+            
+        Returns:
+            Generated mesh object (single connected mesh)
+        """
+        props = StyleProportions.get_preset(style)
+        poly_settings = PolyLevelPresets.get_preset(poly_level)
+        
+        if gender == "female":
+            props.shoulder_width_ratio *= 0.9
+            props.hip_width_ratio *= 1.1
+            props.torso_thickness *= 0.9
+        
+        total_height = props.total_height
+        head_ratio = props.head_ratio
+        torso_ratio = props.torso_ratio
+        leg_ratio = props.leg_ratio
+        arm_ratio = props.arm_length_ratio
+        shoulder_width = total_height * props.shoulder_width_ratio
+        hip_width = total_height * props.hip_width_ratio
+        limb_thickness = props.limb_thickness * total_height
+        torso_depth = props.torso_thickness * total_height
+        
+        # Calculate heights
+        leg_height = total_height * leg_ratio
+        torso_height = total_height * torso_ratio
+        head_height = total_height * head_ratio
+        arm_length = total_height * arm_ratio
+        
+        AkkuLogger.info("Generating unified mesh humanoid (Extrude-First)", {
+            "style": style,
+            "poly_level": poly_level,
+            "gender": gender,
+            "total_height": total_height,
+            "method": "extrude-first"
+        })
+        
+        mesh = bpy.data.meshes.new("UnifiedHumanoid")
+        obj = bpy.data.objects.new("Character", mesh)
+        bpy.context.collection.objects.link(obj)
+        
+        bm = bmesh.new()
+        
+        # === PHASE 1: Create base torso box ===
+        torso_base_z = leg_height
+        torso_top_z = leg_height + torso_height
+        
+        # Create torso as starting point (8 vertices, 6 faces)
+        hw = shoulder_width / 2  # half width
+        hd = torso_depth / 2     # half depth
+        
+        # Bottom vertices (at hip level)
+        hip_hw = hip_width / 2
+        v_bot = [
+            bm.verts.new(Vector((-hip_hw, -hd, torso_base_z))),
+            bm.verts.new(Vector((hip_hw, -hd, torso_base_z))),
+            bm.verts.new(Vector((hip_hw, hd, torso_base_z))),
+            bm.verts.new(Vector((-hip_hw, hd, torso_base_z))),
+        ]
+        # Top vertices (at shoulder level)
+        v_top = [
+            bm.verts.new(Vector((-hw, -hd, torso_top_z))),
+            bm.verts.new(Vector((hw, -hd, torso_top_z))),
+            bm.verts.new(Vector((hw, hd, torso_top_z))),
+            bm.verts.new(Vector((-hw, hd, torso_top_z))),
+        ]
+        
+        bm.verts.ensure_lookup_table()
+        
+        # Create faces
+        # Bottom face
+        f_bottom = bm.faces.new([v_bot[3], v_bot[2], v_bot[1], v_bot[0]])
+        # Top face
+        f_top = bm.faces.new([v_top[0], v_top[1], v_top[2], v_top[3]])
+        # Side faces
+        bm.faces.new([v_bot[0], v_bot[1], v_top[1], v_top[0]])  # front
+        bm.faces.new([v_bot[2], v_bot[3], v_top[3], v_top[2]])  # back
+        f_left = bm.faces.new([v_bot[3], v_bot[0], v_top[0], v_top[3]])   # left
+        f_right = bm.faces.new([v_bot[1], v_bot[2], v_top[2], v_top[1]])  # right
+        
+        bm.faces.ensure_lookup_table()
+        
+        # === PHASE 2: Extrude neck and head from top face ===
+        neck_height = head_height * 0.2
+        head_size = head_height * props.head_scale * 0.8
+        
+        # Extrude neck
+        neck_result = bmesh.ops.extrude_face_region(bm, geom=[f_top])
+        neck_verts = [v for v in neck_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+        bmesh.ops.translate(bm, verts=neck_verts, vec=Vector((0, 0, neck_height)))
+        
+        # Scale neck inward
+        neck_center = sum((v.co for v in neck_verts), Vector()) / len(neck_verts)
+        for v in neck_verts:
+            direction = v.co - neck_center
+            direction.x *= 0.4
+            direction.y *= 0.4
+            v.co = neck_center + direction
+        
+        bm.faces.ensure_lookup_table()
+        
+        # Find the new top face after neck extrusion
+        neck_top_face = None
+        for f in bm.faces:
+            if f.is_valid and all(v in neck_verts for v in f.verts):
+                center = f.calc_center_median()
+                if center.z > torso_top_z + neck_height * 0.5:
+                    neck_top_face = f
+                    break
+        
+        # Extrude head from neck
+        if neck_top_face:
+            head_result = bmesh.ops.extrude_face_region(bm, geom=[neck_top_face])
+            head_verts = [v for v in head_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, verts=head_verts, vec=Vector((0, 0, head_size)))
+            
+            # Scale head outward for larger head
+            head_center = sum((v.co for v in head_verts), Vector()) / len(head_verts)
+            head_scale = props.head_scale * 1.5
+            for v in head_verts:
+                direction = v.co - head_center
+                direction.x *= head_scale
+                direction.y *= head_scale
+                v.co = head_center + direction
+        
+        bm.faces.ensure_lookup_table()
+        bm.verts.ensure_lookup_table()
+        
+        # === PHASE 3: Extrude arms from side faces ===
+        upper_arm_len = arm_length * 0.45
+        lower_arm_len = arm_length * 0.45
+        hand_len = arm_length * 0.1
+        arm_thick = limb_thickness * 0.8
+        
+        for side_face, direction, side in [(f_left, Vector((-1, 0, -0.2)), "left"), 
+                                            (f_right, Vector((1, 0, -0.2)), "right")]:
+            if not side_face.is_valid:
+                continue
+                
+            direction = direction.normalized()
+            
+            # Extrude shoulder
+            shoulder_result = bmesh.ops.extrude_face_region(bm, geom=[side_face])
+            shoulder_verts = [v for v in shoulder_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+            
+            # Move and scale for shoulder
+            bmesh.ops.translate(bm, verts=shoulder_verts, vec=direction * (shoulder_width * 0.15))
+            
+            # Scale shoulder
+            shoulder_center = sum((v.co for v in shoulder_verts), Vector()) / len(shoulder_verts)
+            for v in shoulder_verts:
+                diff = v.co - shoulder_center
+                diff *= 0.5
+                v.co = shoulder_center + diff
+            
+            bm.faces.ensure_lookup_table()
+            
+            # Find shoulder end face
+            shoulder_end_face = None
+            for f in bm.faces:
+                if f.is_valid and all(v in shoulder_verts for v in f.verts):
+                    normal = f.normal
+                    if (side == "left" and normal.x < -0.3) or (side == "right" and normal.x > 0.3):
+                        shoulder_end_face = f
+                        break
+            
+            if not shoulder_end_face:
+                continue
+            
+            # Extrude upper arm
+            upper_result = bmesh.ops.extrude_face_region(bm, geom=[shoulder_end_face])
+            upper_verts = [v for v in upper_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+            arm_dir = Vector((-1 if side == "left" else 1, 0.1, -0.4)).normalized()
+            bmesh.ops.translate(bm, verts=upper_verts, vec=arm_dir * upper_arm_len)
+            
+            # Taper upper arm
+            upper_center = sum((v.co for v in upper_verts), Vector()) / len(upper_verts)
+            for v in upper_verts:
+                diff = v.co - upper_center
+                diff *= 0.8
+                v.co = upper_center + diff
+            
+            bm.faces.ensure_lookup_table()
+            
+            # Find upper arm end face
+            upper_end_face = None
+            for f in bm.faces:
+                if f.is_valid and all(v in upper_verts for v in f.verts):
+                    upper_end_face = f
+                    break
+            
+            if not upper_end_face:
+                continue
+            
+            # Extrude lower arm
+            lower_result = bmesh.ops.extrude_face_region(bm, geom=[upper_end_face])
+            lower_verts = [v for v in lower_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+            lower_dir = Vector((-1 if side == "left" else 1, 0.15, -0.3)).normalized()
+            bmesh.ops.translate(bm, verts=lower_verts, vec=lower_dir * lower_arm_len)
+            
+            # Taper lower arm
+            lower_center = sum((v.co for v in lower_verts), Vector()) / len(lower_verts)
+            for v in lower_verts:
+                diff = v.co - lower_center
+                diff *= 0.7
+                v.co = lower_center + diff
+            
+            bm.faces.ensure_lookup_table()
+            
+            # Find lower arm end face and extrude hand
+            lower_end_face = None
+            for f in bm.faces:
+                if f.is_valid and all(v in lower_verts for v in f.verts):
+                    lower_end_face = f
+                    break
+            
+            if lower_end_face:
+                hand_result = bmesh.ops.extrude_face_region(bm, geom=[lower_end_face])
+                hand_verts = [v for v in hand_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+                hand_dir = Vector((-1 if side == "left" else 1, 0.2, -0.2)).normalized()
+                bmesh.ops.translate(bm, verts=hand_verts, vec=hand_dir * hand_len)
+        
+        bm.faces.ensure_lookup_table()
+        bm.verts.ensure_lookup_table()
+        
+        # === PHASE 4: Extrude legs from bottom face ===
+        upper_leg_len = leg_height * 0.5
+        lower_leg_len = leg_height * 0.4
+        foot_len = leg_height * 0.1
+        
+        # Split bottom face into left and right for legs
+        # First, subdivide the bottom area
+        bottom_center = f_bottom.calc_center_median()
+        
+        # Get bottom face vertices
+        bottom_verts = list(f_bottom.verts)
+        
+        # Create leg starting positions
+        leg_offset = hip_width * 0.25
+        
+        for side in ["left", "right"]:
+            x_offset = -leg_offset if side == "left" else leg_offset
+            
+            # Create a new quad for leg base
+            leg_base_hw = limb_thickness * 0.6
+            leg_base_hd = limb_thickness * 0.5
+            leg_z = torso_base_z
+            
+            leg_base_verts = [
+                bm.verts.new(Vector((x_offset - leg_base_hw, -leg_base_hd, leg_z))),
+                bm.verts.new(Vector((x_offset + leg_base_hw, -leg_base_hd, leg_z))),
+                bm.verts.new(Vector((x_offset + leg_base_hw, leg_base_hd, leg_z))),
+                bm.verts.new(Vector((x_offset - leg_base_hw, leg_base_hd, leg_z))),
+            ]
+            
+            leg_face = bm.faces.new(leg_base_verts[::-1])  # Reversed for downward normal
+            bm.faces.ensure_lookup_table()
+            
+            # Extrude upper leg
+            upper_leg_result = bmesh.ops.extrude_face_region(bm, geom=[leg_face])
+            upper_leg_verts = [v for v in upper_leg_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, verts=upper_leg_verts, vec=Vector((0, 0, -upper_leg_len)))
+            
+            bm.faces.ensure_lookup_table()
+            
+            # Find upper leg end face
+            upper_leg_end = None
+            for f in bm.faces:
+                if f.is_valid and all(v in upper_leg_verts for v in f.verts):
+                    if f.normal.z < -0.5:
+                        upper_leg_end = f
+                        break
+            
+            if not upper_leg_end:
+                continue
+            
+            # Extrude lower leg
+            lower_leg_result = bmesh.ops.extrude_face_region(bm, geom=[upper_leg_end])
+            lower_leg_verts = [v for v in lower_leg_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, verts=lower_leg_verts, vec=Vector((0, 0, -lower_leg_len)))
+            
+            # Taper lower leg
+            lower_leg_center = sum((v.co for v in lower_leg_verts), Vector()) / len(lower_leg_verts)
+            for v in lower_leg_verts:
+                diff = v.co - lower_leg_center
+                diff.x *= 0.8
+                diff.y *= 0.8
+                v.co = lower_leg_center + diff
+            
+            bm.faces.ensure_lookup_table()
+            
+            # Find lower leg end face
+            lower_leg_end = None
+            for f in bm.faces:
+                if f.is_valid and all(v in lower_leg_verts for v in f.verts):
+                    if f.normal.z < -0.5:
+                        lower_leg_end = f
+                        break
+            
+            if not lower_leg_end:
+                continue
+            
+            # Extrude foot
+            foot_result = bmesh.ops.extrude_face_region(bm, geom=[lower_leg_end])
+            foot_verts = [v for v in foot_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+            # Foot goes forward and slightly down
+            bmesh.ops.translate(bm, verts=foot_verts, vec=Vector((0, foot_len * 0.8, -foot_len * 0.3)))
+            
+            # Scale foot to be flatter and longer
+            foot_center = sum((v.co for v in foot_verts), Vector()) / len(foot_verts)
+            for v in foot_verts:
+                diff = v.co - foot_center
+                diff.x *= 1.2  # Wider
+                diff.y *= 1.5  # Longer
+                diff.z *= 0.5  # Flatter
+                v.co = foot_center + diff
+        
+        # === PHASE 5: Clean up mesh ===
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.005)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.update()
+        
+        from .tools import MeshAnalyzer
+        stats = MeshAnalyzer.get_stats(obj)
+        AkkuLogger.info("Unified mesh humanoid generated", {
+            "vertices": stats.vertex_count,
+            "faces": stats.face_count,
+            "triangles": stats.triangle_count,
+            "style": style,
+            "method": "extrude-first"
+        })
+        
+        return obj
+    
+    @classmethod
     def generate(
         cls,
         style: str = "stylized",
