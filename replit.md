@@ -69,11 +69,20 @@ Preferred communication style: Simple, everyday language.
     5. GCP Worker executes code in Blender and exports GLB
     6. GLB returned to Replit and served to frontend
 - **Endpoints**:
-    - `POST /api/jobs/agent`: Autonomous code generation mode (NEW)
+    - `POST /api/jobs/agent`: Single-pass code generation mode
+    - `POST /api/jobs/agent-iterative`: **Self-review loop with 3 iterations** (recommended)
     - `POST /api/jobs/iterative`: Parameter-based iterative loop (legacy)
     - `GET /api/iterative/:sessionId/screenshot/:iteration`: Fetch iteration screenshot
+- **Self-Review Loop** (agent-iterative):
+    1. Generate initial Blender code from prompt
+    2. Execute code and capture screenshot with Eevee renderer
+    3. Analyze screenshot with Gemini Vision API
+    4. If not satisfactory, refine code based on feedback
+    5. Repeat steps 2-4 up to 3 times or until satisfactory
+    - Functions: `analyzeScreenshotForCodeImprovement()`, `refineBlenderCode()`
+    - Frontend toggle: "자가검증 (3회)" switch enables iterative mode by default
 - **Code Safety**: Generated code is wrapped with auto-export and executed in headless Blender
-- **Screenshot Handler**: Headless-safe Eevee rendering with auto-framing based on mesh bounds
+- **Screenshot Handler**: Headless-safe Eevee rendering with camera/light cleanup between iterations
 - **LLM-Friendly Tools**: JSON schemas in LLM_TOOLS.md for SDK tool documentation
 
 ### Bone Naming Convention

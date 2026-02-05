@@ -7,7 +7,9 @@ import { JobHistory } from "@/components/JobHistory";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Download, RotateCcw, Moon, Sun, Monitor } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Download, RotateCcw, Moon, Sun, Monitor, RefreshCw } from "lucide-react";
 import type { Job } from "@shared/schema";
 
 function ViewerFallback({ modelUrl }: { modelUrl?: string | null }) {
@@ -39,6 +41,7 @@ export default function Home() {
   const { toast } = useToast();
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isDark, setIsDark] = useState(true);
+  const [useIterativeAgent, setUseIterativeAgent] = useState(true);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
@@ -51,9 +54,13 @@ export default function Home() {
 
   const createJobMutation = useMutation({
     mutationFn: async (options: GenerationOptions) => {
-      // Use the agent (code generation) endpoint for creative character generation
-      const response = await apiRequest("POST", "/api/jobs/agent", {
+      const endpoint = useIterativeAgent 
+        ? "/api/jobs/agent-iterative" 
+        : "/api/jobs/agent";
+      
+      const response = await apiRequest("POST", endpoint, {
         prompt: options.prompt,
+        maxIterations: 3,
       });
       return response.json();
     },
@@ -62,7 +69,9 @@ export default function Home() {
       setSelectedJob(newJob);
       toast({
         title: "생성 시작",
-        description: "3D 캐릭터 생성을 시작했습니다.",
+        description: useIterativeAgent 
+          ? "자가검증 모드로 3D 캐릭터 생성 중... (최대 3회 반복)" 
+          : "3D 캐릭터 생성을 시작했습니다.",
       });
     },
     onError: (error: Error) => {
@@ -132,7 +141,22 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="iterative-mode"
+                checked={useIterativeAgent}
+                onCheckedChange={setUseIterativeAgent}
+                data-testid="switch-iterative-mode"
+              />
+              <Label 
+                htmlFor="iterative-mode" 
+                className="text-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-4 h-4 ${useIterativeAgent ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className="hidden sm:inline">자가검증 (3회)</span>
+              </Label>
+            </div>
             <Button
               size="icon"
               variant="ghost"

@@ -545,6 +545,7 @@ def execute_code():
     """
     Execute Gemini-generated Blender Python code
     This is the core of the Autonomous 3D Agent - LLM directly controls Blender
+    Supports optional screenshot capture for self-review loop
     """
     try:
         data = request.get_json()
@@ -552,6 +553,8 @@ def execute_code():
         code = data.get('code', '')
         job_id = data.get('jobId', str(uuid.uuid4()))
         prompt = data.get('prompt', 'unknown')
+        capture_screenshot = data.get('captureScreenshot', False)
+        iteration = data.get('iteration', 1)
         
         if not code:
             return jsonify({"error": "No code provided"}), 400
@@ -562,6 +565,7 @@ def execute_code():
         print(f"  Job ID: {job_id}")
         print(f"  Prompt: {prompt}")
         print(f"  Code length: {len(code)} chars")
+        print(f"  Screenshot: {capture_screenshot}, Iteration: {iteration}")
         print(f"{'='*60}\n")
         
         # Create temporary Python script
@@ -569,6 +573,55 @@ def execute_code():
         script_path = f"/tmp/akku_script_{job_id}_{timestamp}.py"
         output_filename = f"{job_id}_{timestamp}.glb"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
+        
+        # Screenshot path if requested
+        screenshot_filename = f"{job_id}_iter{iteration}.png"
+        screenshot_path = os.path.join(OUTPUT_DIR, screenshot_filename)
+        
+        # Screenshot rendering code (headless-safe using Eevee offline render)
+        screenshot_code = ""
+        if capture_screenshot:
+            screenshot_code = f'''
+# === AUTO-ADDED: Capture Screenshot ===
+import bpy
+import math
+
+screenshot_path = "{screenshot_path}"
+
+# Clean up any existing render cameras/lights from previous iterations
+for obj in list(bpy.data.objects):
+    if obj.name.startswith("RenderCam") or obj.name.startswith("RenderSun"):
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+# Create camera
+cam_data = bpy.data.cameras.new("RenderCam")
+cam_obj = bpy.data.objects.new("RenderCam", cam_data)
+bpy.context.collection.objects.link(cam_obj)
+
+# Position camera to see the character (front-quarter view)
+cam_obj.location = (2.5, -2.5, 1.5)
+cam_obj.rotation_euler = (math.radians(70), 0, math.radians(45))
+
+# Create sun light
+light_data = bpy.data.lights.new("RenderSun", type='SUN')
+light_data.energy = 3.0
+light_obj = bpy.data.objects.new("RenderSun", light_data)
+bpy.context.collection.objects.link(light_obj)
+light_obj.location = (3, -3, 5)
+light_obj.rotation_euler = (math.radians(45), 0, math.radians(45))
+
+# Setup render settings (Eevee for speed)
+bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT' if hasattr(bpy.context.scene.render, 'engine') and 'EEVEE_NEXT' in dir(bpy.types) else 'BLENDER_EEVEE'
+bpy.context.scene.render.resolution_x = 512
+bpy.context.scene.render.resolution_y = 512
+bpy.context.scene.render.film_transparent = True
+bpy.context.scene.camera = cam_obj
+
+# Render to file
+bpy.context.scene.render.filepath = screenshot_path
+bpy.ops.render.render(write_still=True)
+print(f"[Akku] Screenshot saved to: {{screenshot_path}}")
+'''
         
         # Wrap the code to add GLB export at the end
         wrapped_code = f'''
@@ -597,6 +650,8 @@ bpy.ops.export_scene.gltf(
 )
 
 print(f"[Akku] Exported to: {{output_path}}")
+
+{screenshot_code}
 '''
         
         # Write script to file
@@ -646,19 +701,30 @@ print(f"[Akku] Exported to: {{output_path}}")
         file_size = os.path.getsize(output_path)
         print(f"[Autonomous Agent] GLB created: {output_path} ({file_size} bytes)")
         
+        # Check if screenshot was created
+        screenshot_created = capture_screenshot and os.path.exists(screenshot_path)
+        if screenshot_created:
+            print(f"[Autonomous Agent] Screenshot created: {screenshot_path}")
+        
         # Cleanup temp script
         try:
             os.remove(script_path)
         except:
             pass
         
-        return jsonify({
+        response_data = {
             "success": True,
             "glb_path": output_path,
             "glb_filename": output_filename,
             "file_size": file_size,
             "execution_time": elapsed
-        })
+        }
+        
+        if screenshot_created:
+            response_data["screenshot_filename"] = screenshot_filename
+            response_data["screenshot_path"] = screenshot_path
+        
+        return jsonify(response_data)
         
     except subprocess.TimeoutExpired:
         return jsonify({

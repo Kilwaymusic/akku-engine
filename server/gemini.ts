@@ -1537,3 +1537,172 @@ Generate the complete Blender Python code now. Output ONLY the Python code, noth
   
   return code.trim();
 }
+
+
+/**
+ * Refine Blender code based on screenshot analysis feedback
+ * Used in the self-review loop to improve generated characters
+ */
+export async function refineBlenderCode(
+  originalCode: string,
+  screenshotBase64: string,
+  originalPrompt: string,
+  issues: string[],
+  iteration: number
+): Promise<string> {
+  const refinePrompt = `You are refining Blender Python code for a 3D character that was generated but needs improvements.
+
+ORIGINAL PROMPT: "${originalPrompt}"
+ITERATION: ${iteration}/3
+
+ISSUES FOUND IN SCREENSHOT:
+${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
+
+ORIGINAL CODE:
+\`\`\`python
+${originalCode}
+\`\`\`
+
+YOUR TASK:
+1. Analyze the screenshot to understand what's wrong
+2. Modify the code to fix the identified issues
+3. Keep the same overall structure but improve:
+   - Body proportions (adjust add_box sizes/positions)
+   - Character features (add missing elements)
+   - Material colors and properties
+
+OUTPUT RULES:
+- Output ONLY the complete improved Python code
+- No markdown, no explanations, no \`\`\`python markers
+- Keep the same template structure
+- Make surgical improvements, don't rewrite everything
+
+If the character looks mostly correct, make minimal changes.`;
+
+  try {
+    const response = await generateContentWithFallback(
+      "gemini-2.5-flash",
+      [
+        {
+          role: "user",
+          parts: [
+            { text: refinePrompt },
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: screenshotBase64
+              }
+            }
+          ]
+        }
+      ]
+    );
+
+    let code = response.text || "";
+    
+    // Clean up code
+    code = code.replace(/```python\n?/g, "").replace(/```\n?/g, "").trim();
+    
+    // Basic validation
+    if (!code.includes("import bpy") && !code.includes("import bmesh")) {
+      console.warn("[Gemini Refine] Missing imports, adding them");
+      code = "import bpy\nimport bmesh\n\n" + code;
+    }
+    
+    console.log(`[Gemini Refine] Refined code: ${code.length} characters`);
+    return code;
+    
+  } catch (error) {
+    console.error("[Gemini Refine] Error:", error);
+    // Return original code if refinement fails
+    return originalCode;
+  }
+}
+
+
+/**
+ * Analyze screenshot and generate feedback for code improvement
+ * Simplified version for self-review loop
+ */
+export async function analyzeScreenshotForCodeImprovement(
+  screenshotBase64: string,
+  originalPrompt: string,
+  iteration: number
+): Promise<{
+  satisfactory: boolean;
+  issues: string[];
+  suggestions: string[];
+  confidence: number;
+}> {
+  const analysisPrompt = `Analyze this screenshot of a generated 3D character.
+
+ORIGINAL REQUEST: "${originalPrompt}"
+ITERATION: ${iteration}/3
+
+Evaluate:
+1. Does it match the requested character type? (warrior, mage, cat, robot, etc.)
+2. Are body proportions correct? (no floating parts, symmetric limbs)
+3. Are distinctive features present? (cat ears for cat, helmet for knight, etc.)
+4. Is the overall silhouette readable and appealing?
+
+Respond with JSON only:
+{
+  "satisfactory": true/false,
+  "issues": ["issue1", "issue2"],
+  "suggestions": ["specific fix 1", "specific fix 2"],
+  "confidence": 0.0-1.0
+}
+
+Set satisfactory=true if the character is acceptable (minor issues OK).
+Set satisfactory=false if major issues exist that need fixing.`;
+
+  try {
+    const response = await generateContentWithFallback(
+      "gemini-2.5-flash",
+      [
+        {
+          role: "user",
+          parts: [
+            { text: analysisPrompt },
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: screenshotBase64
+              }
+            }
+          ]
+        }
+      ]
+    );
+
+    const text = response.text || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        satisfactory: parsed.satisfactory ?? false,
+        issues: parsed.issues ?? [],
+        suggestions: parsed.suggestions ?? [],
+        confidence: parsed.confidence ?? 0.5
+      };
+    }
+    
+    // Fallback
+    return {
+      satisfactory: true,
+      issues: [],
+      suggestions: [],
+      confidence: 0.5
+    };
+    
+  } catch (error) {
+    console.error("[Gemini Screenshot Analysis] Error:", error);
+    return {
+      satisfactory: true, // Don't block on analysis errors
+      issues: [],
+      suggestions: [],
+      confidence: 0.3
+    };
+  }
+}

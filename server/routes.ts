@@ -6,7 +6,7 @@ import { insertJobSchema } from "@shared/schema";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import path from "path";
 import { analyzeImage, attributesToGenerationOptions } from "./image-analyzer";
-import { mapPromptToParameters, analyzeScreenshotForRefinement, generateBlenderCode, type AkkuSDKParameters, type ScreenshotAnalysis } from "./gemini";
+import { mapPromptToParameters, analyzeScreenshotForRefinement, generateBlenderCode, refineBlenderCode, analyzeScreenshotForCodeImprovement, type AkkuSDKParameters, type ScreenshotAnalysis } from "./gemini";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
 
@@ -1016,6 +1016,249 @@ echo "Deployment complete!"
       console.error(`[Autonomous 3D Agent] Error:`, error);
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Agent generation failed" 
+      });
+    }
+  });
+
+  // ==========================================================================
+  // Iterative Self-Review Agent (3-iteration loop with screenshot analysis)
+  // ==========================================================================
+  app.post("/api/jobs/agent-iterative", async (req, res) => {
+    try {
+      const { prompt, maxIterations = 3 } = req.body;
+      
+      if (!prompt || typeof prompt !== "string") {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+      
+      console.log(`\n${"=".repeat(60)}`);
+      console.log(`[Iterative Agent] Starting self-review loop`);
+      console.log(`[Iterative Agent] Prompt: "${prompt}"`);
+      console.log(`[Iterative Agent] Max iterations: ${maxIterations}`);
+      console.log(`${"=".repeat(60)}\n`);
+      
+      // Create job record
+      const job = await storage.createJob({
+        prompt,
+        status: "processing"
+      });
+      
+      // Verify GCP Worker is available
+      try {
+        const healthResponse = await fetch(`${GCP_WORKER_URL}/health`);
+        const healthData = await healthResponse.json() as { version?: string };
+        console.log(`[Iterative Agent] GCP Worker v${healthData.version} is healthy`);
+      } catch (error) {
+        await storage.updateJob(job.id, { status: "failed" });
+        return res.status(503).json({ error: "GCP Worker unavailable" });
+      }
+      
+      // Step 1: Generate initial code
+      console.log(`[Iterative Agent] Generating initial code...`);
+      let currentCode = await generateBlenderCode(prompt);
+      console.log(`[Iterative Agent] Initial code: ${currentCode.length} chars`);
+      
+      let finalGlbFilename = "";
+      let finalScreenshotFilename = "";
+      const iterationResults: Array<{
+        iteration: number;
+        success: boolean;
+        issues?: string[];
+        satisfactory?: boolean;
+      }> = [];
+      
+      // Iterative loop
+      for (let iteration = 1; iteration <= maxIterations; iteration++) {
+        console.log(`\n[Iterative Agent] === Iteration ${iteration}/${maxIterations} ===`);
+        
+        // Execute code with screenshot capture
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), GCP_WORKER_TIMEOUT);
+        
+        try {
+          const execResponse = await fetch(`${GCP_WORKER_URL}/execute-code`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code: currentCode,
+              jobId: `${job.id}_iter${iteration}`,
+              prompt,
+              captureScreenshot: true,
+              iteration
+            }),
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          const result = await execResponse.json() as {
+            success: boolean;
+            glb_filename?: string;
+            screenshot_filename?: string;
+            error?: string;
+          };
+          
+          if (!result.success) {
+            console.error(`[Iterative Agent] Execution failed:`, result.error);
+            iterationResults.push({ iteration, success: false, issues: [result.error || "Unknown error"] });
+            
+            // If execution fails, try to regenerate code for next iteration
+            if (iteration < maxIterations) {
+              console.log(`[Iterative Agent] Regenerating code after failure...`);
+              try {
+                currentCode = await generateBlenderCode(prompt + " (retry, simpler approach)");
+              } catch (regenError) {
+                console.error(`[Iterative Agent] Code regeneration failed:`, regenError);
+              }
+            }
+            continue;
+          }
+          
+          console.log(`[Iterative Agent] GLB: ${result.glb_filename}`);
+          console.log(`[Iterative Agent] Screenshot: ${result.screenshot_filename}`);
+          
+          finalGlbFilename = result.glb_filename || "";
+          finalScreenshotFilename = result.screenshot_filename || "";
+          
+          // If this is the last iteration, skip analysis
+          if (iteration === maxIterations) {
+            console.log(`[Iterative Agent] Final iteration reached, using result`);
+            iterationResults.push({ iteration, success: true, satisfactory: true });
+            break;
+          }
+          
+          // Fetch screenshot for analysis
+          let screenshotBase64 = "";
+          if (result.screenshot_filename) {
+            console.log(`[Iterative Agent] Fetching screenshot for analysis...`);
+            
+            try {
+              const screenshotResponse = await fetch(
+                `${GCP_WORKER_URL}/download/${result.screenshot_filename}`
+              );
+              
+              if (screenshotResponse.ok) {
+                const screenshotBuffer = await screenshotResponse.arrayBuffer();
+                screenshotBase64 = Buffer.from(screenshotBuffer).toString("base64");
+              } else {
+                console.warn(`[Iterative Agent] Screenshot fetch failed: ${screenshotResponse.status}`);
+              }
+            } catch (screenshotError) {
+              console.warn(`[Iterative Agent] Screenshot fetch error:`, screenshotError);
+            }
+          }
+          
+          // Analyze screenshot with Gemini Vision (or provide default feedback if no screenshot)
+          console.log(`[Iterative Agent] Analyzing with Gemini Vision...`);
+          let analysis: { satisfactory: boolean; issues: string[]; suggestions: string[]; confidence: number };
+          
+          if (screenshotBase64) {
+            analysis = await analyzeScreenshotForCodeImprovement(
+              screenshotBase64,
+              prompt,
+              iteration
+            );
+          } else {
+            // Default analysis when screenshot unavailable - assume needs improvement
+            analysis = {
+              satisfactory: false,
+              issues: ["Screenshot unavailable - assuming improvements needed"],
+              suggestions: ["Ensure mesh is created correctly", "Check material assignment"],
+              confidence: 0.3
+            };
+          }
+          
+          console.log(`[Iterative Agent] Analysis: satisfactory=${analysis.satisfactory}, issues=${analysis.issues.length}, confidence=${analysis.confidence}`);
+          
+          iterationResults.push({
+            iteration,
+            success: true,
+            issues: analysis.issues,
+            satisfactory: analysis.satisfactory
+          });
+          
+          // If satisfactory with high confidence, stop early
+          if (analysis.satisfactory && analysis.confidence >= 0.7) {
+            console.log(`[Iterative Agent] Result is satisfactory (confidence: ${analysis.confidence}), stopping early`);
+            break;
+          }
+          
+          // Refine code based on feedback
+          console.log(`[Iterative Agent] Refining code based on ${analysis.issues.length} issues...`);
+          try {
+            currentCode = await refineBlenderCode(
+              currentCode,
+              screenshotBase64,
+              prompt,
+              [...analysis.issues, ...analysis.suggestions],
+              iteration + 1
+            );
+            console.log(`[Iterative Agent] Refined code: ${currentCode.length} chars`);
+          } catch (refineError) {
+            console.error(`[Iterative Agent] Refinement failed:`, refineError);
+            // Continue with current code
+          }
+          
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          console.error(`[Iterative Agent] Fetch error:`, fetchError);
+          iterationResults.push({ iteration, success: false, issues: ["Network error"] });
+        }
+      }
+      
+      // Final result
+      if (!finalGlbFilename) {
+        await storage.updateJob(job.id, { status: "failed" });
+        return res.status(500).json({
+          error: "All iterations failed",
+          iterations: iterationResults
+        });
+      }
+      
+      // Download final GLB
+      console.log(`[Iterative Agent] Downloading final GLB: ${finalGlbFilename}`);
+      const glbResponse = await fetch(`${GCP_WORKER_URL}/download/${finalGlbFilename}`);
+      
+      if (!glbResponse.ok) {
+        await storage.updateJob(job.id, { status: "failed" });
+        return res.status(500).json({ error: "Failed to download final GLB" });
+      }
+      
+      const glbBuffer = await glbResponse.arrayBuffer();
+      
+      // Save locally
+      if (!existsSync(MODELS_DIR)) {
+        mkdirSync(MODELS_DIR, { recursive: true });
+      }
+      
+      const localFilename = `${job.id}_final.glb`;
+      const localPath = path.join(MODELS_DIR, localFilename);
+      writeFileSync(localPath, Buffer.from(glbBuffer));
+      
+      // Update job
+      const modelUrl = `/models/${localFilename}`;
+      await storage.updateJob(job.id, {
+        status: "completed",
+        modelUrl
+      });
+      
+      console.log(`\n[Iterative Agent] === COMPLETE ===`);
+      console.log(`[Iterative Agent] Job: ${job.id}`);
+      console.log(`[Iterative Agent] Iterations: ${iterationResults.length}`);
+      console.log(`[Iterative Agent] Model: ${modelUrl}`);
+      
+      res.json({
+        jobId: job.id,
+        status: "completed",
+        modelUrl,
+        iterations: iterationResults,
+        totalIterations: iterationResults.length
+      });
+      
+    } catch (error) {
+      console.error(`[Iterative Agent] Error:`, error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Iterative generation failed"
       });
     }
   });
