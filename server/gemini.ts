@@ -1468,6 +1468,65 @@ def extrude_face(bm, face, offset, scale=1.0):
             v.co = center + (v.co - center) * scale
     return verts
 
+def rotate_verts(bm, verts, angle, axis='Z', center=None):
+    """Rotate vertices around an axis (X, Y, or Z)"""
+    import math
+    if center is None:
+        center = sum((v.co for v in verts), Vector()) / len(verts)
+    rad = math.radians(angle)
+    rot_matrix = Matrix.Rotation(rad, 3, axis)
+    for v in verts:
+        v.co = center + rot_matrix @ (v.co - center)
+    return verts
+
+def extrude_and_rotate(bm, face, length, angle, axis='Z', scale=1.0):
+    """Extrude face, then rotate the new geometry - great for curved pipes/limbs"""
+    # Get face normal for extrusion direction
+    normal = face.normal.copy()
+    r = bmesh.ops.extrude_face_region(bm, geom=[face])
+    new_verts = [v for v in r['geom'] if isinstance(v, bmesh.types.BMVert)]
+    new_faces = [f for f in r['geom'] if isinstance(f, bmesh.types.BMFace)]
+    
+    # Move along normal
+    bmesh.ops.translate(bm, verts=new_verts, vec=normal * length)
+    
+    # Rotate around center
+    center = sum((v.co for v in new_verts), Vector()) / len(new_verts)
+    rotate_verts(bm, new_verts, angle, axis, center)
+    
+    # Scale if needed
+    if scale != 1.0:
+        for v in new_verts:
+            v.co = center + (v.co - center) * scale
+    
+    # Return the new end face for chaining
+    return new_verts, new_faces[-1] if new_faces else None
+
+def extrude_chain(bm, start_face, segments, length_per_seg, angle_per_seg, axis='Z', taper=1.0):
+    """Create a chain of extrusions with rotation - perfect for tails, tentacles, pipes"""
+    current_face = start_face
+    all_verts = []
+    scale = 1.0
+    
+    for i in range(segments):
+        if current_face is None:
+            break
+        verts, new_face = extrude_and_rotate(bm, current_face, length_per_seg, angle_per_seg, axis, scale)
+        all_verts.extend(verts)
+        current_face = new_face
+        scale *= taper  # Gradually taper
+    
+    return all_verts
+
+def get_face_by_normal(bm, direction, threshold=0.8):
+    """Find a face pointing in a direction (useful for selecting top/bottom/side faces)"""
+    bm.faces.ensure_lookup_table()
+    dir_vec = Vector(direction).normalized()
+    for face in bm.faces:
+        if face.normal.dot(dir_vec) > threshold:
+            return face
+    return None
+
 # === CREATE MATERIALS FOR EACH PART ===
 # Examples - modify colors based on character description:
 mat_skin = create_material("Skin", (0.85, 0.65, 0.55))           # Human skin
@@ -1553,6 +1612,22 @@ print("Character created with multiple materials!")
 - HEAD: Use add_sphere() with segments=12, rings=8 for smooth head
 - FINGERS: Small cylinders with 6 segments
 - After building body: Call bevel_object(bm, 0.015, 2) for smooth edges
+
+## EXTRUDE + ROTATE (for curved pipes, tails, tentacles):
+- rotate_verts(bm, verts, angle, axis='Z') - Rotate vertices by angle degrees
+- extrude_and_rotate(bm, face, length, angle, axis) - Extrude face then rotate
+- extrude_chain(bm, face, segments, length, angle, axis, taper) - Chain of curved extrusions
+- get_face_by_normal(bm, (0,0,1)) - Find face pointing up (+Z), down (-Z), etc.
+
+## EXAMPLE - CURVED TAIL:
+# Create base cylinder for tail
+add_cylinder(bm, (0, -0.2, 0.5), radius=0.06, height=0.1, segments=8)
+bm.faces.ensure_lookup_table()
+# Find the back-facing face
+back_face = get_face_by_normal(bm, (0, -1, 0))
+if back_face:
+    # Create curved tail with 5 segments, each 0.08 long, rotating 15 degrees down
+    extrude_chain(bm, back_face, segments=5, length_per_seg=0.08, angle_per_seg=-15, axis='X', taper=0.85)
 
 ## EXAMPLE - ORGANIC BODY:
 # Instead of: add_box(bm, (0, 0, 1.0), (0.4, 0.25, 0.5))
