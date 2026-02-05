@@ -1334,124 +1334,135 @@ export async function runIterativeGeneration(
 // BLENDER CODE GENERATION - Simple & Robust Template
 // ============================================================
 
-const BLENDER_CODE_GENERATION_PROMPT = `You are an expert Blender Python developer creating LOW-POLY game characters.
-Generate complete, working Python code that creates a stylized humanoid character.
+const BLENDER_CODE_GENERATION_PROMPT = `You are a PROFESSIONAL LOW-POLY 3D CHARACTER ARTIST.
+Your specialty: Game-ready stylized humanoid characters with clean topology.
 
-## CRITICAL RULES
+## STYLE GUIDE
+- **Proportions**: 5-6 head heights, large head (1.2x), big hands (1.1x)
+- **Silhouette**: Readable at thumbnail size, exaggerated key features
+- **Polygon Count**: 200-600 faces total
 
-1. **HEADLESS SAFE**: Use bmesh.ops, NOT bpy.ops (headless Blender has no GUI context)
-2. **CONNECTED MESH**: Body must be ONE mesh - all parts extruded from torso
-3. **LOW-POLY**: Target 300-800 triangles total
+## TECHNICAL RULES
+1. Use bmesh.ops (NOT bpy.ops) - headless Blender has no GUI
+2. All body parts must be separate cubes joined together (more reliable than extrusion)
+3. Apply materials with proper PBR values
 
-## WORKING TEMPLATE
+## COMPLETE WORKING CODE
 
-Copy this template EXACTLY and modify only the marked sections:
+You MUST output code following this exact structure. Modify the proportions and add features based on the character description:
 
 \`\`\`python
 import bpy
 import bmesh
-from mathutils import Vector
+from mathutils import Vector, Matrix
 
-# ========== CLEAR SCENE ==========
+# === CLEANUP ===
 for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
-for mesh in bpy.data.meshes:
-    bpy.data.meshes.remove(mesh)
+for m in bpy.data.meshes:
+    bpy.data.meshes.remove(m)
 for mat in bpy.data.materials:
     bpy.data.materials.remove(mat)
 
-# ========== CREATE CHARACTER ==========
+# === HELPER FUNCTIONS ===
+def make_cube(bm, pos, size):
+    """Create a cube at position with given size (x,y,z)"""
+    result = bmesh.ops.create_cube(bm, size=1.0)
+    verts = result['verts']
+    for v in verts:
+        v.co.x = v.co.x * size[0] + pos[0]
+        v.co.y = v.co.y * size[1] + pos[1]
+        v.co.z = v.co.z * size[2] + pos[2]
+    return verts
+
+def make_tapered_limb(bm, start_pos, direction, length, start_width, end_width, segments=2):
+    """Create a tapered limb (arm or leg) with multiple segments"""
+    verts_all = []
+    seg_length = length / segments
+    current_pos = list(start_pos)
+    current_width = start_width
+    width_step = (start_width - end_width) / segments
+    
+    for i in range(segments):
+        size = [current_width, current_width * 0.8, seg_length]
+        if direction[0] != 0:  # horizontal (arms)
+            size = [seg_length, current_width * 0.8, current_width]
+        
+        verts = make_cube(bm, current_pos, size)
+        verts_all.extend(verts)
+        
+        # Move to next segment position
+        current_pos[0] += direction[0] * seg_length
+        current_pos[1] += direction[1] * seg_length
+        current_pos[2] += direction[2] * seg_length
+        current_width -= width_step
+    
+    return verts_all
+
+# === CHARACTER MESH ===
 mesh = bpy.data.meshes.new("Character")
 obj = bpy.data.objects.new("Character", mesh)
 bpy.context.collection.objects.link(obj)
 
 bm = bmesh.new()
 
-# --- TORSO (starting cube) ---
-bmesh.ops.create_cube(bm, size=1.0)
-for v in bm.verts:
-    v.co.x *= 0.4  # width
-    v.co.y *= 0.25  # depth
-    v.co.z *= 0.5  # height
-    v.co.z += 1.0  # move up
+# === BODY PARTS ===
+# Torso (center of mass at z=1.0)
+make_cube(bm, (0, 0, 1.0), (0.4, 0.25, 0.5))
 
-bm.faces.ensure_lookup_table()
+# Head (stylized large, z=1.6)
+make_cube(bm, (0, 0, 1.55), (0.28, 0.25, 0.3))
 
-# --- Helper function ---
-def extrude_face(bm, face, direction, distance, scale=1.0):
-    ret = bmesh.ops.extrude_face_region(bm, geom=[face])
-    verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
-    vec = Vector(direction).normalized() * distance
-    bmesh.ops.translate(bm, vec=vec, verts=verts)
-    if scale != 1.0:
-        center = face.calc_center_median() + vec
-        for v in verts:
-            v.co = center + (v.co - center) * scale
-    bm.faces.ensure_lookup_table()
-    return verts
+# Neck
+make_cube(bm, (0, 0, 1.32), (0.1, 0.1, 0.1))
 
-# --- NECK & HEAD ---
-top = max(bm.faces, key=lambda f: f.normal.z)
-extrude_face(bm, top, (0, 0, 1), 0.12, 0.6)  # neck
-top = max(bm.faces, key=lambda f: f.calc_center_median().z)
-extrude_face(bm, top, (0, 0, 1), 0.3, 1.3)  # head
+# Left Arm (upper + forearm + hand)
+make_cube(bm, (-0.35, 0, 1.1), (0.15, 0.12, 0.12))  # shoulder
+make_cube(bm, (-0.52, 0, 1.1), (0.15, 0.1, 0.1))   # upper arm
+make_cube(bm, (-0.7, 0, 1.1), (0.15, 0.08, 0.08))  # forearm
+make_cube(bm, (-0.85, 0, 1.1), (0.08, 0.06, 0.1))  # hand
 
-# --- LEFT ARM ---
-left = max([f for f in bm.faces if 0.9 < f.calc_center_median().z < 1.3], 
-           key=lambda f: -f.normal.x, default=None)
-if left:
-    extrude_face(bm, left, (-1, 0, 0), 0.25, 0.7)
-    left = min(bm.faces, key=lambda f: f.calc_center_median().x)
-    extrude_face(bm, left, (-1, 0, 0), 0.25, 0.7)
+# Right Arm (mirror)
+make_cube(bm, (0.35, 0, 1.1), (0.15, 0.12, 0.12))
+make_cube(bm, (0.52, 0, 1.1), (0.15, 0.1, 0.1))
+make_cube(bm, (0.7, 0, 1.1), (0.15, 0.08, 0.08))
+make_cube(bm, (0.85, 0, 1.1), (0.08, 0.06, 0.1))
 
-# --- RIGHT ARM ---
-right = max([f for f in bm.faces if 0.9 < f.calc_center_median().z < 1.3],
-            key=lambda f: f.normal.x, default=None)
-if right:
-    extrude_face(bm, right, (1, 0, 0), 0.25, 0.7)
-    right = max(bm.faces, key=lambda f: f.calc_center_median().x)
-    extrude_face(bm, right, (1, 0, 0), 0.25, 0.7)
+# Hips
+make_cube(bm, (0, 0, 0.68), (0.35, 0.2, 0.15))
 
-# --- HIPS (split for legs) ---
-bmesh.ops.bisect_plane(bm, geom=bm.faces[:]+bm.edges[:]+bm.verts[:],
-                       plane_co=(0,0,0.75), plane_no=(1,0,0))
-bm.faces.ensure_lookup_table()
+# Left Leg (thigh + shin + foot)
+make_cube(bm, (-0.12, 0, 0.45), (0.12, 0.12, 0.25))  # thigh
+make_cube(bm, (-0.12, 0, 0.15), (0.1, 0.1, 0.25))    # shin
+make_cube(bm, (-0.12, 0.05, 0), (0.08, 0.15, 0.06))  # foot
 
-# --- LEFT LEG ---
-left_bottom = [f for f in bm.faces if f.calc_center_median().z < 0.8 
-               and f.calc_center_median().x < -0.05 and f.normal.z < -0.3]
-if left_bottom:
-    extrude_face(bm, left_bottom[0], (0, 0, -1), 0.35, 0.85)
-    left = min([f for f in bm.faces if f.calc_center_median().x < 0], 
-               key=lambda f: f.calc_center_median().z)
-    extrude_face(bm, left, (0, 0, -1), 0.35, 0.75)
+# Right Leg (mirror)
+make_cube(bm, (0.12, 0, 0.45), (0.12, 0.12, 0.25))
+make_cube(bm, (0.12, 0, 0.15), (0.1, 0.1, 0.25))
+make_cube(bm, (0.12, 0.05, 0), (0.08, 0.15, 0.06))
 
-# --- RIGHT LEG ---
-right_bottom = [f for f in bm.faces if f.calc_center_median().z < 0.8 
-                and f.calc_center_median().x > 0.05 and f.normal.z < -0.3]
-if right_bottom:
-    extrude_face(bm, right_bottom[0], (0, 0, -1), 0.35, 0.85)
-    right = min([f for f in bm.faces if f.calc_center_median().x > 0], 
-                key=lambda f: f.calc_center_median().z)
-    extrude_face(bm, right, (0, 0, -1), 0.35, 0.75)
-
-# ========== CUSTOMIZE HERE ==========
-# [MODIFY THIS SECTION based on character type]
+# === CHARACTER CUSTOMIZATION ===
+# [ADD FEATURES HERE based on character type]
 # Examples:
-# - For cat ears: extrude from head top faces
-# - For robot: widen shoulders, add visor
-# - For elf: add pointed ears from head sides
+# - Knight: Add helmet cube on head, shoulder pads, sword
+# - Cat: Add ear pyramids on head, tail from back
+# - Robot: Angular proportions, visor on face
+# - Wizard: Pointed hat, robe (wider lower body)
 
-# ========== MATERIAL ==========
+# === MERGE VERTICES (connect the cubes) ===
+bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.02)
+
+# === MATERIAL ===
 mat = bpy.data.materials.new("CharMat")
 mat.use_nodes = True
 bsdf = mat.node_tree.nodes.get('Principled BSDF')
 if bsdf:
-    bsdf.inputs['Base Color'].default_value = (0.6, 0.5, 0.4, 1.0)  # [MODIFY: color]
-    bsdf.inputs['Metallic'].default_value = 0.0  # [MODIFY: 0.9 for metal]
-    bsdf.inputs['Roughness'].default_value = 0.7
+    # [MODIFY THESE VALUES for character type]
+    bsdf.inputs['Base Color'].default_value = (0.7, 0.7, 0.75, 1.0)  # Silver/Steel
+    bsdf.inputs['Metallic'].default_value = 0.8  # Metal armor
+    bsdf.inputs['Roughness'].default_value = 0.4
 
-# ========== FINALIZE ==========
+# === FINALIZE ===
 bm.to_mesh(mesh)
 bm.free()
 
@@ -1459,30 +1470,40 @@ for poly in mesh.polygons:
     poly.use_smooth = False
 
 obj.data.materials.append(mat)
-
-print(f"Character created: {len(mesh.vertices)} vertices, {len(mesh.polygons)} faces")
+print(f"Character: {len(mesh.vertices)} verts, {len(mesh.polygons)} faces")
 \`\`\`
 
-## YOUR TASK
+## CHARACTER MODIFICATIONS
 
-Copy the template above and MODIFY the marked sections:
+Based on the prompt, ADD these features in the CUSTOMIZATION section:
 
-1. **CUSTOMIZE HERE section**: Add character-specific features
-   - Cat/고양이: Extrude pointed ears from top of head, add tail from back
-   - Robot/로봇: Widen shoulders (scale upper verts x*1.3), add visor extrusion from face front
-   - Elf/엘프: Add pointed ears from head sides, slender proportions (scale x*0.9)
-   - Warrior/전사: Wider shoulders, thicker arms
-   - Wizard/마법사: Scale head top larger for hood effect, widen lower torso for robe
+**기사/Knight**: 
+- Add helmet: \`make_cube(bm, (0, 0, 1.75), (0.32, 0.3, 0.2))\`  
+- Add visor: \`make_cube(bm, (0, 0.15, 1.55), (0.2, 0.08, 0.1))\`
+- Add shoulder pads: \`make_cube(bm, (-0.4, 0, 1.2), (0.15, 0.2, 0.08))\`
+- Add sword (separate object if needed)
+- Material: Silver metallic (0.7, 0.7, 0.75), Metallic=0.9, Roughness=0.3
 
-2. **MATERIAL section**: Set appropriate colors
-   - Skin: (0.8, 0.6, 0.5, 1.0)
-   - Metallic Blue: (0.2, 0.4, 0.8, 1.0) with Metallic=0.9, Roughness=0.3
-   - Pink: (0.9, 0.6, 0.7, 1.0)
-   - Brown: (0.4, 0.25, 0.15, 1.0)
-   - Purple: (0.5, 0.3, 0.6, 1.0)
+**고양이/Cat**:
+- Add ears: \`make_cube(bm, (-0.15, 0, 1.75), (0.06, 0.04, 0.12))\` (both sides)
+- Add tail: \`make_cube(bm, (0, -0.2, 0.7), (0.05, 0.25, 0.05))\`
+- Material: Orange (0.9, 0.6, 0.4) or Pink (0.9, 0.7, 0.75)
+
+**로봇/Robot**:
+- Wider shoulders: Increase shoulder cube sizes
+- Add visor: \`make_cube(bm, (0, 0.15, 1.6), (0.25, 0.05, 0.08))\`
+- Add antenna: \`make_cube(bm, (0.1, 0, 1.85), (0.02, 0.02, 0.15))\`
+- Material: Blue metallic (0.3, 0.5, 0.9), Metallic=0.95, Roughness=0.2
+
+**마법사/Wizard**:
+- Add pointed hat: \`make_cube(bm, (0, 0, 1.85), (0.2, 0.2, 0.35))\`
+- Widen robe (make lower torso wider)
+- Add staff as separate object
+- Material: Purple (0.5, 0.3, 0.7), Metallic=0
 
 ## OUTPUT
-Output ONLY the complete Python code. No explanations.`;
+Output ONLY the complete Python code. No markdown, no explanations.
+Customize the template based on the character description.`;
 
 
 
