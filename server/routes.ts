@@ -1086,7 +1086,7 @@ echo "Deployment complete!"
               code: currentCode,
               jobId: `${job.id}_iter${iteration}`,
               prompt,
-              captureScreenshot: false,
+              captureScreenshot: true,
               iteration
             }),
             signal: controller.signal

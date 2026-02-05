@@ -1,0 +1,42 @@
+composerkil@blender-worker:~/akku-engine$ sudo apt install libegl1
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following additional packages will be installed:
+  libegl-mesa0
+The following NEW packages will be installed:
+  libegl-mesa0 libegl1
+0 upgraded, 2 newly installed, 0 to remove and 11 not upgraded.
+Need to get 148 kB of archives.
+After this operation, 445 kB of additional disk space will be used.
+Do you want to continue? [Y/n] y
+Get:1 file:/etc/apt/mirrors/debian.list Mirrorlist [30 B]
+Get:2 https://deb.debian.org/debian bookworm/main amd64 libegl-mesa0 amd64 22.3.6-1+deb12u1 [114 kB]
+Get:3 https://deb.debian.org/debian bookworm/main amd64 libegl1 amd64 1.6.0-1 [33.7 kB]
+Fetched 148 kB in 0s (947 kB/s)    
+Selecting previously unselected package libegl-mesa0:amd64.
+(Reading database ... 94996 files and directories currently installed.)
+Preparing to unpack .../libegl-mesa0_22.3.6-1+deb12u1_amd64.deb ...
+Unpacking libegl-mesa0:amd64 (22.3.6-1+deb12u1) ...
+Selecting previously unselected package libegl1:amd64.
+Preparing to unpack .../libegl1_1.6.0-1_amd64.deb ...
+Unpacking libegl1:amd64 (1.6.0-1) ...
+Setting up libegl-mesa0:amd64 (22.3.6-1+deb12u1) ...
+Setting up libegl1:amd64 (1.6.0-1) ...
+Processing triggers for libc-bin (2.36-9+deb12u13) ...
+[24]-  Done                    nohup python3 server/gcp-app.py > flask.log 2>&1
+composerkil@blender-worker:~/akku-engine$ cd ~/akku-engine && git pull
+pkill -f "python3 server/gcp-app.py"
+nohup python3 server/gcp-app.py > flask.log 2>&1 &
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 680 bytes | 340.00 KiB/s, done.
+From https://github.com/Kilwaymusic/akku-engine
+   dede1d1..5c9e7e4  main       -> origin/main
+Updating dede1d1..5c9e7e4
+Fast-forward
+ server/routes.ts | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+[26] 21449

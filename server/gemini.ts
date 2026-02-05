@@ -1334,15 +1334,26 @@ export async function runIterativeGeneration(
 // BLENDER CODE GENERATION - Simple & Robust Template
 // ============================================================
 
-const BLENDER_CODE_GENERATION_PROMPT = `You are generating Blender Python code for a low-poly game character.
+const BLENDER_CODE_GENERATION_PROMPT = `You are an EXPERT 3D artist generating detailed Blender Python code for game-ready characters.
 
-OUTPUT THIS EXACT CODE with modifications based on the character description.
-DO NOT add any text before or after the code. NO markdown code blocks.
+## YOUR GOAL
+Create a visually appealing low-poly character with:
+- Multiple colored parts (skin, hair, clothing, armor, accessories)
+- Proper proportions matching the character type
+- Distinctive features that match the prompt
+- Multiple materials for different body parts
+
+## OUTPUT RULES
+- Output ONLY Python code (NO markdown, NO \`\`\`python blocks)
+- Code must be complete and executable in Blender
+
+## ADVANCED TEMPLATE - USE THIS STRUCTURE:
 
 import bpy
 import bmesh
+from mathutils import Vector
 
-# Cleanup
+# Scene cleanup
 for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
 for m in bpy.data.meshes:
@@ -1350,93 +1361,154 @@ for m in bpy.data.meshes:
 for mat in bpy.data.materials:
     bpy.data.materials.remove(mat)
 
-# Create mesh
-mesh = bpy.data.meshes.new("Character")
-obj = bpy.data.objects.new("Character", mesh)
-bpy.context.collection.objects.link(obj)
+def create_material(name, color, metallic=0.0, roughness=0.5):
+    """Create a PBR material with given color"""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get('Principled BSDF')
+    if bsdf:
+        bsdf.inputs['Base Color'].default_value = (*color, 1.0)
+        bsdf.inputs['Metallic'].default_value = metallic
+        bsdf.inputs['Roughness'].default_value = roughness
+    return mat
 
-bm = bmesh.new()
+def create_part(name, material):
+    """Create a new mesh object with bmesh for a body part"""
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(material)
+    bm = bmesh.new()
+    return obj, bm, mesh
 
-def add_box(px, py, pz, sx, sy, sz):
+def finish_part(bm, mesh):
+    """Finalize bmesh to mesh"""
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.01)
+    bm.to_mesh(mesh)
+    bm.free()
+    for p in mesh.polygons:
+        p.use_smooth = False
+
+def add_box(bm, pos, size):
+    """Add a box primitive at position with given size"""
     r = bmesh.ops.create_cube(bm, size=1.0)
     for v in r['verts']:
-        v.co.x = v.co.x * sx + px
-        v.co.y = v.co.y * sy + py
-        v.co.z = v.co.z * sz + pz
+        v.co.x = v.co.x * size[0] + pos[0]
+        v.co.y = v.co.y * size[1] + pos[1]
+        v.co.z = v.co.z * size[2] + pos[2]
+    return r['verts']
 
-# Body
-add_box(0, 0, 1.0, 0.4, 0.25, 0.5)      # torso
-add_box(0, 0, 1.55, 0.3, 0.28, 0.32)    # head
-add_box(0, 0, 1.32, 0.1, 0.1, 0.1)      # neck
+def add_sphere(bm, pos, radius, segments=8, rings=6):
+    """Add a UV sphere at position"""
+    r = bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=radius)
+    for v in r['verts']:
+        v.co.x += pos[0]
+        v.co.y += pos[1]
+        v.co.z += pos[2]
+    return r['verts']
+
+def add_cone(bm, pos, radius, height, segments=8):
+    """Add a cone primitive"""
+    r = bmesh.ops.create_cone(bm, segments=segments, radius1=radius, radius2=0, depth=height, cap_ends=True)
+    for v in r['verts']:
+        v.co.x += pos[0]
+        v.co.y += pos[1]
+        v.co.z += pos[2] + height/2
+    return r['verts']
+
+def add_cylinder(bm, pos, radius, height, segments=8):
+    """Add a cylinder primitive"""
+    r = bmesh.ops.create_cone(bm, segments=segments, radius1=radius, radius2=radius, depth=height, cap_ends=True)
+    for v in r['verts']:
+        v.co.x += pos[0]
+        v.co.y += pos[1]
+        v.co.z += pos[2]
+    return r['verts']
+
+# === CREATE MATERIALS FOR EACH PART ===
+# Examples - modify colors based on character description:
+mat_skin = create_material("Skin", (0.85, 0.65, 0.55))           # Human skin
+mat_hair = create_material("Hair", (0.15, 0.1, 0.08))            # Dark hair
+mat_clothing = create_material("Clothing", (0.3, 0.35, 0.6))     # Blue fabric
+mat_armor = create_material("Armor", (0.7, 0.7, 0.75), metallic=0.9, roughness=0.3)
+mat_accent = create_material("Accent", (0.8, 0.2, 0.2))          # Red accent
+
+# === BODY (skin material) ===
+obj_body, bm, mesh = create_part("Body", mat_skin)
+
+# Torso - use beveled/tapered shapes for more organic look
+add_box(bm, (0, 0, 1.0), (0.42, 0.24, 0.52))     # chest
+add_box(bm, (0, 0, 0.68), (0.38, 0.22, 0.16))    # waist
+add_box(bm, (0, 0, 1.32), (0.12, 0.1, 0.12))     # neck
+
+# Head - can use sphere for rounder look
+add_sphere(bm, (0, 0, 1.58), 0.18, segments=12, rings=8)
 
 # Arms
-add_box(-0.38, 0, 1.08, 0.16, 0.12, 0.14)   # left shoulder
-add_box(-0.55, 0, 1.08, 0.16, 0.1, 0.11)    # left upper arm
-add_box(-0.72, 0, 1.08, 0.16, 0.08, 0.09)   # left forearm
-add_box(-0.88, 0, 1.08, 0.1, 0.07, 0.12)    # left hand
+add_box(bm, (-0.32, 0, 1.1), (0.12, 0.1, 0.35))  # left upper arm
+add_box(bm, (-0.32, 0, 0.72), (0.1, 0.08, 0.35)) # left forearm
+add_box(bm, (0.32, 0, 1.1), (0.12, 0.1, 0.35))   # right upper arm
+add_box(bm, (0.32, 0, 0.72), (0.1, 0.08, 0.35))  # right forearm
 
-add_box(0.38, 0, 1.08, 0.16, 0.12, 0.14)    # right shoulder
-add_box(0.55, 0, 1.08, 0.16, 0.1, 0.11)     # right upper arm
-add_box(0.72, 0, 1.08, 0.16, 0.08, 0.09)    # right forearm
-add_box(0.88, 0, 1.08, 0.1, 0.07, 0.12)     # right hand
+# Hands
+add_box(bm, (-0.32, 0, 0.52), (0.08, 0.06, 0.1))
+add_box(bm, (0.32, 0, 0.52), (0.08, 0.06, 0.1))
 
-# Hips and Legs
-add_box(0, 0, 0.68, 0.36, 0.22, 0.16)       # hips
+# Legs
+add_box(bm, (-0.12, 0, 0.42), (0.12, 0.1, 0.32))  # left thigh
+add_box(bm, (-0.12, 0, 0.1), (0.1, 0.09, 0.32))   # left shin
+add_box(bm, (0.12, 0, 0.42), (0.12, 0.1, 0.32))   # right thigh
+add_box(bm, (0.12, 0, 0.1), (0.1, 0.09, 0.32))    # right shin
 
-add_box(-0.12, 0, 0.42, 0.14, 0.13, 0.28)   # left thigh
-add_box(-0.12, 0, 0.12, 0.11, 0.1, 0.28)    # left shin
-add_box(-0.12, 0.06, -0.02, 0.09, 0.16, 0.06) # left foot
+# Feet
+add_box(bm, (-0.12, 0.04, -0.04), (0.1, 0.14, 0.08))
+add_box(bm, (0.12, 0.04, -0.04), (0.1, 0.14, 0.08))
 
-add_box(0.12, 0, 0.42, 0.14, 0.13, 0.28)    # right thigh
-add_box(0.12, 0, 0.12, 0.11, 0.1, 0.28)     # right shin
-add_box(0.12, 0.06, -0.02, 0.09, 0.16, 0.06) # right foot
+finish_part(bm, mesh)
 
-# === ADD CHARACTER FEATURES HERE ===
-# For cat: add_box(-0.12, 0, 1.78, 0.06, 0.05, 0.14) and add_box(0.12, 0, 1.78, 0.06, 0.05, 0.14) for ears
-# For knight: add_box(0, 0, 1.78, 0.34, 0.32, 0.18) for helmet
-# For robot: add_box(0, 0.16, 1.58, 0.26, 0.06, 0.1) for visor
-# Add appropriate features based on character type
+# === HAIR (separate object with hair material) ===
+obj_hair, bm, mesh = create_part("Hair", mat_hair)
+add_sphere(bm, (0, 0, 1.64), 0.2, segments=10, rings=6)
+add_box(bm, (0, -0.08, 1.5), (0.22, 0.1, 0.28))  # back of hair
+finish_part(bm, mesh)
 
-# Merge nearby vertices
-bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.03)
+# === CLOTHING/ARMOR (separate object) ===
+obj_cloth, bm, mesh = create_part("Clothing", mat_clothing)
+# Add clothing shapes here - shirt, pants, robe, armor plates, etc.
+add_box(bm, (0, 0, 1.0), (0.45, 0.26, 0.54))     # shirt/chest covering
+add_box(bm, (0, 0, 0.42), (0.28, 0.2, 0.5))      # pants/skirt
+finish_part(bm, mesh)
 
-# Material
-mat = bpy.data.materials.new("Mat")
-mat.use_nodes = True
-bsdf = mat.node_tree.nodes.get('Principled BSDF')
-if bsdf:
-    bsdf.inputs['Base Color'].default_value = (0.7, 0.6, 0.5, 1.0)  # MODIFY: skin color
-    bsdf.inputs['Metallic'].default_value = 0.0                      # MODIFY: 0.9 for metal
-    bsdf.inputs['Roughness'].default_value = 0.6
+# === ACCESSORIES (weapons, hats, etc.) ===
+# Add based on character type
 
-# Finalize
-bm.to_mesh(mesh)
-bm.free()
-for p in mesh.polygons:
-    p.use_smooth = False
-obj.data.materials.append(mat)
-print("Done:", len(mesh.vertices), "verts,", len(mesh.polygons), "faces")
+print("Character created with multiple materials!")
 
 ---
-INSTRUCTIONS:
-1. Output ONLY Python code (no markdown, no \`\`\`python)
-2. Copy the template above
-3. Add character features using add_box() calls in the marked section
-4. Modify material colors for the character type
+## CRITICAL INSTRUCTIONS:
+1. CREATE SEPARATE OBJECTS for different colored parts (body, hair, clothing, accessories)
+2. EACH OBJECT gets its OWN MATERIAL with appropriate color
+3. Use add_sphere() for heads/round parts, add_cone() for hats/horns, add_cylinder() for weapons
+4. Match proportions to character type:
+   - Chibi: big head (0.25 radius), small body (0.5x height)
+   - Realistic: normal proportions (head ~1/7 of height)
+   - Stylized: slightly large head, expressive proportions
+5. Add DISTINCTIVE FEATURES based on the prompt:
+   - Elf: pointed ears using add_cone()
+   - Cat: triangular ears, tail using multiple boxes
+   - Robot: angular shapes, antenna, visor
+   - Knight: armor plates, helmet, sword
+   - Mage: flowing robe, staff, hat
 
-FEATURE EXAMPLES:
-- Cat ears: add_box(-0.12, 0, 1.78, 0.06, 0.05, 0.14) and add_box(0.12, 0, 1.78, 0.06, 0.05, 0.14)
-- Cat tail: add_box(0, -0.22, 0.65, 0.05, 0.28, 0.06)
-- Knight helmet: add_box(0, 0, 1.78, 0.34, 0.32, 0.18)
-- Knight visor: add_box(0, 0.18, 1.58, 0.22, 0.06, 0.08)
-- Robot antenna: add_box(0.08, 0, 1.88, 0.03, 0.03, 0.18)
+## COLOR PALETTE EXAMPLES:
+- Elf skin: (0.9, 0.8, 0.7) or pale green (0.75, 0.85, 0.7)
+- Purple robe: (0.4, 0.2, 0.5)
+- Gold trim: (0.85, 0.7, 0.3), metallic=0.9
+- Steel armor: (0.6, 0.6, 0.65), metallic=0.95
+- Wood staff: (0.4, 0.25, 0.15)
+- Magic glow: (0.5, 0.3, 0.9)
 
-MATERIAL COLORS (R, G, B, 1.0):
-- Skin: (0.8, 0.6, 0.5, 1.0)
-- Pink: (0.95, 0.7, 0.75, 1.0), Metallic=0
-- Silver armor: (0.75, 0.75, 0.8, 1.0), Metallic=0.9, Roughness=0.3
-- Blue robot: (0.3, 0.5, 0.9, 1.0), Metallic=0.95, Roughness=0.2
-- Purple magic: (0.55, 0.35, 0.7, 1.0), Metallic=0`;
+BE CREATIVE but stay within the low-poly game character style (~500-2000 triangles).`;
 
 
 
