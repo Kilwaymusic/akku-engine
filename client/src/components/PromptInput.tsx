@@ -29,7 +29,48 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const resizeImage = (file: File, maxWidth: number = 800, maxHeight: number = 800, quality: number = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      const isPng = file.type === "image/png";
+      
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      
+      img.onload = () => {
+        let { width, height } = img;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas context not available"));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        const outputType = isPng ? "image/png" : "image/jpeg";
+        const dataUrl = canvas.toDataURL(outputType, isPng ? undefined : quality);
+        resolve(dataUrl);
+      };
+      
+      img.onerror = () => reject(new Error("Failed to load image"));
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -42,22 +83,28 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    try {
+      const optimizedDataUrl = await resizeImage(file, 800, 800, 0.85);
+      setImagePreview(optimizedDataUrl);
+      setReferenceImage(optimizedDataUrl);
+      
+      const originalSizeKB = Math.round(file.size / 1024);
+      const base64Part = optimizedDataUrl.split(",")[1] || "";
+      const optimizedSizeKB = Math.round((base64Part.length * 3) / 4 / 1024);
+      
+      if (originalSizeKB > 100 && originalSizeKB > optimizedSizeKB * 1.3) {
+        toast({
+          title: "이미지 최적화됨",
+          description: `${originalSizeKB}KB → ${optimizedSizeKB}KB`,
+        });
+      }
+    } catch (error) {
       toast({
-        title: "파일이 너무 큽니다",
-        description: "5MB 이하의 이미지를 업로드해주세요.",
+        title: "이미지 처리 실패",
+        description: "이미지를 처리하는 중 오류가 발생했습니다.",
         variant: "destructive",
       });
-      return;
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setImagePreview(dataUrl);
-      setReferenceImage(dataUrl);
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleClearImage = () => {

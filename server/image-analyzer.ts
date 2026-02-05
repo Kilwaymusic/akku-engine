@@ -72,30 +72,32 @@ function getGeminiClient(): OpenAI {
 export async function analyzeImage(imageBase64: string, mimeType: string = "image/png"): Promise<CharacterAttributes> {
   const client = getGeminiClient();
   
-  const systemPrompt = `You are an expert at analyzing character reference images for 3D modeling.
-Analyze the provided image and extract the following attributes for a low-poly 3D character generation system.
+  const systemPrompt = `You are an expert at analyzing character reference images for 3D low-poly game character modeling.
+Analyze the provided image VERY CAREFULLY and extract DETAILED attributes for accurate 3D character recreation.
+
+IMPORTANT: Be EXTREMELY SPECIFIC about visual details. The output will be used to generate a 3D model that should closely match this reference.
 
 Respond in valid JSON format with these fields:
 {
-  "description": "Brief description of the character in the image",
+  "description": "DETAILED description including: pose, clothing items, accessories, facial features, hair style, any unique visual characteristics",
   "style": "One of: realistic, stylized, chibi, sd, mobile, minifig, cartoon",
-  "colors": ["Array of dominant colors as descriptive names (e.g., 'red', 'metallic blue', 'golden')"],
+  "colors": ["SPECIFIC colors with context, e.g., 'brown short hair', 'blue casual t-shirt', 'dark gray pants', 'tan/beige skin tone'"],
   "bodyType": {
     "preset": "One of: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant",
-    "muscular": 0.0 to 1.0 (optional, how muscular the character appears),
-    "fat": 0.0 to 1.0 (optional, body fat level),
-    "height": -1.0 to 1.0 (optional, relative height, 0 is normal),
-    "shoulderWidth": -1.0 to 1.0 (optional, shoulder width modifier),
-    "hipWidth": -1.0 to 1.0 (optional, hip width modifier)
+    "muscular": 0.0 to 1.0 (how muscular the character appears),
+    "fat": 0.0 to 1.0 (body fat level),
+    "height": -1.0 to 1.0 (relative height, 0 is normal),
+    "shoulderWidth": -1.0 to 1.0 (shoulder width modifier),
+    "hipWidth": -1.0 to 1.0 (hip width modifier)
   },
   "gender": "male or female based on appearance",
-  "equipment": ["Array of notable equipment/armor/accessories"],
-  "archetype": "Character archetype like warrior, mage, robot, etc.",
-  "suggestedPrompt": "A natural language prompt that would generate this character, in Korean or English"
+  "equipment": ["SPECIFIC clothing/accessories: e.g., 'blue short-sleeve t-shirt', 'gray knee-length shorts', 'brown casual shoes'"],
+  "archetype": "Character type: casual, warrior, mage, robot, etc.",
+  "suggestedPrompt": "A VERY DETAILED prompt in Korean that would recreate this exact character. Include: gender, body type, specific clothing with colors, hair color/style, skin tone, pose if notable. Example format: '남성, 평균 체형, 갈색 짧은 머리, 베이지색 피부, 파란 반팔 티셔츠, 회색 반바지, 갈색 신발'"
 }
 
-Focus on visual characteristics that are relevant for 3D character generation.
-For body proportions, estimate based on the character's visible build.`;
+Focus on ACCURACY - the generated 3D model should look like this reference image.
+Pay special attention to: clothing style, colors, body proportions, and any distinctive features.`;
 
   try {
     const response = await client.chat.completions.create({
