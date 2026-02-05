@@ -1,21 +1,78 @@
 import { GoogleGenAI } from "@google/genai";
 import type { AkkuGenerationPlan, CharacterGenerationPlan } from "./blender-mcp-client";
 
-// Use custom API key from secrets, fallback to Replit AI Integrations
-const apiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-const baseUrl = process.env.GEMINI_API_KEY 
+// Primary AI client (user's key or Replit integration)
+const primaryApiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+const primaryBaseUrl = process.env.GEMINI_API_KEY 
   ? undefined  // Use default Google API endpoint when using custom key
   : process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
 
 const ai = new GoogleGenAI({
-  apiKey: apiKey,
-  ...(baseUrl && {
+  apiKey: primaryApiKey,
+  ...(primaryBaseUrl && {
     httpOptions: {
       apiVersion: "",
-      baseUrl: baseUrl,
+      baseUrl: primaryBaseUrl,
     },
   }),
 });
+
+// Fallback AI client (Replit integration) - used when primary hits rate limit
+const fallbackAi = process.env.GEMINI_API_KEY && process.env.AI_INTEGRATIONS_GEMINI_API_KEY
+  ? new GoogleGenAI({
+      apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+      httpOptions: {
+        apiVersion: "",
+        baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || "",
+      },
+    })
+  : null;
+
+// Helper to detect rate limit errors
+function isRateLimitError(error: unknown): boolean {
+  if (error && typeof error === "object" && "status" in error) {
+    return (error as { status: number }).status === 429;
+  }
+  return false;
+}
+
+// Model name mapping for Replit AI Integrations
+function getModelForClient(model: string, isReplit: boolean): string {
+  if (!isReplit) return model;
+  // Replit AI integrations uses slightly different model names
+  if (model === "gemini-2.5-flash") return "gemini-2.5-flash";
+  if (model === "gemini-2.5-pro") return "gemini-2.5-pro";
+  if (model === "gemini-2.0-flash") return "gemini-2.5-flash"; // Map 2.0 to 2.5 for Replit
+  return model;
+}
+
+// Helper to call AI with automatic fallback on rate limit
+async function generateContentWithFallback(
+  model: string,
+  contents: Array<{ role: string; parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> }>,
+  config?: { responseMimeType?: string; responseSchema?: object }
+): Promise<{ text: string | undefined }> {
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents,
+      config,
+    });
+    return { text: response.text };
+  } catch (error) {
+    if (isRateLimitError(error) && fallbackAi) {
+      console.log("[Gemini] Primary API rate limited, using Replit AI Integration fallback...");
+      const fallbackModel = getModelForClient(model, true);
+      const response = await fallbackAi.models.generateContent({
+        model: fallbackModel,
+        contents,
+        config,
+      });
+      return { text: response.text };
+    }
+    throw error;
+  }
+}
 
 // ============================================================
 // SDK PARAMETER SCHEMA - Strict Type Definitions
@@ -659,14 +716,14 @@ export async function mapPromptToParameters(
       userRequest += `\nUse polyLevel: "${polyLevel}"`;
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
+    const response = await generateContentWithFallback(
+      "gemini-2.5-flash",
+      [
         { role: "user", parts: [{ text: PARAMETER_MAPPING_PROMPT }] },
         { role: "model", parts: [{ text: "I understand. I will analyze character descriptions and output precise SDK parameter JSON following the strict schema." }] },
         { role: "user", parts: [{ text: userRequest }] },
-      ],
-    });
+      ]
+    );
 
     const text = response.text || "";
     let jsonStr = extractJSON(text);
@@ -1214,9 +1271,9 @@ REFINEMENT GUIDELINES:
 If the character looks good and matches the prompt, set satisfactory=true and leave refinements empty.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: [
+    const response = await generateContentWithFallback(
+      "gemini-2.5-flash",
+      [
         {
           role: "user",
           parts: [
@@ -1229,12 +1286,8 @@ If the character looks good and matches the prompt, set satisfactory=true and le
             }
           ]
         }
-      ],
-      config: {
-        temperature: 0.3,
-        maxOutputTokens: 1024
-      }
-    });
+      ]
+    );
 
     const text = response.text || "";
     
