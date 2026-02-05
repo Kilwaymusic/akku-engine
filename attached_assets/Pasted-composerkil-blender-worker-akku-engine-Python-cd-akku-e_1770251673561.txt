@@ -1,0 +1,575 @@
+composerkil@blender-worker:~/akku-engine$ # Python 캐시 삭제
+cd ~/akku-engine
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+find . -name "*.pyc" -delete 2>/dev/null
+
+# 버전 확인
+grep "__version__" server/akku_sdk/__init__.py
+
+# 다시 테스트
+blender --background --python server/akku_sdk/run.py -- \
+  "SF 로봇 전사, 메탈릭 블루 아머" stylized high /tmp/test_high.glb male default false armor
+__version__ = "4.0.0"
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+[Akku SDK][INFO] Executing tool: generate_character
+
+============================================================
+[Akku SDK v4.0] Character Generation
+============================================================
+Prompt: SF 로봇 전사, 메탈릭 블루 아머
+Style: stylized, Poly Level: high
+Gender: male, Body Type: default
+Equipment: armor
+Body Type Params: {'preset': 'default'}
+Use Remesh: False
+============================================================
+
+[Akku SDK][INFO] Executing tool: generate_procedural_base
+[Akku SDK][INFO] Scene cleared
+[Akku SDK][INFO] Generating procedural humanoid
+  Data: {
+  "style": "stylized",
+  "poly_level": "high",
+  "gender": "male",
+  "create_rig": true,
+  "hierarchical": true,
+  "equipment": "armor"
+}
+[Akku SDK][INFO] Generating hierarchical humanoid
+  Data: {
+  "style": "stylized",
+  "poly_level": "high",
+  "gender": "male"
+}
+[Akku SDK][INFO] Applying subdivision and smoothing
+  Data: {
+  "level": 1
+}
+[Akku SDK][INFO] Hierarchical humanoid generated
+  Data: {
+  "parts_count": 15,
+  "total_vertices": 10000,
+  "total_faces": 9862,
+  "style": "stylized",
+  "poly_level": "high"
+}
+[Akku SDK][INFO] Step 'generate_procedural_base': SUCCESS
+  Data: {
+  "duration_ms": 248.8694190979004,
+  "mesh_stats": {
+    "vertex_count": 650,
+    "face_count": 648,
+    "triangle_count": 1296,
+    "edge_count": 1296,
+    "material_count": 0,
+    "bounds_min": [
+      -0.7030960321426392,
+      -0.051028378307819366,
+      1.0471304655075073
+    ],
+    "bounds_max": [
+      -0.4584435820579529,
+      0.051028382033109665,
+      1.1658775806427002
+    ],
+    "height": 0.11874711513519287
+  }
+}
+[Akku SDK][INFO] Executing tool: apply_style
+[Akku SDK][INFO] Style Analysis
+  Data: {
+  "color": [
+    0.1,
+    0.3,
+    1.0
+  ],
+  "archetype": {
+    "metallic": 0.9,
+    "roughness": 0.2,
+    "emission": 0.1
+  },
+  "proportion_scale": 1.0,
+  "poly_level": "high"
+}
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Arm_L_Lower
+  Data: {
+  "base_color": [
+    0.085,
+    0.27,
+    0.95
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Arm_L_Lower
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Arm_L_Upper
+  Data: {
+  "base_color": [
+    0.09000000000000001,
+    0.285,
+    1.0
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Arm_L_Upper
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Arm_R_Lower
+  Data: {
+  "base_color": [
+    0.085,
+    0.27,
+    0.95
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Arm_R_Lower
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Arm_R_Upper
+  Data: {
+  "base_color": [
+    0.09000000000000001,
+    0.285,
+    1.0
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Arm_R_Upper
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Foot_L
+  Data: {
+  "base_color": [
+    0.06999999999999999,
+    0.21,
+    0.75
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Foot_L
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Foot_R
+  Data: {
+  "base_color": [
+    0.06999999999999999,
+    0.21,
+    0.75
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Foot_R
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Hand_L
+  Data: {
+  "base_color": [
+    0.11499999999999999,
+    0.33,
+    1.0
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Hand_L
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Hand_R
+  Data: {
+  "base_color": [
+    0.11499999999999999,
+    0.33,
+    1.0
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Hand_R
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Head
+  Data: {
+  "base_color": [
+    0.11000000000000001,
+    0.315,
+    1.0
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Head
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Leg_L_Lower
+  Data: {
+  "base_color": [
+    0.08000000000000002,
+    0.24,
+    0.85
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Leg_L_Lower
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Leg_L_Upper
+  Data: {
+  "base_color": [
+    0.085,
+    0.255,
+    0.9
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Leg_L_Upper
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Leg_R_Lower
+  Data: {
+  "base_color": [
+    0.08000000000000002,
+    0.24,
+    0.85
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Leg_R_Lower
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Leg_R_Upper
+  Data: {
+  "base_color": [
+    0.085,
+    0.255,
+    0.9
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Leg_R_Upper
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Neck
+  Data: {
+  "base_color": [
+    0.095,
+    0.285,
+    0.95
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Neck
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Created GLB material: Akku_GLB_Torso
+  Data: {
+  "base_color": [
+    0.1,
+    0.3,
+    1.0
+  ],
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Applied GLB material to Torso
+  Data: {
+  "style": "stylized",
+  "metallic": 0.0,
+  "roughness": 0.7
+}
+[Akku SDK][INFO] Mesh triangulated
+[Akku SDK][INFO] Step 'apply_style': SUCCESS
+  Data: {
+  "duration_ms": 74.50604438781738,
+  "mesh_stats": {
+    "vertex_count": 650,
+    "face_count": 1296,
+    "triangle_count": 1296,
+    "edge_count": 1944,
+    "material_count": 1,
+    "bounds_min": [
+      -0.7030960321426392,
+      -0.051028378307819366,
+      1.0471304655075073
+    ],
+    "bounds_max": [
+      -0.4584435820579529,
+      0.051028382033109665,
+      1.1658775806427002
+    ],
+    "height": 0.11874711513519287
+  }
+}
+[Akku SDK][INFO] Equipping kitbash parts
+  Data: {
+  "equipment_style": "heavy",
+  "color": [
+    0.1,
+    0.3,
+    1.0
+  ]
+}
+[Akku SDK][INFO] Executing tool: equip_item
+[Akku SDK][INFO] Kitbash library initialized with 25 parts
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][WARNING] No armature found in scene
+[Akku SDK][INFO] Step 'equip_item': SUCCESS
+  Data: {
+  "duration_ms": 0.4627704620361328,
+  "mesh_stats": {
+    "vertex_count": 650,
+    "face_count": 1296,
+    "triangle_count": 1296,
+    "edge_count": 1944,
+    "material_count": 1,
+    "bounds_min": [
+      -0.7030960321426392,
+      -0.051028378307819366,
+      1.0471304655075073
+    ],
+    "bounds_max": [
+      -0.4584435820579529,
+      0.051028382033109665,
+      1.1658775806427002
+    ],
+    "height": 0.11874711513519287
+  }
+}
+[Akku SDK][INFO] No kitbash parts equipped (style not found or no matching parts)
+[Akku SDK][INFO] Executing tool: export_glb
+[Akku SDK][INFO] Froze transform for Arm_L_Lower
+[Akku SDK][INFO] Froze transform for Arm_L_Upper
+[Akku SDK][INFO] Froze transform for Arm_R_Lower
+[Akku SDK][INFO] Froze transform for Arm_R_Upper
+[Akku SDK][INFO] Froze transform for Foot_L
+[Akku SDK][INFO] Froze transform for Foot_R
+[Akku SDK][INFO] Froze transform for Hand_L
+[Akku SDK][INFO] Froze transform for Hand_R
+[Akku SDK][INFO] Froze transform for Head
+[Akku SDK][INFO] Froze transform for Leg_L_Lower
+[Akku SDK][INFO] Froze transform for Leg_L_Upper
+[Akku SDK][INFO] Froze transform for Leg_R_Lower
+[Akku SDK][INFO] Froze transform for Leg_R_Upper
+[Akku SDK][INFO] Froze transform for Neck
+[Akku SDK][INFO] Froze transform for Torso
+[Akku SDK][INFO] Froze 15 meshes (modifiers, transforms for non-rigged) for export
+00:34:01 | ERROR: Draco mesh compression is not available because library could not be found at /usr/bin/3.4/python/lib/python3.11/site-packages/libextern_draco.so
+00:34:01 | INFO: Starting glTF 2.0 export
+00:34:01 | INFO: Extracting primitive: Arm_L_Lower.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Arm_L_Upper.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Arm_R_Lower.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Arm_R_Upper.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Foot_L.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Foot_R.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Hand_L.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Hand_R.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Head.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Leg_L_Lower.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Leg_L_Upper.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Leg_R_Lower.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Leg_R_Upper.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Neck.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Extracting primitive: Torso.001
+00:34:01 | INFO: Primitives created: 1
+00:34:01 | INFO: Finished glTF 2.0 export in 0.17903614044189453 s
+
+[Akku SDK][INFO] Exported GLB
+  Data: {
+  "path": "/tmp/test_high.glb",
+  "size": 2023784
+}
+[Akku SDK][INFO] Step 'export_glb': SUCCESS
+  Data: {
+  "duration_ms": 438.0176067352295,
+  "mesh_stats": {
+    "vertex_count": 650,
+    "face_count": 1296,
+    "triangle_count": 1296,
+    "edge_count": 1944,
+    "material_count": 1,
+    "bounds_min": [
+      -0.7030960321426392,
+      -0.051028378307819366,
+      1.0471304655075073
+    ],
+    "bounds_max": [
+      -0.4584435820579529,
+      0.051028382033109665,
+      1.1658775806427002
+    ],
+    "height": 0.11874711513519287
+  }
+}
+[Akku SDK][INFO] Step 'generate_character': SUCCESS
+  Data: {
+  "duration_ms": 769.7389125823975,
+  "mesh_stats": {
+    "vertex_count": 650,
+    "face_count": 1296,
+    "triangle_count": 1296,
+    "edge_count": 1944,
+    "material_count": 1,
+    "bounds_min": [
+      -0.7030960321426392,
+      -0.051028378307819366,
+      1.0471304655075073
+    ],
+    "bounds_max": [
+      -0.4584435820579529,
+      0.051028382033109665,
+      1.1658775806427002
+    ],
+    "height": 0.11874711513519287
+  }
+}
+
+[Akku SDK] Generation completed successfully!
+{
+  "prompt": "SF 로봇 전사, 메탈릭 블루 아머",
+  "style": "stylized",
+  "poly_level": "high",
+  "body_type": "default",
+  "output_path": "/tmp/test_high.glb",
+  "generation_mode": "procedural",
+  "load_info": {
+    "root_name": "Character_Root",
+    "mesh_names": [
+      "Arm_L_Lower",
+      "Arm_L_Upper",
+      "Arm_R_Lower",
+      "Arm_R_Upper",
+      "Foot_L",
+      "Foot_R",
+      "Hand_L",
+      "Hand_R",
+      "Head",
+      "Leg_L_Lower",
+      "Leg_L_Upper",
+      "Leg_R_Lower",
+      "Leg_R_Upper",
+      "Neck",
+      "Torso"
+    ],
+    "parts_count": 15,
+    "vertex_count": 10000,
+    "face_count": 9862,
+    "triangle_count": 19724,
+    "style": "stylized",
+    "poly_level": "high",
+    "gender": "male",
+    "mode": "procedural_hierarchical"
+  },
+  "body_type_info": null,
+  "style_info": {
+    "color": [
+      0.1,
+      0.3,
+      1.0
+    ],
+    "archetype": {
+      "metallic": 0.9,
+      "roughness": 0.2,
+      "emission": 0.1
+    },
+    "proportion_scale": 1.0,
+    "total_triangles": 19724
+  },
+  "remesh_info": null,
+  "export_info": {
+    "path": "/tmp/test_high.glb",
+    "size_bytes": 2023784,
+    "success": true,
+    "log_report": "{\n  \"logs\": [\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.105751\",\n      \"level\": \"INFO\",\n      \"message\": \"Generating procedural humanoid\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"poly_level\": \"high\",\n        \"gender\": \"male\",\n        \"create_rig\": true,\n        \"hierarchical\": true,\n        \"equipment\": \"armor\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.105851\",\n      \"level\": \"INFO\",\n      \"message\": \"Generating hierarchical humanoid\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"poly_level\": \"high\",\n        \"gender\": \"male\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.115393\",\n      \"level\": \"INFO\",\n      \"message\": \"Applying subdivision and smoothing\",\n      \"data\": {\n        \"level\": 1\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.348716\",\n      \"level\": \"INFO\",\n      \"message\": \"Hierarchical humanoid generated\",\n      \"data\": {\n        \"parts_count\": 15,\n        \"total_vertices\": 10000,\n        \"total_faces\": 9862,\n        \"style\": \"stylized\",\n        \"poly_level\": \"high\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.356454\",\n      \"level\": \"INFO\",\n      \"message\": \"Step 'generate_procedural_base': SUCCESS\",\n      \"data\": {\n        \"duration_ms\": 248.8694190979004,\n        \"mesh_stats\": {\n          \"vertex_count\": 650,\n          \"face_count\": 648,\n          \"triangle_count\": 1296,\n          \"edge_count\": 1296,\n          \"material_count\": 0,\n          \"bounds_min\": [\n            -0.7030960321426392,\n            -0.051028378307819366,\n            1.0471304655075073\n          ],\n          \"bounds_max\": [\n            -0.4584435820579529,\n            0.051028382033109665,\n            1.1658775806427002\n          ],\n          \"height\": 0.11874711513519287\n        }\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.356675\",\n      \"level\": \"INFO\",\n      \"message\": \"Executing tool: apply_style\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.356728\",\n      \"level\": \"INFO\",\n      \"message\": \"Style Analysis\",\n      \"data\": {\n        \"color\": [\n          0.1,\n          0.3,\n          1.0\n        ],\n        \"archetype\": {\n          \"metallic\": 0.9,\n          \"roughness\": 0.2,\n          \"emission\": 0.1\n        },\n        \"proportion_scale\": 1.0,\n        \"poly_level\": \"high\"\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.357918\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Arm_L_Lower\",\n      \"data\": {\n        \"base_color\": [\n          0.085,\n          0.27,\n          0.95\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.358158\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Arm_L_Lower\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.360624\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.361065\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Arm_L_Upper\",\n      \"data\": {\n        \"base_color\": [\n          0.09000000000000001,\n          0.285,\n          1.0\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.361247\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Arm_L_Upper\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.363734\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.364147\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Arm_R_Lower\",\n      \"data\": {\n        \"base_color\": [\n          0.085,\n          0.27,\n          0.95\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.364324\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Arm_R_Lower\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.366830\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.367247\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Arm_R_Upper\",\n      \"data\": {\n        \"base_color\": [\n          0.09000000000000001,\n          0.285,\n          1.0\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.367430\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Arm_R_Upper\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.369874\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.370293\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Foot_L\",\n      \"data\": {\n        \"base_color\": [\n          0.06999999999999999,\n          0.21,\n          0.75\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.370636\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Foot_L\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.372587\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.372995\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Foot_R\",\n      \"data\": {\n        \"base_color\": [\n          0.06999999999999999,\n          0.21,\n          0.75\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.373175\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Foot_R\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.375119\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.375521\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Hand_L\",\n      \"data\": {\n        \"base_color\": [\n          0.11499999999999999,\n          0.33,\n          1.0\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.375691\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Hand_L\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.376828\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.377227\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Hand_R\",\n      \"data\": {\n        \"base_color\": [\n          0.11499999999999999,\n          0.33,\n          1.0\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.377400\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Hand_R\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.378527\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.378912\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Head\",\n      \"data\": {\n        \"base_color\": [\n          0.11000000000000001,\n          0.315,\n          1.0\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.379237\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Head\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.385275\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.385957\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Leg_L_Lower\",\n      \"data\": {\n        \"base_color\": [\n          0.08000000000000002,\n          0.24,\n          0.85\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.386162\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Leg_L_Lower\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.388640\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.389062\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Leg_L_Upper\",\n      \"data\": {\n        \"base_color\": [\n          0.085,\n          0.255,\n          0.9\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.389238\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Leg_L_Upper\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.391619\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.392050\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Leg_R_Lower\",\n      \"data\": {\n        \"base_color\": [\n          0.08000000000000002,\n          0.24,\n          0.85\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.392239\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Leg_R_Lower\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.394633\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.395030\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Leg_R_Upper\",\n      \"data\": {\n        \"base_color\": [\n          0.085,\n          0.255,\n          0.9\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.395206\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Leg_R_Upper\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.398243\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.398828\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Neck\",\n      \"data\": {\n        \"base_color\": [\n          0.095,\n          0.285,\n          0.95\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.399026\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Neck\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.401854\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.402260\",\n      \"level\": \"INFO\",\n      \"message\": \"Created GLB material: Akku_GLB_Torso\",\n      \"data\": {\n        \"base_color\": [\n          0.1,\n          0.3,\n          1.0\n        ],\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.402452\",\n      \"level\": \"INFO\",\n      \"message\": \"Applied GLB material to Torso\",\n      \"data\": {\n        \"style\": \"stylized\",\n        \"metallic\": 0.0,\n        \"roughness\": 0.7\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.406586\",\n      \"level\": \"INFO\",\n      \"message\": \"Mesh triangulated\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.432610\",\n      \"level\": \"INFO\",\n      \"message\": \"Step 'apply_style': SUCCESS\",\n      \"data\": {\n        \"duration_ms\": 74.50604438781738,\n        \"mesh_stats\": {\n          \"vertex_count\": 650,\n          \"face_count\": 1296,\n          \"triangle_count\": 1296,\n          \"edge_count\": 1944,\n          \"material_count\": 1,\n          \"bounds_min\": [\n            -0.7030960321426392,\n            -0.051028378307819366,\n            1.0471304655075073\n          ],\n          \"bounds_max\": [\n            -0.4584435820579529,\n            0.051028382033109665,\n            1.1658775806427002\n          ],\n          \"height\": 0.11874711513519287\n        }\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.432775\",\n      \"level\": \"INFO\",\n      \"message\": \"Equipping kitbash parts\",\n      \"data\": {\n        \"equipment_style\": \"heavy\",\n        \"color\": [\n          0.1,\n          0.3,\n          1.0\n        ]\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.432849\",\n      \"level\": \"INFO\",\n      \"message\": \"Executing tool: equip_item\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433011\",\n      \"level\": \"INFO\",\n      \"message\": \"Kitbash library initialized with 25 parts\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433095\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433131\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433159\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433186\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433212\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433235\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433257\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.433286\",\n      \"level\": \"WARNING\",\n      \"message\": \"No armature found in scene\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.434765\",\n      \"level\": \"INFO\",\n      \"message\": \"Step 'equip_item': SUCCESS\",\n      \"data\": {\n        \"duration_ms\": 0.4627704620361328,\n        \"mesh_stats\": {\n          \"vertex_count\": 650,\n          \"face_count\": 1296,\n          \"triangle_count\": 1296,\n          \"edge_count\": 1944,\n          \"material_count\": 1,\n          \"bounds_min\": [\n            -0.7030960321426392,\n            -0.051028378307819366,\n            1.0471304655075073\n          ],\n          \"bounds_max\": [\n            -0.4584435820579529,\n            0.051028382033109665,\n            1.1658775806427002\n          ],\n          \"height\": 0.11874711513519287\n        }\n      }\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.434928\",\n      \"level\": \"INFO\",\n      \"message\": \"No kitbash parts equipped (style not found or no matching parts)\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.434959\",\n      \"level\": \"INFO\",\n      \"message\": \"Executing tool: export_glb\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.436125\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Arm_L_Lower\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.437183\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Arm_L_Upper\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.438235\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Arm_R_Lower\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.439283\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Arm_R_Upper\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.440637\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Foot_L\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.441550\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Foot_R\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.442132\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Hand_L\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.442678\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Hand_R\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.445341\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Head\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.446530\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Leg_L_Lower\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.447698\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Leg_L_Upper\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.448772\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Leg_R_Lower\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.449839\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Leg_R_Upper\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.450921\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Neck\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.452724\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze transform for Torso\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.452782\",\n      \"level\": \"INFO\",\n      \"message\": \"Froze 15 meshes (modifiers, transforms for non-rigged) for export\",\n      \"data\": {}\n    },\n    {\n      \"timestamp\": \"2026-02-05T00:34:01.870951\",\n      \"level\": \"INFO\",\n      \"message\": \"Exported GLB\",\n      \"data\": {\n        \"path\": \"/tmp/test_high.glb\",\n        \"size\": 2023784\n      }\n    }\n  ],\n  \"step_results\": [\n    {\n      \"step_name\": \"generate_procedural_base\",\n      \"success\": true,\n      \"message\": \"Completed successfully\",\n      \"mesh_stats\": {\n        \"vertex_count\": 650,\n        \"face_count\": 648,\n        \"triangle_count\": 1296,\n        \"edge_count\": 1296,\n        \"material_count\": 0,\n        \"bounds_min\": [\n          -0.7030960321426392,\n          -0.051028378307819366,\n          1.0471304655075073\n        ],\n        \"bounds_max\": [\n          -0.4584435820579529,\n          0.051028382033109665,\n          1.1658775806427002\n        ],\n        \"height\": 0.11874711513519287\n      },\n      \"duration_ms\": 248.8694190979004,\n      \"timestamp\": \"2026-02-05T00:34:01.356344\",\n      \"error_details\": null\n    },\n    {\n      \"step_name\": \"apply_style\",\n      \"success\": true,\n      \"message\": \"Completed successfully\",\n      \"mesh_stats\": {\n        \"vertex_count\": 650,\n        \"face_count\": 1296,\n        \"triangle_count\": 1296,\n        \"edge_count\": 1944,\n        \"material_count\": 1,\n        \"bounds_min\": [\n          -0.7030960321426392,\n          -0.051028378307819366,\n          1.0471304655075073\n        ],\n        \"bounds_max\": [\n          -0.4584435820579529,\n          0.051028382033109665,\n          1.1658775806427002\n        ],\n        \"height\": 0.11874711513519287\n      },\n      \"duration_ms\": 74.50604438781738,\n      \"timestamp\": \"2026-02-05T00:34:01.432529\",\n      \"error_details\": null\n    },\n    {\n      \"step_name\": \"equip_item\",\n      \"success\": true,\n      \"message\": \"Completed successfully\",\n      \"mesh_stats\": {\n        \"vertex_count\": 650,\n        \"face_count\": 1296,\n        \"triangle_count\": 1296,\n        \"edge_count\": 1944,\n        \"material_count\": 1,\n        \"bounds_min\": [\n          -0.7030960321426392,\n          -0.051028378307819366,\n          1.0471304655075073\n        ],\n        \"bounds_max\": [\n          -0.4584435820579529,\n          0.051028382033109665,\n          1.1658775806427002\n        ],\n        \"height\": 0.11874711513519287\n      },\n      \"duration_ms\": 0.4627704620361328,\n      \"timestamp\": \"2026-02-05T00:34:01.434680\",\n      \"error_details\": null\n    }\n  ],\n  \"summary\": {\n    \"total_steps\": 3,\n    \"successful_steps\": 3,\n    \"failed_steps\": 0\n  }\n}"
+  }
+}
+
+Blender quit
