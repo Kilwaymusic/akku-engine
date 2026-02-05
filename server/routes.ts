@@ -1040,8 +1040,11 @@ echo "Deployment complete!"
       // Create job record
       const job = await storage.createJob({
         prompt,
-        status: "processing"
+        style: "stylized",
+        polyLevel: "medium"
       });
+      
+      await storage.updateJob(job.id, { status: "processing" });
       
       // Verify GCP Worker is available
       try {
@@ -1083,7 +1086,7 @@ echo "Deployment complete!"
               code: currentCode,
               jobId: `${job.id}_iter${iteration}`,
               prompt,
-              captureScreenshot: true,
+              captureScreenshot: false,
               iteration
             }),
             signal: controller.signal
