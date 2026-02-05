@@ -29,8 +29,8 @@ def health():
     """Health check endpoint"""
     return jsonify({
         "status": "healthy",
-        "version": "3.5.0",
-        "sdk": "server/akku_sdk (modular)",
+        "version": "5.0.0",
+        "sdk": "server/akku_sdk (Extrude-First)",
         "architecture": "mcp-style"
     })
 
@@ -41,12 +41,13 @@ def list_tools():
     tools = [
         {
             "name": "generate_procedural_base",
-            "description": "Create procedural humanoid mesh from scratch",
+            "description": "Create procedural humanoid mesh using Extrude-First methodology (single connected mesh)",
             "params": {
                 "style": {"type": "string", "enum": ["realistic", "stylized", "chibi", "sd", "mobile", "minifig", "cartoon"], "default": "stylized"},
                 "poly_level": {"type": "string", "enum": ["ultra_low", "low", "medium", "high"], "default": "medium"},
                 "gender": {"type": "string", "enum": ["male", "female", "neutral"], "default": "male"},
-                "equipment": {"type": "string", "enum": ["default", "armor", "robe"], "default": "default"}
+                "equipment": {"type": "string", "enum": ["default", "armor", "robe"], "default": "default"},
+                "hierarchical": {"type": "boolean", "default": False, "description": "DEPRECATED: Use false for Extrude-First unified mesh"}
             }
         },
         {
@@ -115,8 +116,8 @@ def list_tools():
         }
     ]
     return jsonify({
-        "version": "4.0.0",
-        "description": "Akku SDK - Low-poly 3D character generation for game engines",
+        "version": "5.0.0",
+        "description": "Akku SDK v5.0 - Extrude-First unified mesh 3D character generation",
         "tools": tools
     })
 

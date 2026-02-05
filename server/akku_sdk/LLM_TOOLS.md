@@ -1,4 +1,4 @@
-# Akku SDK v4.0 - LLM Tool Reference
+# Akku SDK v5.0 - LLM Tool Reference
 
 This document is designed for AI/LLM agents to understand and use the Akku SDK for procedural 3D character generation.
 
@@ -6,14 +6,53 @@ This document is designed for AI/LLM agents to understand and use the Akku SDK f
 
 The Akku SDK provides tools for creating game-ready low-poly humanoid characters in Blender. All tools are headless-safe and can be executed via CLI.
 
+## Core Design Principle: Extrude-First Policy
+
+**CRITICAL FOR AI UNDERSTANDING:**
+
+The SDK creates characters using **Extrude-First methodology** - NOT by assembling separate primitives:
+
+```
+❌ OLD (Bad): Box + Cylinder + Sphere = Disconnected shapes
+✅ NEW (Good): Torso → Extrude neck → Extrude head → Extrude arms → Extrude legs = Single connected mesh
+```
+
+**Why this matters:**
+- Produces organic, natural-looking characters (not "stacked shapes")
+- Single connected mesh = better for game engines
+- Proper topology for rigging and animation
+- AI should understand: ALL body parts come FROM the base torso via extrusion
+
 ## Tool Categories
 
-1. **Base Generation** - Create humanoid mesh from scratch
+1. **Base Generation** - Create unified humanoid mesh (Extrude-First)
 2. **Body Modification** - Adjust body proportions and type
 3. **Style & Materials** - Apply shaders and vertex colors
-4. **Equipment** - Add armor, weapons, accessories
+4. **Equipment** - Add armor, weapons, accessories (also uses Extrude from mesh faces)
 5. **Verification** - Capture screenshots for review
 6. **Export** - Save as GLB file
+
+## AI Decision Flow
+
+When generating a character, follow this decision tree:
+
+```
+1. Analyze prompt → mapPromptToParameters()
+   ↓
+2. Determine style (realistic/stylized/chibi/etc.)
+   ↓
+3. Determine body type (muscular/thin/athletic/etc.)
+   ↓
+4. Determine equipment (armor/robe/default)
+   ↓
+5. Call generate_procedural_base with all parameters
+   ↓
+6. Capture screenshot for verification
+   ↓
+7. Analyze with VLM → Need refinement?
+   ├─ Yes → Apply body_type/style adjustments → Go to step 6
+   └─ No → Export GLB
+```
 
 ---
 
@@ -21,7 +60,7 @@ The Akku SDK provides tools for creating game-ready low-poly humanoid characters
 
 ### 1. generate_procedural_base
 
-Creates a procedural humanoid mesh from scratch (no external dependencies).
+Creates a procedural humanoid mesh using **Extrude-First methodology** (single connected mesh, not separate primitives).
 
 ```json
 {
@@ -50,6 +89,11 @@ Creates a procedural humanoid mesh from scratch (no external dependencies).
       "enum": ["default", "armor", "robe"],
       "default": "default",
       "description": "Vertex color preset for equipment type"
+    },
+    "hierarchical": {
+      "type": "boolean",
+      "default": false,
+      "description": "DEPRECATED: Always use false for Extrude-First unified mesh. True produces multi-part (legacy) mesh."
     }
   },
   "returns": {

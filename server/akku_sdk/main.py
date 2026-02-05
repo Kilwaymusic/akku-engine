@@ -61,7 +61,7 @@ def generate_procedural_base(
     poly_level: str = "medium",
     gender: str = "male",
     create_rig: bool = True,
-    hierarchical: bool = True,
+    hierarchical: bool = False,  # Default to unified mesh (Extrude-First Policy)
     equipment: str = "default"
 ):
     """
