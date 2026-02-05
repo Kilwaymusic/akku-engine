@@ -714,97 +714,120 @@ class ProceduralHumanoid:
         bm.faces.ensure_lookup_table()
         bm.verts.ensure_lookup_table()
         
-        # === PHASE 4: Extrude legs from bottom face ===
+        # === PHASE 4: Extrude legs from bottom face (TRUE EXTRUDE-FIRST) ===
+        # CRITICAL: Must extrude from torso bottom face, not create separate faces
         upper_leg_len = leg_height * 0.5
         lower_leg_len = leg_height * 0.4
         foot_len = leg_height * 0.1
         
-        # Split bottom face into left and right for legs
-        # First, subdivide the bottom area
-        bottom_center = f_bottom.calc_center_median()
-        
-        # Get bottom face vertices
-        bottom_verts = list(f_bottom.verts)
-        
-        # Create leg starting positions
-        leg_offset = hip_width * 0.25
-        
-        for side in ["left", "right"]:
-            x_offset = -leg_offset if side == "left" else leg_offset
+        # Split the bottom face into left and right halves for legs
+        if f_bottom.is_valid:
+            bottom_verts = list(f_bottom.verts)
             
-            # Create a new quad for leg base
-            leg_base_hw = limb_thickness * 0.6
-            leg_base_hd = limb_thickness * 0.5
-            leg_z = torso_base_z
+            # Delete the original bottom face - we'll split it into two leg faces
+            bm.faces.remove(f_bottom)
+            bm.verts.ensure_lookup_table()
             
-            leg_base_verts = [
-                bm.verts.new(Vector((x_offset - leg_base_hw, -leg_base_hd, leg_z))),
-                bm.verts.new(Vector((x_offset + leg_base_hw, -leg_base_hd, leg_z))),
-                bm.verts.new(Vector((x_offset + leg_base_hw, leg_base_hd, leg_z))),
-                bm.verts.new(Vector((x_offset - leg_base_hw, leg_base_hd, leg_z))),
-            ]
+            # Sort vertices by X and Y to identify corners
+            # bottom_verts should be: 4 corners at (+-hip_hw, +-hd, torso_base_z)
+            left_verts = sorted([v for v in bottom_verts if v.co.x < 0], key=lambda v: v.co.y)
+            right_verts = sorted([v for v in bottom_verts if v.co.x >= 0], key=lambda v: v.co.y)
             
-            leg_face = bm.faces.new(leg_base_verts[::-1])  # Reversed for downward normal
-            bm.faces.ensure_lookup_table()
+            # Add center vertices to create crotch/pelvis area
+            center_front = bm.verts.new(Vector((0, -hd, torso_base_z)))
+            center_back = bm.verts.new(Vector((0, hd, torso_base_z)))
             
-            # Extrude upper leg
-            upper_leg_result = bmesh.ops.extrude_face_region(bm, geom=[leg_face])
-            upper_leg_verts = [v for v in upper_leg_result['geom'] if isinstance(v, bmesh.types.BMVert)]
-            bmesh.ops.translate(bm, verts=upper_leg_verts, vec=Vector((0, 0, -upper_leg_len)))
+            bm.verts.ensure_lookup_table()
             
-            bm.faces.ensure_lookup_table()
+            # Create left and right leg base faces (sharing center vertices)
+            leg_faces = []
+            try:
+                # Left leg face: left_front, center_front, center_back, left_back
+                left_leg_face = bm.faces.new([left_verts[0], center_front, center_back, left_verts[1]])
+                leg_faces.append(("left", left_leg_face))
+            except ValueError:
+                pass
             
-            # Find upper leg end face
-            upper_leg_end = None
-            for f in bm.faces:
-                if f.is_valid and all(v in upper_leg_verts for v in f.verts):
-                    if f.normal.z < -0.5:
-                        upper_leg_end = f
-                        break
-            
-            if not upper_leg_end:
-                continue
-            
-            # Extrude lower leg
-            lower_leg_result = bmesh.ops.extrude_face_region(bm, geom=[upper_leg_end])
-            lower_leg_verts = [v for v in lower_leg_result['geom'] if isinstance(v, bmesh.types.BMVert)]
-            bmesh.ops.translate(bm, verts=lower_leg_verts, vec=Vector((0, 0, -lower_leg_len)))
-            
-            # Taper lower leg
-            lower_leg_center = sum((v.co for v in lower_leg_verts), Vector()) / len(lower_leg_verts)
-            for v in lower_leg_verts:
-                diff = v.co - lower_leg_center
-                diff.x *= 0.8
-                diff.y *= 0.8
-                v.co = lower_leg_center + diff
+            try:
+                # Right leg face: center_front, right_front, right_back, center_back
+                right_leg_face = bm.faces.new([center_front, right_verts[0], right_verts[1], center_back])
+                leg_faces.append(("right", right_leg_face))
+            except ValueError:
+                pass
             
             bm.faces.ensure_lookup_table()
             
-            # Find lower leg end face
-            lower_leg_end = None
-            for f in bm.faces:
-                if f.is_valid and all(v in lower_leg_verts for v in f.verts):
-                    if f.normal.z < -0.5:
-                        lower_leg_end = f
-                        break
-            
-            if not lower_leg_end:
-                continue
-            
-            # Extrude foot
-            foot_result = bmesh.ops.extrude_face_region(bm, geom=[lower_leg_end])
-            foot_verts = [v for v in foot_result['geom'] if isinstance(v, bmesh.types.BMVert)]
-            # Foot goes forward and slightly down
-            bmesh.ops.translate(bm, verts=foot_verts, vec=Vector((0, foot_len * 0.8, -foot_len * 0.3)))
-            
-            # Scale foot to be flatter and longer
-            foot_center = sum((v.co for v in foot_verts), Vector()) / len(foot_verts)
-            for v in foot_verts:
-                diff = v.co - foot_center
-                diff.x *= 1.2  # Wider
-                diff.y *= 1.5  # Longer
-                diff.z *= 0.5  # Flatter
-                v.co = foot_center + diff
+            # Extrude each leg face
+            for side, leg_face in leg_faces:
+                if not leg_face or not leg_face.is_valid:
+                    continue
+                
+                # Extrude upper leg downward
+                upper_leg_result = bmesh.ops.extrude_face_region(bm, geom=[leg_face])
+                upper_leg_verts = [v for v in upper_leg_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+                bmesh.ops.translate(bm, verts=upper_leg_verts, vec=Vector((0, 0, -upper_leg_len)))
+                
+                # Scale down for leg taper
+                leg_center = sum((v.co for v in upper_leg_verts), Vector()) / len(upper_leg_verts)
+                for v in upper_leg_verts:
+                    diff = v.co - leg_center
+                    diff.x *= 0.7
+                    diff.y *= 0.7
+                    v.co = leg_center + diff
+                
+                bm.faces.ensure_lookup_table()
+                
+                # Find upper leg end face (the one with downward normal)
+                upper_leg_end = None
+                for f in bm.faces:
+                    if f.is_valid and all(v in upper_leg_verts for v in f.verts):
+                        if f.normal.z < -0.5:
+                            upper_leg_end = f
+                            break
+                
+                if not upper_leg_end:
+                    continue
+                
+                # Extrude lower leg
+                lower_leg_result = bmesh.ops.extrude_face_region(bm, geom=[upper_leg_end])
+                lower_leg_verts = [v for v in lower_leg_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+                bmesh.ops.translate(bm, verts=lower_leg_verts, vec=Vector((0, 0, -lower_leg_len)))
+                
+                # Taper lower leg
+                lower_leg_center = sum((v.co for v in lower_leg_verts), Vector()) / len(lower_leg_verts)
+                for v in lower_leg_verts:
+                    diff = v.co - lower_leg_center
+                    diff.x *= 0.8
+                    diff.y *= 0.8
+                    v.co = lower_leg_center + diff
+                
+                bm.faces.ensure_lookup_table()
+                
+                # Find lower leg end face
+                lower_leg_end = None
+                for f in bm.faces:
+                    if f.is_valid and all(v in lower_leg_verts for v in f.verts):
+                        if f.normal.z < -0.5:
+                            lower_leg_end = f
+                            break
+                
+                if not lower_leg_end:
+                    continue
+                
+                # Extrude foot
+                foot_result = bmesh.ops.extrude_face_region(bm, geom=[lower_leg_end])
+                foot_verts = [v for v in foot_result['geom'] if isinstance(v, bmesh.types.BMVert)]
+                # Foot goes forward and slightly down
+                bmesh.ops.translate(bm, verts=foot_verts, vec=Vector((0, foot_len * 0.8, -foot_len * 0.3)))
+                
+                # Scale foot to be flatter and longer
+                foot_center = sum((v.co for v in foot_verts), Vector()) / len(foot_verts)
+                for v in foot_verts:
+                    diff = v.co - foot_center
+                    diff.x *= 1.2  # Wider
+                    diff.y *= 1.5  # Longer
+                    diff.z *= 0.5  # Flatter
+                    v.co = foot_center + diff
         
         # === PHASE 5: Clean up mesh ===
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.005)
