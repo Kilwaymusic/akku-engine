@@ -939,7 +939,7 @@ class ProceduralHumanoid:
         bm = bmesh.new()
         
         segments = max(8, poly_settings.torso_segments + 2)
-        height_divisions = 6
+        height_divisions = max(6, poly_settings.torso_segments // 2)
         
         verts = []
         for h in range(height_divisions + 1):
@@ -1022,8 +1022,8 @@ class ProceduralHumanoid:
         
         bm = bmesh.new()
         
-        segments = max(10, poly_settings.head_segments + 2)
-        rings = max(6, segments // 2)
+        segments = max(12, poly_settings.head_segments + 4)
+        rings = max(8, segments // 2)
         
         verts = []
         
@@ -1099,7 +1099,7 @@ class ProceduralHumanoid:
         bm = bmesh.new()
         
         segments = max(6, poly_settings.limb_segments)
-        height_segments = 4
+        height_segments = max(4, poly_settings.limb_segments // 2)
         
         direction = (end - start).normalized()
         length = (end - start).length
