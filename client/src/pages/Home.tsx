@@ -51,12 +51,9 @@ export default function Home() {
 
   const createJobMutation = useMutation({
     mutationFn: async (options: GenerationOptions) => {
-      const response = await apiRequest("POST", "/api/jobs", {
+      // Use the agent (code generation) endpoint for creative character generation
+      const response = await apiRequest("POST", "/api/jobs/agent", {
         prompt: options.prompt,
-        style: options.style,
-        polyLevel: options.polyLevel,
-        bodyType: options.bodyType,
-        gender: options.gender,
       });
       return response.json();
     },
