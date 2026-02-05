@@ -24,3 +24,30 @@
 | 기사, 나이트 | knight | longsword, heavy_armor |
 | 마법사, 위자드 | mage | staff, robe |
 | 도적, 어쌔신 | rogue | dagger, light_armor |
+
+## 수인(Anthropomorphic) 캐릭터 키워드
+| 키워드 | 특징 | 필수 요소 |
+|--------|------|-----------|
+| 여우 | 뾰족한 주둥이, 삼각형 귀, 큰 꼬리 | snout, pointed_ears, fluffy_tail |
+| 늑대 | 더 큰 주둥이, 날카로운 귀 | large_snout, sharp_ears |
+| 고양이 | 둥근 얼굴, 작은 코, 긴 꼬리 | round_face, small_nose, long_tail |
+| 토끼 | 긴 귀, 짧은 꼬리 | long_ears, short_tail |
+| 곰 | 둥근 귀, 넓은 체형 | round_ears, bulky_body |
+
+## 체형 키워드 매핑
+| 키워드 | bodyType 수치 |
+|--------|--------------|
+| 마른, 날씬한, 호리호리 | height: 0.1, muscular: -0.3 |
+| 보통, 평균 | height: 0.0, muscular: 0.0 |
+| 근육질, 강건한 | height: 0.1, muscular: 0.5 |
+| 통통한, 풍만한 | height: -0.1, fat: 0.4 |
+
+## 색상 키워드 매핑
+| 키워드 | RGB 값 |
+|--------|--------|
+| 갈색 | (0.55, 0.40, 0.28) |
+| 어두운 갈색 | (0.35, 0.25, 0.18) |
+| 회색 | (0.5, 0.5, 0.5) |
+| 흰색 | (0.95, 0.95, 0.95) |
+| 검은색 | (0.1, 0.1, 0.1) |
+| 주황색 | (0.9, 0.6, 0.2) |
