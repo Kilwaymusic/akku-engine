@@ -930,7 +930,7 @@ class ProceduralHumanoid:
         return obj
     
     @classmethod
-    def _apply_stylized_material(cls, obj: bpy.types.Object, props: HumanoidProps) -> None:
+    def _apply_stylized_material(cls, obj: bpy.types.Object, props: ProportionPreset) -> None:
         """Apply stylized low-poly shader to the character.
         
         Creates a material with:
