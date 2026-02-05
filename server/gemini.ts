@@ -1334,29 +1334,15 @@ export async function runIterativeGeneration(
 // BLENDER CODE GENERATION - Simple & Robust Template
 // ============================================================
 
-const BLENDER_CODE_GENERATION_PROMPT = `You are a PROFESSIONAL LOW-POLY 3D CHARACTER ARTIST.
-Your specialty: Game-ready stylized humanoid characters with clean topology.
+const BLENDER_CODE_GENERATION_PROMPT = `You are generating Blender Python code for a low-poly game character.
 
-## STYLE GUIDE
-- **Proportions**: 5-6 head heights, large head (1.2x), big hands (1.1x)
-- **Silhouette**: Readable at thumbnail size, exaggerated key features
-- **Polygon Count**: 200-600 faces total
+OUTPUT THIS EXACT CODE with modifications based on the character description.
+DO NOT add any text before or after the code. NO markdown code blocks.
 
-## TECHNICAL RULES
-1. Use bmesh.ops (NOT bpy.ops) - headless Blender has no GUI
-2. All body parts must be separate cubes joined together (more reliable than extrusion)
-3. Apply materials with proper PBR values
-
-## COMPLETE WORKING CODE
-
-You MUST output code following this exact structure. Modify the proportions and add features based on the character description:
-
-\`\`\`python
 import bpy
 import bmesh
-from mathutils import Vector, Matrix
 
-# === CLEANUP ===
+# Cleanup
 for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
 for m in bpy.data.meshes:
@@ -1364,146 +1350,93 @@ for m in bpy.data.meshes:
 for mat in bpy.data.materials:
     bpy.data.materials.remove(mat)
 
-# === HELPER FUNCTIONS ===
-def make_cube(bm, pos, size):
-    """Create a cube at position with given size (x,y,z)"""
-    result = bmesh.ops.create_cube(bm, size=1.0)
-    verts = result['verts']
-    for v in verts:
-        v.co.x = v.co.x * size[0] + pos[0]
-        v.co.y = v.co.y * size[1] + pos[1]
-        v.co.z = v.co.z * size[2] + pos[2]
-    return verts
-
-def make_tapered_limb(bm, start_pos, direction, length, start_width, end_width, segments=2):
-    """Create a tapered limb (arm or leg) with multiple segments"""
-    verts_all = []
-    seg_length = length / segments
-    current_pos = list(start_pos)
-    current_width = start_width
-    width_step = (start_width - end_width) / segments
-    
-    for i in range(segments):
-        size = [current_width, current_width * 0.8, seg_length]
-        if direction[0] != 0:  # horizontal (arms)
-            size = [seg_length, current_width * 0.8, current_width]
-        
-        verts = make_cube(bm, current_pos, size)
-        verts_all.extend(verts)
-        
-        # Move to next segment position
-        current_pos[0] += direction[0] * seg_length
-        current_pos[1] += direction[1] * seg_length
-        current_pos[2] += direction[2] * seg_length
-        current_width -= width_step
-    
-    return verts_all
-
-# === CHARACTER MESH ===
+# Create mesh
 mesh = bpy.data.meshes.new("Character")
 obj = bpy.data.objects.new("Character", mesh)
 bpy.context.collection.objects.link(obj)
 
 bm = bmesh.new()
 
-# === BODY PARTS ===
-# Torso (center of mass at z=1.0)
-make_cube(bm, (0, 0, 1.0), (0.4, 0.25, 0.5))
+def add_box(px, py, pz, sx, sy, sz):
+    r = bmesh.ops.create_cube(bm, size=1.0)
+    for v in r['verts']:
+        v.co.x = v.co.x * sx + px
+        v.co.y = v.co.y * sy + py
+        v.co.z = v.co.z * sz + pz
 
-# Head (stylized large, z=1.6)
-make_cube(bm, (0, 0, 1.55), (0.28, 0.25, 0.3))
+# Body
+add_box(0, 0, 1.0, 0.4, 0.25, 0.5)      # torso
+add_box(0, 0, 1.55, 0.3, 0.28, 0.32)    # head
+add_box(0, 0, 1.32, 0.1, 0.1, 0.1)      # neck
 
-# Neck
-make_cube(bm, (0, 0, 1.32), (0.1, 0.1, 0.1))
+# Arms
+add_box(-0.38, 0, 1.08, 0.16, 0.12, 0.14)   # left shoulder
+add_box(-0.55, 0, 1.08, 0.16, 0.1, 0.11)    # left upper arm
+add_box(-0.72, 0, 1.08, 0.16, 0.08, 0.09)   # left forearm
+add_box(-0.88, 0, 1.08, 0.1, 0.07, 0.12)    # left hand
 
-# Left Arm (upper + forearm + hand)
-make_cube(bm, (-0.35, 0, 1.1), (0.15, 0.12, 0.12))  # shoulder
-make_cube(bm, (-0.52, 0, 1.1), (0.15, 0.1, 0.1))   # upper arm
-make_cube(bm, (-0.7, 0, 1.1), (0.15, 0.08, 0.08))  # forearm
-make_cube(bm, (-0.85, 0, 1.1), (0.08, 0.06, 0.1))  # hand
+add_box(0.38, 0, 1.08, 0.16, 0.12, 0.14)    # right shoulder
+add_box(0.55, 0, 1.08, 0.16, 0.1, 0.11)     # right upper arm
+add_box(0.72, 0, 1.08, 0.16, 0.08, 0.09)    # right forearm
+add_box(0.88, 0, 1.08, 0.1, 0.07, 0.12)     # right hand
 
-# Right Arm (mirror)
-make_cube(bm, (0.35, 0, 1.1), (0.15, 0.12, 0.12))
-make_cube(bm, (0.52, 0, 1.1), (0.15, 0.1, 0.1))
-make_cube(bm, (0.7, 0, 1.1), (0.15, 0.08, 0.08))
-make_cube(bm, (0.85, 0, 1.1), (0.08, 0.06, 0.1))
+# Hips and Legs
+add_box(0, 0, 0.68, 0.36, 0.22, 0.16)       # hips
 
-# Hips
-make_cube(bm, (0, 0, 0.68), (0.35, 0.2, 0.15))
+add_box(-0.12, 0, 0.42, 0.14, 0.13, 0.28)   # left thigh
+add_box(-0.12, 0, 0.12, 0.11, 0.1, 0.28)    # left shin
+add_box(-0.12, 0.06, -0.02, 0.09, 0.16, 0.06) # left foot
 
-# Left Leg (thigh + shin + foot)
-make_cube(bm, (-0.12, 0, 0.45), (0.12, 0.12, 0.25))  # thigh
-make_cube(bm, (-0.12, 0, 0.15), (0.1, 0.1, 0.25))    # shin
-make_cube(bm, (-0.12, 0.05, 0), (0.08, 0.15, 0.06))  # foot
+add_box(0.12, 0, 0.42, 0.14, 0.13, 0.28)    # right thigh
+add_box(0.12, 0, 0.12, 0.11, 0.1, 0.28)     # right shin
+add_box(0.12, 0.06, -0.02, 0.09, 0.16, 0.06) # right foot
 
-# Right Leg (mirror)
-make_cube(bm, (0.12, 0, 0.45), (0.12, 0.12, 0.25))
-make_cube(bm, (0.12, 0, 0.15), (0.1, 0.1, 0.25))
-make_cube(bm, (0.12, 0.05, 0), (0.08, 0.15, 0.06))
+# === ADD CHARACTER FEATURES HERE ===
+# For cat: add_box(-0.12, 0, 1.78, 0.06, 0.05, 0.14) and add_box(0.12, 0, 1.78, 0.06, 0.05, 0.14) for ears
+# For knight: add_box(0, 0, 1.78, 0.34, 0.32, 0.18) for helmet
+# For robot: add_box(0, 0.16, 1.58, 0.26, 0.06, 0.1) for visor
+# Add appropriate features based on character type
 
-# === CHARACTER CUSTOMIZATION ===
-# [ADD FEATURES HERE based on character type]
-# Examples:
-# - Knight: Add helmet cube on head, shoulder pads, sword
-# - Cat: Add ear pyramids on head, tail from back
-# - Robot: Angular proportions, visor on face
-# - Wizard: Pointed hat, robe (wider lower body)
+# Merge nearby vertices
+bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.03)
 
-# === MERGE VERTICES (connect the cubes) ===
-bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.02)
-
-# === MATERIAL ===
-mat = bpy.data.materials.new("CharMat")
+# Material
+mat = bpy.data.materials.new("Mat")
 mat.use_nodes = True
 bsdf = mat.node_tree.nodes.get('Principled BSDF')
 if bsdf:
-    # [MODIFY THESE VALUES for character type]
-    bsdf.inputs['Base Color'].default_value = (0.7, 0.7, 0.75, 1.0)  # Silver/Steel
-    bsdf.inputs['Metallic'].default_value = 0.8  # Metal armor
-    bsdf.inputs['Roughness'].default_value = 0.4
+    bsdf.inputs['Base Color'].default_value = (0.7, 0.6, 0.5, 1.0)  # MODIFY: skin color
+    bsdf.inputs['Metallic'].default_value = 0.0                      # MODIFY: 0.9 for metal
+    bsdf.inputs['Roughness'].default_value = 0.6
 
-# === FINALIZE ===
+# Finalize
 bm.to_mesh(mesh)
 bm.free()
-
-for poly in mesh.polygons:
-    poly.use_smooth = False
-
+for p in mesh.polygons:
+    p.use_smooth = False
 obj.data.materials.append(mat)
-print(f"Character: {len(mesh.vertices)} verts, {len(mesh.polygons)} faces")
-\`\`\`
+print("Done:", len(mesh.vertices), "verts,", len(mesh.polygons), "faces")
 
-## CHARACTER MODIFICATIONS
+---
+INSTRUCTIONS:
+1. Output ONLY Python code (no markdown, no \`\`\`python)
+2. Copy the template above
+3. Add character features using add_box() calls in the marked section
+4. Modify material colors for the character type
 
-Based on the prompt, ADD these features in the CUSTOMIZATION section:
+FEATURE EXAMPLES:
+- Cat ears: add_box(-0.12, 0, 1.78, 0.06, 0.05, 0.14) and add_box(0.12, 0, 1.78, 0.06, 0.05, 0.14)
+- Cat tail: add_box(0, -0.22, 0.65, 0.05, 0.28, 0.06)
+- Knight helmet: add_box(0, 0, 1.78, 0.34, 0.32, 0.18)
+- Knight visor: add_box(0, 0.18, 1.58, 0.22, 0.06, 0.08)
+- Robot antenna: add_box(0.08, 0, 1.88, 0.03, 0.03, 0.18)
 
-**기사/Knight**: 
-- Add helmet: \`make_cube(bm, (0, 0, 1.75), (0.32, 0.3, 0.2))\`  
-- Add visor: \`make_cube(bm, (0, 0.15, 1.55), (0.2, 0.08, 0.1))\`
-- Add shoulder pads: \`make_cube(bm, (-0.4, 0, 1.2), (0.15, 0.2, 0.08))\`
-- Add sword (separate object if needed)
-- Material: Silver metallic (0.7, 0.7, 0.75), Metallic=0.9, Roughness=0.3
-
-**고양이/Cat**:
-- Add ears: \`make_cube(bm, (-0.15, 0, 1.75), (0.06, 0.04, 0.12))\` (both sides)
-- Add tail: \`make_cube(bm, (0, -0.2, 0.7), (0.05, 0.25, 0.05))\`
-- Material: Orange (0.9, 0.6, 0.4) or Pink (0.9, 0.7, 0.75)
-
-**로봇/Robot**:
-- Wider shoulders: Increase shoulder cube sizes
-- Add visor: \`make_cube(bm, (0, 0.15, 1.6), (0.25, 0.05, 0.08))\`
-- Add antenna: \`make_cube(bm, (0.1, 0, 1.85), (0.02, 0.02, 0.15))\`
-- Material: Blue metallic (0.3, 0.5, 0.9), Metallic=0.95, Roughness=0.2
-
-**마법사/Wizard**:
-- Add pointed hat: \`make_cube(bm, (0, 0, 1.85), (0.2, 0.2, 0.35))\`
-- Widen robe (make lower torso wider)
-- Add staff as separate object
-- Material: Purple (0.5, 0.3, 0.7), Metallic=0
-
-## OUTPUT
-Output ONLY the complete Python code. No markdown, no explanations.
-Customize the template based on the character description.`;
+MATERIAL COLORS (R, G, B, 1.0):
+- Skin: (0.8, 0.6, 0.5, 1.0)
+- Pink: (0.95, 0.7, 0.75, 1.0), Metallic=0
+- Silver armor: (0.75, 0.75, 0.8, 1.0), Metallic=0.9, Roughness=0.3
+- Blue robot: (0.3, 0.5, 0.9, 1.0), Metallic=0.95, Roughness=0.2
+- Purple magic: (0.55, 0.35, 0.7, 1.0), Metallic=0`;
 
 
 
