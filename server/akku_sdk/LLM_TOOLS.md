@@ -90,6 +90,14 @@ Creates a procedural humanoid mesh using **Extrude-First methodology** (single c
       "default": "default",
       "description": "Vertex color preset for equipment type"
     },
+    "base_color": {
+      "type": "array",
+      "items": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+      "minItems": 3,
+      "maxItems": 3,
+      "default": null,
+      "description": "RGB color [r, g, b] for character material (0.0-1.0 range). If null, uses default gray. From Gemini shader.baseColor analysis."
+    },
     "hierarchical": {
       "type": "boolean",
       "default": false,
@@ -111,7 +119,8 @@ ToolRegistry.execute("generate_procedural_base", {
     "style": "stylized",
     "poly_level": "medium",
     "gender": "male",
-    "equipment": "armor"
+    "equipment": "armor",
+    "base_color": [0.8, 0.2, 0.2]  # Red color from Gemini analysis
 })
 ```
 
@@ -383,7 +392,8 @@ Complete pipeline that combines all steps.
     "output_path": {"type": "string"},
     "gender": {"type": "string", "enum": ["male", "female", "neutral"]},
     "body_type": {"type": "string"},
-    "equipment": {"type": "string", "enum": ["default", "armor", "robe"]}
+    "equipment": {"type": "string", "enum": ["default", "armor", "robe"]},
+    "base_color": {"type": "array", "items": {"type": "number"}, "description": "RGB color [r, g, b] 0.0-1.0 range from Gemini shader.baseColor"}
   }
 }
 ```

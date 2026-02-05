@@ -200,20 +200,46 @@ akku-engine/
 | 9 | Backend | Public | File system | public/models/*.glb |
 | 10 | Frontend | Public | HTTP GET | /models/*.glb |
 
-## Current Issues (To Investigate)
+## Color Pipeline (v1.1)
 
-1. **Connection #6: SDK → Procedural Generation**
-   - ProceduralHumanoid.generate() may not be producing proper humanoid shapes
-   - Output looks like stacked primitives instead of organic connected mesh
+```
+User Prompt → Gemini Analysis → SDK Generation
+─────────────────────────────────────────────────────────────────
 
-2. **Verification Needed:**
-   - [ ] Is generate_unified_mesh() being called?
-   - [ ] Are extrude operations working correctly?
-   - [ ] Is the mesh topology correct?
-   - [ ] Are body type deformations applied?
+1. Gemini mapPromptToParameters()
+   └── shader: { baseColor: [R, G, B] }   (0.0-1.0 range)
 
-## Next Steps
+2. routes.ts → POST /generate
+   └── geminiParams JSON includes shader.baseColor
 
-1. Test SDK directly on GCP VM with manual Blender CLI
-2. Verify each module outputs expected results
-3. Fix core mesh generation before adding features
+3. gcp-app.py parses gemini_params
+   └── Extracts shader.baseColor → --gemini-color arg
+
+4. main.py CLI argument parsing
+   └── --gemini-color → passed to generate_procedural_base()
+
+5. main.py generate_procedural_base()
+   └── base_color → ProceduralHumanoid.generate_unified_mesh()
+
+6. procedural.py _apply_stylized_material()
+   └── Creates flat-shaded material with Gemini-analyzed color
+```
+
+## Resolved Issues (v1.1)
+
+1. **✅ SDK → Procedural Generation**
+   - Fixed: Now produces proper humanoid shapes via Extrude-First methodology
+   - Fixed: Single connected mesh instead of stacked primitives
+
+2. **✅ Verification Complete:**
+   - [x] generate_unified_mesh() is called and working
+   - [x] Extrude operations work with dynamic face finding (fixes invalidation)
+   - [x] Mesh topology is correct (single connected mesh)
+   - [x] Body type deformations applied
+   - [x] Color flows from Gemini to final material
+
+## Remaining Work
+
+1. Fine-tune body proportions based on user feedback
+2. Add more equipment presets to Kitbash library
+3. Implement advanced VLM self-correction loop
