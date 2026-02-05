@@ -1205,31 +1205,27 @@ class ProceduralHumanoid:
         torso_height = total_height * props.torso_ratio
         head_height = total_height * props.head_ratio
         
-        root = arm.edit_bones.new("Root")
-        root.head = Vector((0, 0, 0))
-        root.tail = Vector((0, 0, 0.1))
+        # Use mixamorig naming convention for Kitbash compatibility
+        root = arm.edit_bones.new("mixamorig:Hips")
+        root.head = Vector((0, 0, leg_height))
+        root.tail = Vector((0, 0, leg_height + torso_height * 0.3))
         
-        hips = arm.edit_bones.new("Hips")
-        hips.head = Vector((0, 0, leg_height))
-        hips.tail = Vector((0, 0, leg_height + torso_height * 0.3))
-        hips.parent = root
+        spine1 = arm.edit_bones.new("mixamorig:Spine1")
+        spine1.head = root.tail.copy()
+        spine1.tail = Vector((0, 0, leg_height + torso_height * 0.6))
+        spine1.parent = root
         
-        spine = arm.edit_bones.new("Spine")
-        spine.head = hips.tail.copy()
-        spine.tail = Vector((0, 0, leg_height + torso_height * 0.6))
-        spine.parent = hips
+        spine2 = arm.edit_bones.new("mixamorig:Spine2")
+        spine2.head = spine1.tail.copy()
+        spine2.tail = Vector((0, 0, leg_height + torso_height))
+        spine2.parent = spine1
         
-        chest = arm.edit_bones.new("Chest")
-        chest.head = spine.tail.copy()
-        chest.tail = Vector((0, 0, leg_height + torso_height))
-        chest.parent = spine
-        
-        neck = arm.edit_bones.new("Neck")
-        neck.head = chest.tail.copy()
+        neck = arm.edit_bones.new("mixamorig:Neck")
+        neck.head = spine2.tail.copy()
         neck.tail = Vector((0, 0, leg_height + torso_height + head_height * 0.2))
-        neck.parent = chest
+        neck.parent = spine2
         
-        head = arm.edit_bones.new("Head")
+        head = arm.edit_bones.new("mixamorig:Head")
         head.head = neck.tail.copy()
         head.tail = Vector((0, 0, total_height))
         head.parent = neck
@@ -1238,41 +1234,77 @@ class ProceduralHumanoid:
         shoulder_width = total_height * props.shoulder_width_ratio
         arm_length = total_height * props.arm_length_ratio
         
-        for side, sign in [("L", -1), ("R", 1)]:
-            upper_leg = arm.edit_bones.new(f"UpperLeg.{side}")
-            upper_leg.head = Vector((sign * hip_width / 2, 0, leg_height))
-            upper_leg.tail = Vector((sign * hip_width / 2, 0, leg_height * 0.5))
-            upper_leg.parent = hips
-            
-            lower_leg = arm.edit_bones.new(f"LowerLeg.{side}")
-            lower_leg.head = upper_leg.tail.copy()
-            lower_leg.tail = Vector((sign * hip_width / 2, 0, 0.05))
-            lower_leg.parent = upper_leg
-            
-            foot = arm.edit_bones.new(f"Foot.{side}")
-            foot.head = lower_leg.tail.copy()
-            foot.tail = Vector((sign * hip_width / 2, 0.1, 0))
-            foot.parent = lower_leg
-            
-            shoulder = arm.edit_bones.new(f"Shoulder.{side}")
-            shoulder.head = Vector((0, 0, leg_height + torso_height))
-            shoulder.tail = Vector((sign * shoulder_width / 2, 0, leg_height + torso_height))
-            shoulder.parent = chest
-            
-            upper_arm = arm.edit_bones.new(f"UpperArm.{side}")
-            upper_arm.head = shoulder.tail.copy()
-            upper_arm.tail = Vector((sign * (shoulder_width / 2 + arm_length * 0.5), 0, leg_height + torso_height - arm_length * 0.1))
-            upper_arm.parent = shoulder
-            
-            lower_arm = arm.edit_bones.new(f"LowerArm.{side}")
-            lower_arm.head = upper_arm.tail.copy()
-            lower_arm.tail = Vector((sign * (shoulder_width / 2 + arm_length), 0, leg_height + torso_height - arm_length * 0.2))
-            lower_arm.parent = upper_arm
-            
-            hand = arm.edit_bones.new(f"Hand.{side}")
-            hand.head = lower_arm.tail.copy()
-            hand.tail = Vector((sign * (shoulder_width / 2 + arm_length + 0.1), 0, leg_height + torso_height - arm_length * 0.25))
-            hand.parent = lower_arm
+        # Left side bones
+        left_up_leg = arm.edit_bones.new("mixamorig:LeftUpLeg")
+        left_up_leg.head = Vector((-hip_width / 2, 0, leg_height))
+        left_up_leg.tail = Vector((-hip_width / 2, 0, leg_height * 0.5))
+        left_up_leg.parent = root
+        
+        left_leg = arm.edit_bones.new("mixamorig:LeftLeg")
+        left_leg.head = left_up_leg.tail.copy()
+        left_leg.tail = Vector((-hip_width / 2, 0, 0.05))
+        left_leg.parent = left_up_leg
+        
+        left_foot = arm.edit_bones.new("mixamorig:LeftFoot")
+        left_foot.head = left_leg.tail.copy()
+        left_foot.tail = Vector((-hip_width / 2, 0.1, 0))
+        left_foot.parent = left_leg
+        
+        left_shoulder = arm.edit_bones.new("mixamorig:LeftShoulder")
+        left_shoulder.head = Vector((0, 0, leg_height + torso_height))
+        left_shoulder.tail = Vector((-shoulder_width / 2, 0, leg_height + torso_height))
+        left_shoulder.parent = spine2
+        
+        left_arm = arm.edit_bones.new("mixamorig:LeftArm")
+        left_arm.head = left_shoulder.tail.copy()
+        left_arm.tail = Vector((-(shoulder_width / 2 + arm_length * 0.5), 0, leg_height + torso_height - arm_length * 0.1))
+        left_arm.parent = left_shoulder
+        
+        left_forearm = arm.edit_bones.new("mixamorig:LeftForeArm")
+        left_forearm.head = left_arm.tail.copy()
+        left_forearm.tail = Vector((-(shoulder_width / 2 + arm_length), 0, leg_height + torso_height - arm_length * 0.2))
+        left_forearm.parent = left_arm
+        
+        left_hand = arm.edit_bones.new("mixamorig:LeftHand")
+        left_hand.head = left_forearm.tail.copy()
+        left_hand.tail = Vector((-(shoulder_width / 2 + arm_length + 0.1), 0, leg_height + torso_height - arm_length * 0.25))
+        left_hand.parent = left_forearm
+        
+        # Right side bones
+        right_up_leg = arm.edit_bones.new("mixamorig:RightUpLeg")
+        right_up_leg.head = Vector((hip_width / 2, 0, leg_height))
+        right_up_leg.tail = Vector((hip_width / 2, 0, leg_height * 0.5))
+        right_up_leg.parent = root
+        
+        right_leg = arm.edit_bones.new("mixamorig:RightLeg")
+        right_leg.head = right_up_leg.tail.copy()
+        right_leg.tail = Vector((hip_width / 2, 0, 0.05))
+        right_leg.parent = right_up_leg
+        
+        right_foot = arm.edit_bones.new("mixamorig:RightFoot")
+        right_foot.head = right_leg.tail.copy()
+        right_foot.tail = Vector((hip_width / 2, 0.1, 0))
+        right_foot.parent = right_leg
+        
+        right_shoulder = arm.edit_bones.new("mixamorig:RightShoulder")
+        right_shoulder.head = Vector((0, 0, leg_height + torso_height))
+        right_shoulder.tail = Vector((shoulder_width / 2, 0, leg_height + torso_height))
+        right_shoulder.parent = spine2
+        
+        right_arm = arm.edit_bones.new("mixamorig:RightArm")
+        right_arm.head = right_shoulder.tail.copy()
+        right_arm.tail = Vector(((shoulder_width / 2 + arm_length * 0.5), 0, leg_height + torso_height - arm_length * 0.1))
+        right_arm.parent = right_shoulder
+        
+        right_forearm = arm.edit_bones.new("mixamorig:RightForeArm")
+        right_forearm.head = right_arm.tail.copy()
+        right_forearm.tail = Vector(((shoulder_width / 2 + arm_length), 0, leg_height + torso_height - arm_length * 0.2))
+        right_forearm.parent = right_arm
+        
+        right_hand = arm.edit_bones.new("mixamorig:RightHand")
+        right_hand.head = right_forearm.tail.copy()
+        right_hand.tail = Vector(((shoulder_width / 2 + arm_length + 0.1), 0, leg_height + torso_height - arm_length * 0.25))
+        right_hand.parent = right_forearm
         
         bpy.ops.object.mode_set(mode='OBJECT')
         
