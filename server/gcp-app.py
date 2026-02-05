@@ -610,8 +610,8 @@ bpy.context.collection.objects.link(light_obj)
 light_obj.location = (3, -3, 5)
 light_obj.rotation_euler = (math.radians(45), 0, math.radians(45))
 
-# Setup render settings (Eevee for speed)
-bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT' if hasattr(bpy.context.scene.render, 'engine') and 'EEVEE_NEXT' in dir(bpy.types) else 'BLENDER_EEVEE'
+# Setup render settings (Workbench for headless compatibility - no GPU required)
+bpy.context.scene.render.engine = 'BLENDER_WORKBENCH'
 bpy.context.scene.render.resolution_x = 512
 bpy.context.scene.render.resolution_y = 512
 bpy.context.scene.render.film_transparent = True
