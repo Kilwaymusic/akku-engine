@@ -29,7 +29,7 @@ def health():
     """Health check endpoint"""
     return jsonify({
         "status": "healthy",
-        "version": "5.1.0",
+        "version": "5.1.1",
         "sdk": "server/akku_sdk (Extrude-First)",
         "architecture": "mcp-style"
     })
@@ -116,7 +116,7 @@ def list_tools():
         }
     ]
     return jsonify({
-        "version": "5.1.0",
+        "version": "5.1.1",
         "description": "Akku SDK v5.0 - Extrude-First unified mesh 3D character generation",
         "tools": tools
     })
@@ -530,7 +530,8 @@ def download_generated_glb(filename):
         if '..' in filename or '/' in filename or '\\' in filename:
             return jsonify({"error": "Invalid filename"}), 400
         
-        file_path = f"/tmp/akku_generated/{filename}"
+        # Use OUTPUT_DIR which matches where execute-code saves files
+        file_path = os.path.join(OUTPUT_DIR, filename)
         if not os.path.exists(file_path):
             return jsonify({"error": f"File not found: {filename}"}), 404
         
@@ -674,7 +675,7 @@ print(f"[Akku] Exported to: {{output_path}}")
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Akku Engine GCP Worker v5.1.0")
+    print("Akku Engine GCP Worker v5.1.1")
     print("Autonomous 3D Agent with Code Execution")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1331,41 +1331,23 @@ export async function runIterativeGeneration(
 }
 
 // ============================================================
-// BLENDER CODE GENERATION - Creative Mesh Generation
+// BLENDER CODE GENERATION - Extrude-First Mesh Generation
 // ============================================================
 
-const BLENDER_CODE_GENERATION_PROMPT = `You are an expert Blender Python developer and 3D character artist. Your task is to generate Blender Python code that creates a low-poly humanoid character based on the user's description.
+const BLENDER_CODE_GENERATION_PROMPT = `You are an expert Blender Python developer. Generate code to create a LOW-POLY humanoid character.
 
-## CRITICAL DESIGN PRINCIPLES
+## CRITICAL: EXTRUDE-FIRST METHODOLOGY
 
-### 1. Extrude-First Methodology
-Create a SINGLE CONNECTED MESH - all body parts must be extruded from the base, NOT assembled from separate primitives:
+The body MUST be ONE CONNECTED MESH. Start with a torso cube and EXTRUDE all parts from it:
+- Head = extrude TOP face of torso upward
+- Arms = extrude SIDE faces outward
+- Legs = extrude BOTTOM face downward
 
-\`\`\`python
-# CORRECT: Extrude from base
-bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": (0, 0, height)})
+NEVER create separate primitives for body parts. Equipment/accessories CAN be separate objects.
 
-# WRONG: Separate primitives
-bpy.ops.mesh.primitive_cube_add()  # head
-bpy.ops.mesh.primitive_cube_add()  # body - DON'T DO THIS
-\`\`\`
+## COMPLETE WORKING REFERENCE CODE
 
-### 2. Low-Poly Game-Ready Style
-- Target: 500-2000 triangles total
-- Flat, faceted surfaces (like the reference image)
-- Clean topology for animation
-- No smooth shading - use flat shading
-
-### 3. Creative Interpretation
-Transform the prompt into visual features:
-- "늑대" (wolf) → Pointed ears extruded from head, elongated snout, wolf-like proportions
-- "로봇" (robot) → Angular/boxy shapes, mechanical joints
-- "오크" (orc) → Massive shoulders, jutting jaw, hunched posture
-- "요정" (fairy) → Delicate proportions, elongated ears, slender limbs
-
-## CODE STRUCTURE
-
-Your code MUST follow this exact structure:
+Study this code carefully. It creates a connected humanoid with proper extrusion:
 
 \`\`\`python
 import bpy
@@ -1373,100 +1355,188 @@ import bmesh
 from mathutils import Vector, Matrix
 import math
 
-def create_character():
-    """Create the character mesh"""
-    
-    # Clear existing mesh objects
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in bpy.data.objects:
-        if obj.type == 'MESH':
-            obj.select_set(True)
+def clear_scene():
+    bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete()
+
+def create_humanoid():
+    """Create a connected low-poly humanoid using Extrude-First methodology"""
     
-    # Create base mesh
     mesh = bpy.data.meshes.new("Character")
     obj = bpy.data.objects.new("Character", mesh)
     bpy.context.collection.objects.link(obj)
     bpy.context.view_layer.objects.active = obj
     obj.select_set(True)
     
-    # Create BMesh for mesh manipulation
     bm = bmesh.new()
     
-    # === YOUR CREATIVE MESH CODE HERE ===
-    # Use bmesh operations to build the character:
-    # - bmesh.ops.create_cube(bm, size=1.0) for base torso
-    # - bm.faces.ensure_lookup_table()
-    # - bmesh.ops.extrude_face_region() for limbs
-    # - bmesh.ops.translate() for positioning
-    # - bmesh.ops.scale() for proportions
-    
-    # Example: Create torso as starting point
-    bmesh.ops.create_cube(bm, size=0.5)
-    bmesh.ops.scale(bm, vec=(0.6, 0.3, 0.8), verts=bm.verts[:])
+    # ========== TORSO (Starting Point) ==========
+    bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.scale(bm, vec=(0.5, 0.25, 0.6), verts=bm.verts[:])
     bmesh.ops.translate(bm, vec=(0, 0, 1.0), verts=bm.verts[:])
     
-    # ... continue with head, limbs, features ...
+    bm.verts.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
     
-    # Finalize mesh
+    # ========== HEAD (Extrude from TOP face) ==========
+    # Find top face (highest Z normal)
+    top_face = max(bm.faces, key=lambda f: f.normal.z)
+    
+    # Extrude neck
+    ret = bmesh.ops.extrude_face_region(bm, geom=[top_face])
+    new_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, vec=(0, 0, 0.15), verts=new_verts)
+    bmesh.ops.scale(bm, vec=(0.7, 0.7, 1.0), verts=new_verts, space=Matrix.Translation(top_face.calc_center_median()))
+    
+    # Find new top face for head
+    bm.faces.ensure_lookup_table()
+    top_face = max(bm.faces, key=lambda f: f.calc_center_median().z)
+    
+    # Extrude head
+    ret = bmesh.ops.extrude_face_region(bm, geom=[top_face])
+    new_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, vec=(0, 0, 0.35), verts=new_verts)
+    bmesh.ops.scale(bm, vec=(1.3, 1.2, 1.0), verts=new_verts, space=Matrix.Translation(top_face.calc_center_median()))
+    
+    # ========== ARMS (Extrude from SIDE faces) ==========
+    bm.faces.ensure_lookup_table()
+    
+    # Find side faces on torso level (Z around 1.0)
+    torso_faces = [f for f in bm.faces if 0.8 < f.calc_center_median().z < 1.4]
+    left_face = max([f for f in torso_faces if f.normal.x < -0.5], key=lambda f: abs(f.normal.x), default=None)
+    right_face = max([f for f in torso_faces if f.normal.x > 0.5], key=lambda f: abs(f.normal.x), default=None)
+    
+    # Extrude left arm
+    if left_face:
+        # Upper arm
+        ret = bmesh.ops.extrude_face_region(bm, geom=[left_face])
+        arm_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+        bmesh.ops.scale(bm, vec=(0.6, 0.6, 0.6), verts=arm_verts, space=Matrix.Translation(left_face.calc_center_median()))
+        bmesh.ops.translate(bm, vec=(-0.3, 0, 0), verts=arm_verts)
+        
+        # Forearm
+        bm.faces.ensure_lookup_table()
+        end_face = max([f for f in bm.faces if f.calc_center_median().x < -0.4], key=lambda f: -f.calc_center_median().x, default=None)
+        if end_face:
+            ret = bmesh.ops.extrude_face_region(bm, geom=[end_face])
+            arm_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, vec=(-0.35, 0, 0), verts=arm_verts)
+            bmesh.ops.scale(bm, vec=(0.8, 0.8, 0.8), verts=arm_verts, space=Matrix.Translation(end_face.calc_center_median()))
+    
+    # Extrude right arm (mirror)
+    bm.faces.ensure_lookup_table()
+    torso_faces = [f for f in bm.faces if 0.8 < f.calc_center_median().z < 1.4]
+    right_face = max([f for f in torso_faces if f.normal.x > 0.5], key=lambda f: f.normal.x, default=None)
+    
+    if right_face:
+        ret = bmesh.ops.extrude_face_region(bm, geom=[right_face])
+        arm_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+        bmesh.ops.scale(bm, vec=(0.6, 0.6, 0.6), verts=arm_verts, space=Matrix.Translation(right_face.calc_center_median()))
+        bmesh.ops.translate(bm, vec=(0.3, 0, 0), verts=arm_verts)
+        
+        bm.faces.ensure_lookup_table()
+        end_face = max([f for f in bm.faces if f.calc_center_median().x > 0.4], key=lambda f: f.calc_center_median().x, default=None)
+        if end_face:
+            ret = bmesh.ops.extrude_face_region(bm, geom=[end_face])
+            arm_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, vec=(0.35, 0, 0), verts=arm_verts)
+            bmesh.ops.scale(bm, vec=(0.8, 0.8, 0.8), verts=arm_verts, space=Matrix.Translation(end_face.calc_center_median()))
+    
+    # ========== LEGS (Extrude from BOTTOM) ==========
+    bm.faces.ensure_lookup_table()
+    bottom_face = min(bm.faces, key=lambda f: f.calc_center_median().z)
+    
+    # Split bottom into two for legs
+    center = bottom_face.calc_center_median()
+    ret = bmesh.ops.bisect_plane(bm, geom=bm.faces[:] + bm.edges[:] + bm.verts[:], 
+                                  plane_co=(0, 0, 0.7), plane_no=(1, 0, 0))
+    
+    bm.faces.ensure_lookup_table()
+    
+    # Find left and right bottom faces
+    bottom_faces = [f for f in bm.faces if f.calc_center_median().z < 0.75 and f.normal.z < -0.5]
+    left_leg_face = min([f for f in bottom_faces if f.calc_center_median().x < 0], 
+                        key=lambda f: f.calc_center_median().z, default=None)
+    right_leg_face = min([f for f in bottom_faces if f.calc_center_median().x > 0], 
+                         key=lambda f: f.calc_center_median().z, default=None)
+    
+    # Extrude left leg
+    if left_leg_face:
+        ret = bmesh.ops.extrude_face_region(bm, geom=[left_leg_face])
+        leg_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+        bmesh.ops.translate(bm, vec=(0, 0, -0.5), verts=leg_verts)
+        
+        bm.faces.ensure_lookup_table()
+        end_face = min([f for f in bm.faces if f.calc_center_median().x < -0.05], 
+                       key=lambda f: f.calc_center_median().z, default=None)
+        if end_face:
+            ret = bmesh.ops.extrude_face_region(bm, geom=[end_face])
+            leg_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, vec=(0, 0, -0.5), verts=leg_verts)
+    
+    # Extrude right leg
+    if right_leg_face:
+        ret = bmesh.ops.extrude_face_region(bm, geom=[right_leg_face])
+        leg_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+        bmesh.ops.translate(bm, vec=(0, 0, -0.5), verts=leg_verts)
+        
+        bm.faces.ensure_lookup_table()
+        end_face = min([f for f in bm.faces if f.calc_center_median().x > 0.05], 
+                       key=lambda f: f.calc_center_median().z, default=None)
+        if end_face:
+            ret = bmesh.ops.extrude_face_region(bm, geom=[end_face])
+            leg_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, vec=(0, 0, -0.5), verts=leg_verts)
+    
+    # ========== FINALIZE ==========
     bm.to_mesh(mesh)
     bm.free()
     
-    # Set flat shading for low-poly look
+    # Flat shading for low-poly look
     for poly in mesh.polygons:
         poly.use_smooth = False
     
-    # Apply material with vertex color
-    mat = bpy.data.materials.new(name="CharacterMaterial")
+    # Material
+    mat = bpy.data.materials.new(name="CharacterMat")
     mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    # Clear and rebuild nodes
-    nodes.clear()
-    output = nodes.new('ShaderNodeOutputMaterial')
-    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
-    # Set color (RGB 0-1)
-    bsdf.inputs['Base Color'].default_value = (0.5, 0.4, 0.3, 1.0)  # Adjust for character
-    bsdf.inputs['Roughness'].default_value = 0.8
-    links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
+    bsdf = mat.node_tree.nodes.get('Principled BSDF')
+    if bsdf:
+        bsdf.inputs['Base Color'].default_value = (0.5, 0.4, 0.35, 1.0)
+        bsdf.inputs['Roughness'].default_value = 0.8
     obj.data.materials.append(mat)
     
     return obj
 
 # Execute
-create_character()
+clear_scene()
+create_humanoid()
 \`\`\`
 
-## BMESH REFERENCE
+## YOUR TASK
 
-Key operations you can use:
-- \`bmesh.ops.create_cube(bm, size=1.0)\` - Create cube
-- \`bmesh.ops.create_cone(bm, segments=8, radius1=0.5, radius2=0, depth=1)\` - Create cone
-- \`bmesh.ops.extrude_face_region(bm, geom=[face])\` - Extrude faces
-- \`bmesh.ops.translate(bm, vec=(x,y,z), verts=verts)\` - Move vertices
-- \`bmesh.ops.scale(bm, vec=(x,y,z), verts=verts)\` - Scale vertices
-- \`bmesh.ops.rotate(bm, cent=(0,0,0), matrix=Matrix.Rotation(angle, 4, 'Z'), verts=verts)\`
+Based on the reference code above, create a character matching the user's prompt. You MUST:
 
-## IMPORTANT GUIDELINES
+1. **Use Extrude-First**: Body must be ONE connected mesh (head, arms, legs extruded from torso)
+2. **Add character-specific features** by modifying the extrusion sizes, adding more extrusions:
+   - 늑대/wolf: Extrude pointed ears from head top, elongate snout forward
+   - 로봇/robot: Boxy proportions, angular shapes
+   - 엘프/elf: Slender proportions, extrude pointed ears from sides of head
+   - 마법사/wizard: Add hood by scaling head top, add robe by widening lower torso
+   - 전사/warrior: Broader shoulders, thicker arms
+3. **Keep it low-poly**: 500-2000 triangles
+4. **Set appropriate color**: Match the character concept
+5. **Equipment is optional**: Weapons, staffs, etc. CAN be separate objects
 
-1. Output ONLY valid Python code - no explanations before or after
-2. Code must be complete and executable in Blender 3.4+
-3. Create visually distinctive characters based on the prompt
-4. Use appropriate colors matching the character concept
-5. Keep polygon count low (game-ready)
-6. Character should be in T-pose or A-pose for rigging
-7. Character height should be approximately 1.8 units (human scale)
+## COLOR PALETTE
+- Skin: (0.8, 0.6, 0.5, 1.0)
+- Brown/leather: (0.4, 0.25, 0.15, 1.0)
+- Green/forest: (0.3, 0.5, 0.2, 1.0)  
+- Blue/magic: (0.3, 0.4, 0.7, 1.0)
+- Metal/gray: (0.5, 0.5, 0.55, 1.0)
+- Purple/mystical: (0.5, 0.3, 0.6, 1.0)
 
-## COLOR GUIDELINES
-- Brown/wolf: (0.4, 0.25, 0.15, 1.0)
-- Green/orc: (0.3, 0.5, 0.2, 1.0)
-- Blue/robot: (0.3, 0.4, 0.6, 1.0)
-- Gray/metal: (0.5, 0.5, 0.55, 1.0)
-- Skin tone: (0.8, 0.6, 0.5, 1.0)
-
-Remember: Be CREATIVE! Transform the prompt into a unique, visually interesting character.`;
+## OUTPUT
+Output ONLY valid Python code. No explanations.`;
 
 /**
  * Generate Blender Python code for a character based on prompt
