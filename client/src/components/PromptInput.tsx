@@ -2,37 +2,12 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, Send, Loader2, ImagePlus, X, Wand2 } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { Sparkles, Send, Loader2, ImagePlus, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface GenerationOptions {
   prompt: string;
   referenceImage?: string;
-}
-
-interface ImageAnalysisResult {
-  success: boolean;
-  attributes: {
-    description: string;
-    style: string;
-    colors: string[];
-    bodyType: {
-      preset: string;
-      muscular?: number;
-      fat?: number;
-    };
-    gender: string;
-    archetype: string;
-    suggestedPrompt: string;
-  };
-  generationOptions: {
-    prompt: string;
-    style: string;
-    bodyType: string;
-    gender: string;
-  };
 }
 
 interface PromptInputProps {
@@ -53,29 +28,6 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-
-  const analyzeImageMutation = useMutation({
-    mutationFn: async (imageData: string) => {
-      const response = await apiRequest("POST", "/api/analyze-image", { image: imageData });
-      return response.json() as Promise<ImageAnalysisResult>;
-    },
-    onSuccess: (data) => {
-      if (data.success && data.generationOptions) {
-        setPrompt(data.generationOptions.prompt);
-        toast({
-          title: "이미지 분석 완료",
-          description: `${data.attributes.archetype} 캐릭터로 인식되었습니다. 프롬프트가 자동으로 채워졌습니다.`,
-        });
-      }
-    },
-    onError: (error) => {
-      toast({
-        title: "이미지 분석 실패",
-        description: error instanceof Error ? error.message : "알 수 없는 오류",
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -106,12 +58,6 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
       setReferenceImage(dataUrl);
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleAnalyzeImage = () => {
-    if (referenceImage) {
-      analyzeImageMutation.mutate(referenceImage);
-    }
   };
 
   const handleClearImage = () => {
@@ -164,7 +110,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || analyzeImageMutation.isPending}
+            disabled={isLoading}
             data-testid="button-upload-image"
           >
             <ImagePlus className="w-4 h-4 mr-2" />
@@ -173,42 +119,26 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
         </div>
 
         {imagePreview && (
-          <div className="relative flex items-start gap-3 p-3 rounded-lg bg-accent/30" data-testid="container-image-preview">
+          <div className="relative flex items-center gap-3 p-3 rounded-lg bg-accent/30" data-testid="container-image-preview">
             <img
               src={imagePreview}
               alt="레퍼런스 이미지"
-              className="w-20 h-20 object-cover rounded-md border"
+              className="w-16 h-16 object-cover rounded-md border"
               data-testid="img-reference-preview"
             />
-            <div className="flex-1 space-y-2">
-              <p className="text-sm text-muted-foreground" data-testid="text-analyze-hint">
-                이미지를 분석하여 프롬프트를 자동으로 생성합니다.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={handleAnalyzeImage}
-                  disabled={analyzeImageMutation.isPending || isLoading}
-                  data-testid="button-analyze-image"
-                >
-                  {analyzeImageMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Wand2 className="w-4 h-4 mr-2" />
-                  )}
-                  이미지 분석
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleClearImage}
-                  disabled={analyzeImageMutation.isPending || isLoading}
-                  data-testid="button-clear-image"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
+            <div className="flex-1">
+              <p className="text-sm text-foreground font-medium">레퍼런스 이미지 첨부됨</p>
+              <p className="text-xs text-muted-foreground">전송 시 자동 분석됩니다</p>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClearImage}
+              disabled={isLoading}
+              data-testid="button-clear-image"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         )}
 
