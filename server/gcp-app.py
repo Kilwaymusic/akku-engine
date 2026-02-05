@@ -29,7 +29,7 @@ def health():
     """Health check endpoint"""
     return jsonify({
         "status": "healthy",
-        "version": "5.0.0",
+        "version": "5.1.0",
         "sdk": "server/akku_sdk (Extrude-First)",
         "architecture": "mcp-style"
     })
@@ -116,7 +116,7 @@ def list_tools():
         }
     ]
     return jsonify({
-        "version": "5.0.0",
+        "version": "5.1.0",
         "description": "Akku SDK v5.0 - Extrude-First unified mesh 3D character generation",
         "tools": tools
     })
@@ -518,6 +518,27 @@ def get_glb(session_id, filename):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/download/<filename>', methods=['GET'])
+def download_generated_glb(filename):
+    """Download GLB from autonomous agent generation"""
+    try:
+        # Security: Only allow .glb files
+        if not filename.endswith('.glb'):
+            return jsonify({"error": "Invalid file type"}), 400
+        
+        # Security: Prevent directory traversal
+        if '..' in filename or '/' in filename or '\\' in filename:
+            return jsonify({"error": "Invalid filename"}), 400
+        
+        file_path = f"/tmp/akku_generated/{filename}"
+        if not os.path.exists(file_path):
+            return jsonify({"error": f"File not found: {filename}"}), 404
+        
+        return send_file(file_path, mimetype='model/gltf-binary', as_attachment=True, download_name=filename)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/execute-code', methods=['POST'])
 def execute_code():
     """
@@ -653,7 +674,7 @@ print(f"[Akku] Exported to: {{output_path}}")
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Akku Engine GCP Worker v4.0")
-    print("Autonomous 3D Agent with Self-Verification")
+    print("Akku Engine GCP Worker v5.1.0")
+    print("Autonomous 3D Agent with Code Execution")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=True)
