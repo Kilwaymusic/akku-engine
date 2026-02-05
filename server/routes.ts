@@ -6,7 +6,7 @@ import { insertJobSchema } from "@shared/schema";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import path from "path";
 import { analyzeImage, attributesToGenerationOptions } from "./image-analyzer";
-import { mapPromptToParameters, type AkkuSDKParameters } from "./gemini";
+import { mapPromptToParameters, analyzeScreenshotForRefinement, type AkkuSDKParameters, type ScreenshotAnalysis } from "./gemini";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
 
@@ -567,6 +567,269 @@ echo "Deployment complete!"
       res.status(500).json({ 
         success: false, 
         error: error instanceof Error ? error.message : "Connection test failed" 
+      });
+    }
+  });
+
+  // ============================================================
+  // ITERATIVE GENERATION - Autonomous 3D Agent with Self-Verification
+  // Replit orchestrates: Generate → Screenshot → Gemini VLM → Refine → Repeat
+  // ============================================================
+  
+  app.post("/api/jobs/iterative", async (req, res) => {
+    try {
+      const { prompt, maxIterations = 3 } = req.body as { 
+        prompt: string; 
+        maxIterations?: number;
+      };
+      
+      if (!prompt) {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+      
+      const iterations = Math.min(maxIterations, 5);
+      const iterationResults: Array<{
+        iteration: number;
+        glb_size_bytes: number;
+        screenshot_size_bytes: number;
+        analysis?: ScreenshotAnalysis;
+        satisfactory: boolean;
+      }> = [];
+      
+      console.log(`[Iterative Generation] Starting with prompt: "${prompt}", max ${iterations} iterations`);
+      
+      // Step 1: Get initial params from Gemini
+      let currentParams: AkkuSDKParameters | undefined;
+      try {
+        currentParams = await mapPromptToParameters(prompt);
+        console.log(`[Iterative Generation] Initial Gemini params:`, {
+          archetype: currentParams.archetype,
+          bodyPreset: currentParams.bodyType?.preset,
+          armorStyle: currentParams.equipment?.armorStyle
+        });
+      } catch (geminiError) {
+        console.warn(`[Iterative Generation] Gemini analysis failed, using defaults`);
+      }
+      
+      const sessionId = `iter_${Date.now()}`;
+      let finalGlbPath: string | null = null;
+      
+      // Step 2: Iterative loop with Gemini VLM self-verification
+      for (let i = 1; i <= iterations; i++) {
+        console.log(`[Iteration ${i}/${iterations}] Starting...`);
+        
+        // Call GCP Worker for single iteration with screenshot capture
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+        
+        try {
+          const response = await fetch(`${GCP_WORKER_URL}/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt,
+              style: currentParams?.style?.proportionType || "stylized",
+              polyLevel: currentParams?.style?.polyLevel || "medium",
+              gender: currentParams?.style?.gender || "male",
+              bodyType: currentParams?.bodyType?.preset || "default",
+              geminiParams: currentParams,
+              captureScreenshot: true,
+              sessionId,
+              iteration: i
+            }),
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Iteration ${i}] Generation failed: ${errorText}`);
+            iterationResults.push({
+              iteration: i,
+              glb_size_bytes: 0,
+              screenshot_size_bytes: 0,
+              satisfactory: false
+            });
+            continue;
+          }
+          
+          // Validate content-type to ensure we got GLB not JSON error
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const errorJson = await response.json() as { error?: string };
+            console.error(`[Iteration ${i}] Generation returned JSON error:`, errorJson);
+            iterationResults.push({
+              iteration: i,
+              glb_size_bytes: 0,
+              screenshot_size_bytes: 0,
+              satisfactory: false
+            });
+            continue;
+          }
+          
+          // Save GLB file
+          const buffer = Buffer.from(await response.arrayBuffer());
+          
+          // Validate GLB magic number
+          const magic = buffer.slice(0, 4).toString("ascii");
+          if (magic !== "glTF") {
+            console.error(`[Iteration ${i}] Invalid GLB: bad magic "${magic}"`);
+            iterationResults.push({
+              iteration: i,
+              glb_size_bytes: 0,
+              screenshot_size_bytes: 0,
+              satisfactory: false
+            });
+            continue;
+          }
+          
+          const glbFilename = `${sessionId}_iter${i}.glb`;
+          const outputPath = path.join(MODELS_DIR, glbFilename);
+          writeFileSync(outputPath, buffer);
+          
+          console.log(`[Iteration ${i}] GLB saved: ${buffer.length} bytes`);
+          finalGlbPath = outputPath;
+          
+          // Try to fetch screenshot from GCP Worker for VLM analysis
+          let screenshotBase64: string | null = null;
+          try {
+            const screenshotResponse = await fetch(
+              `${GCP_WORKER_URL}/screenshot/${sessionId}/iter${i}.png`
+            );
+            if (screenshotResponse.ok) {
+              const screenshotBuffer = Buffer.from(await screenshotResponse.arrayBuffer());
+              screenshotBase64 = screenshotBuffer.toString("base64");
+              console.log(`[Iteration ${i}] Screenshot fetched: ${screenshotBuffer.length} bytes`);
+            }
+          } catch (screenshotError) {
+            console.warn(`[Iteration ${i}] Screenshot fetch failed:`, screenshotError);
+          }
+          
+          // Step 3: Analyze screenshot with Gemini VLM
+          let analysis: ScreenshotAnalysis | undefined;
+          let shouldBreak = false;
+          
+          if (screenshotBase64 && currentParams) {
+            try {
+              analysis = await analyzeScreenshotForRefinement(
+                screenshotBase64,
+                prompt,
+                currentParams,
+                i
+              );
+              
+              console.log(`[Iteration ${i}] VLM Analysis:`, {
+                satisfactory: analysis.satisfactory,
+                issues: analysis.issues,
+                confidence: analysis.confidence
+              });
+              
+              // Check if satisfactory - set flag to break after pushing result
+              if (analysis.satisfactory) {
+                console.log(`[Iteration ${i}] Character satisfactory! Stopping iterations.`);
+                shouldBreak = true;
+              }
+              
+              // Step 4: Apply refinements for next iteration (if not satisfactory)
+              if (!analysis.satisfactory && analysis.refinements && Object.keys(analysis.refinements).length > 0) {
+                console.log(`[Iteration ${i}] Applying refinements for next iteration`);
+                
+                // Merge refinements into current params (including equipment)
+                if (analysis.refinements.bodyType && currentParams) {
+                  currentParams.bodyType = { ...currentParams.bodyType, ...analysis.refinements.bodyType };
+                }
+                if (analysis.refinements.style && currentParams) {
+                  currentParams.style = { ...currentParams.style, ...analysis.refinements.style };
+                }
+                if (analysis.refinements.equipment && currentParams) {
+                  currentParams.equipment = { ...currentParams.equipment, ...analysis.refinements.equipment };
+                }
+                if (analysis.refinements.shader && currentParams) {
+                  currentParams.shader = { ...currentParams.shader, ...analysis.refinements.shader };
+                }
+              }
+              
+            } catch (analysisError) {
+              console.warn(`[Iteration ${i}] VLM analysis failed:`, analysisError);
+            }
+          }
+          
+          iterationResults.push({
+            iteration: i,
+            glb_size_bytes: buffer.length,
+            screenshot_size_bytes: screenshotBase64 ? Buffer.from(screenshotBase64, "base64").length : 0,
+            analysis,
+            satisfactory: analysis?.satisfactory || false
+          });
+          
+          // Break out of loop if satisfactory
+          if (shouldBreak) {
+            break;
+          }
+          
+        } catch (error) {
+          clearTimeout(timeoutId);
+          console.error(`[Iteration ${i}] Error:`, error);
+          iterationResults.push({
+            iteration: i,
+            glb_size_bytes: 0,
+            screenshot_size_bytes: 0,
+            satisfactory: false
+          });
+        }
+      }
+      
+      // Step 5: Return final result
+      const lastSuccessfulIteration = iterationResults.filter(r => r.glb_size_bytes > 0).pop();
+      const finalModelUrl = lastSuccessfulIteration 
+        ? `/models/${sessionId}_iter${lastSuccessfulIteration.iteration}.glb`
+        : null;
+      
+      console.log(`[Iterative Generation] Completed ${iterationResults.length} iterations`);
+      
+      res.json({
+        status: finalModelUrl ? "success" : "failed",
+        modelUrl: finalModelUrl,
+        session_id: sessionId,
+        iterations: iterationResults.map(r => ({
+          iteration: r.iteration,
+          glb_size_bytes: r.glb_size_bytes,
+          satisfactory: r.satisfactory,
+          issues: r.analysis?.issues || [],
+          reasoning: r.analysis?.reasoning
+        })),
+        total_iterations: iterationResults.length,
+        final_satisfactory: iterationResults[iterationResults.length - 1]?.satisfactory || false
+      });
+      
+    } catch (error) {
+      console.error("[Iterative Generation] Failed:", error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Iterative generation failed" 
+      });
+    }
+  });
+
+  // Get screenshot from iterative session
+  app.get("/api/iterative/:sessionId/screenshot/:iteration", async (req, res) => {
+    try {
+      const { sessionId, iteration } = req.params;
+      const response = await fetch(
+        `${GCP_WORKER_URL}/screenshot/${sessionId}/iter${iteration}.png`
+      );
+      
+      if (!response.ok) {
+        return res.status(404).json({ error: "Screenshot not found" });
+      }
+      
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.setHeader("Content-Type", "image/png");
+      res.send(buffer);
+      
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to fetch screenshot" 
       });
     }
   });

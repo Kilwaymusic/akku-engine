@@ -21,7 +21,7 @@ from .shader import StylizedShaderSystem
 from .body import BodyTypePresets, BodyTypeSystem
 from .kitbash import KitbashLibrary, KitbashEquipper
 from .rigging import AutoWeightTransfer
-from .handlers import FBXHandler, GLBHandler
+from .handlers import FBXHandler, GLBHandler, ScreenshotHandler
 from .procedural import ProceduralHumanoid, StyleProportions, PolyLevelPresets
 
 
@@ -428,6 +428,68 @@ def export_glb(output_path: str):
         raise RuntimeError(f"GLB export failed: {output_path}")
 
 
+# ========================================
+# AUTONOMOUS AGENT TOOLS
+# ========================================
+
+@tool("capture_screenshot", "Capture viewport screenshot for Gemini VLM review")
+def capture_screenshot(
+    output_path: str,
+    view: str = "front",
+    resolution: int = 768,
+    include_composite: bool = False
+):
+    """
+    Capture viewport screenshot for autonomous agent self-verification.
+    
+    This tool renders the current scene from a specified camera angle,
+    producing a PNG image that can be sent to Gemini VLM for analysis.
+    
+    Args:
+        output_path: Output PNG file path (e.g., "/tmp/preview.png")
+        view: Camera preset - "front", "side", "quarter", or "top"
+        resolution: Image resolution in pixels (square, default: 768)
+        include_composite: Create front+side 2-up composite for proportion analysis
+        
+    Returns:
+        Dict with path, size_bytes, view, resolution, and scene_info
+        
+    Example:
+        capture_screenshot(
+            output_path="/tmp/character_preview.png",
+            view="quarter",
+            resolution=768,
+            include_composite=True
+        )
+    """
+    result = ScreenshotHandler.capture_screenshot(
+        output_path=output_path,
+        view=view,
+        resolution=resolution,
+        include_composite=include_composite
+    )
+    
+    # Add scene info for Gemini context
+    result["scene_info"] = ScreenshotHandler.get_scene_info()
+    
+    return result
+
+
+@tool("get_scene_info", "Get current scene statistics for Gemini context")
+def get_scene_info():
+    """
+    Get current scene statistics for Gemini VLM context.
+    
+    Returns mesh counts, vertex/face totals, and armature info.
+    Use this to provide context to Gemini when analyzing screenshots.
+    
+    Returns:
+        Dict with mesh_count, mesh_names, total_vertices, total_faces,
+        armature_count, armature_names
+    """
+    return ScreenshotHandler.get_scene_info()
+
+
 @tool("generate_character", "Complete character generation pipeline")
 def generate_character(
     prompt: str,
@@ -612,13 +674,14 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     
     if len(args) < 4:
-        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [equipment] [gemini_params]")
+        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [equipment] [gemini_params] [screenshot_path]")
         print("\nStyles: realistic, stylized, chibi, sd, mobile, minifig, cartoon")
         print("Poly Levels: ultra_low, low, medium, high")
         print("Body Types: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant")
         print("Equipment: default, armor, robe")
         print("\nEquipment determines Vertex Colors and Hard-Surface details")
         print("Gemini Params: JSON object from Replit Gemini analysis")
+        print("Screenshot Path: Optional PNG path for autonomous agent verification")
         sys.exit(1)
     
     prompt = args[0]
@@ -630,6 +693,7 @@ def main():
     use_remesh = args[6].lower() == "true" if len(args) > 6 else False
     equipment = args[7] if len(args) > 7 else "default"
     gemini_params_raw = args[8] if len(args) > 8 else ""
+    screenshot_path = args[9] if len(args) > 9 else ""
     
     # Parse Gemini params from Replit server
     gemini_params = None
@@ -692,6 +756,27 @@ def main():
         if result["status"] == "success":
             print(f"\n[Akku SDK] Generation completed successfully!")
             print(json.dumps(result["result"], indent=2, ensure_ascii=False, default=str))
+            
+            # Capture screenshot if path provided (for autonomous agent verification)
+            if screenshot_path:
+                try:
+                    AkkuLogger.info("Capturing screenshot for autonomous verification", {
+                        "path": screenshot_path
+                    })
+                    screenshot_result = ScreenshotHandler.capture_screenshot(
+                        output_path=screenshot_path,
+                        view="quarter",
+                        resolution=768
+                    )
+                    print(f"\n[Akku SDK] Screenshot captured: {screenshot_path}")
+                    print(json.dumps(screenshot_result, indent=2, ensure_ascii=False, default=str))
+                    
+                    # Also output scene info for Gemini context
+                    scene_info = ScreenshotHandler.get_scene_info()
+                    print(f"\n[Akku SDK] Scene info:")
+                    print(json.dumps(scene_info, indent=2, ensure_ascii=False, default=str))
+                except Exception as e:
+                    print(f"\n[Akku SDK] Screenshot capture failed: {str(e)}")
         else:
             print(f"\n[Akku SDK] Generation failed: {result['message']}")
             if "error_report" in result:

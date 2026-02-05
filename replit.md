@@ -50,8 +50,23 @@ Preferred communication style: Simple, everyday language.
     - `mapPromptToParameters()`: Analyzes text prompts and outputs precise SDK parameters (bodyType, style, shader, equipment)
     - `analyzeImage()`: Vision API for reference image analysis
     - `generateAkkuPlan()`: Multi-step generation planning for complex characters
+    - `analyzeScreenshotForRefinement()`: VLM-based self-verification for autonomous agent loop
 - **Parameter Schema**: AkkuSDKParameters interface with validated fields for bodyType (preset, muscular, fat, height), style (proportionType, polyLevel, gender), shader (baseColor, metallic, roughness), equipment (helmet, shoulders, chest, weapon)
 - **Korean Support**: Recognizes Korean keywords for archetypes (전사, 마법사, 기사, 도적) and body types
+
+### Autonomous 3D Agent (v4.0)
+- **Self-Verification Loop**: Iterative generation with Gemini VLM analysis
+- **Process Flow**:
+    1. Get initial parameters from `mapPromptToParameters()`
+    2. Generate character with GCP Worker (with screenshot capture)
+    3. Fetch screenshot and send to Gemini VLM for analysis
+    4. If not satisfactory, apply refinements and repeat (up to 3 iterations)
+    5. Return final GLB when satisfactory or max iterations reached
+- **Endpoints**:
+    - `POST /api/jobs/iterative`: Orchestrates the full iterative loop
+    - `GET /api/iterative/:sessionId/screenshot/:iteration`: Fetch iteration screenshot
+- **Screenshot Handler**: Headless-safe Eevee rendering with auto-framing based on mesh bounds
+- **LLM-Friendly Tools**: JSON schemas in LLM_TOOLS.md for SDK tool documentation
 
 ### Build System
 - **Client**: Vite for React application.

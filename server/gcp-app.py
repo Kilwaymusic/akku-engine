@@ -9,6 +9,7 @@ import uuid
 import os
 import traceback
 import json
+import time
 from datetime import datetime
 
 app = Flask(__name__)
@@ -36,17 +37,88 @@ def health():
 
 @app.route('/tools', methods=['GET'])
 def list_tools():
-    """List available SDK tools (MCP-style)"""
+    """List available SDK tools with JSON schemas for LLM consumption"""
     tools = [
-        {"name": "load_base_mesh", "description": "Load Mixamo FBX base mesh"},
-        {"name": "apply_style", "description": "Apply style-based transformations"},
-        {"name": "apply_body_type", "description": "Apply body type deformation"},
-        {"name": "apply_stylized_shader", "description": "Apply edge/cavity shader"},
-        {"name": "equip_item", "description": "Equip kitbash parts"},
-        {"name": "export_glb", "description": "Export scene as GLB file"},
-        {"name": "generate_character", "description": "Complete character generation pipeline"}
+        {
+            "name": "generate_procedural_base",
+            "description": "Create procedural humanoid mesh from scratch",
+            "params": {
+                "style": {"type": "string", "enum": ["realistic", "stylized", "chibi", "sd", "mobile", "minifig", "cartoon"], "default": "stylized"},
+                "poly_level": {"type": "string", "enum": ["ultra_low", "low", "medium", "high"], "default": "medium"},
+                "gender": {"type": "string", "enum": ["male", "female", "neutral"], "default": "male"},
+                "equipment": {"type": "string", "enum": ["default", "armor", "robe"], "default": "default"}
+            }
+        },
+        {
+            "name": "apply_body_type",
+            "description": "Apply body type deformation to character mesh",
+            "params": {
+                "body_type": {"type": "string", "enum": ["default", "muscular", "thin", "fat", "tall", "athletic", "heroic", "chibi"], "default": "default"},
+                "muscular": {"type": "number", "min": 0, "max": 1, "description": "Muscle definition override"},
+                "fat": {"type": "number", "min": 0, "max": 1, "description": "Body fat override"},
+                "height": {"type": "number", "min": 0.7, "max": 1.3, "description": "Height multiplier"},
+                "shoulder_width": {"type": "number", "min": 0.7, "max": 1.5, "description": "Shoulder width multiplier"}
+            }
+        },
+        {
+            "name": "apply_style",
+            "description": "Apply style transformations based on prompt",
+            "params": {
+                "prompt": {"type": "string", "description": "Character description"},
+                "style": {"type": "string", "enum": ["realistic", "stylized", "chibi", "sd", "mobile", "minifig", "cartoon"]},
+                "poly_level": {"type": "string", "enum": ["ultra_low", "low", "medium", "high"]}
+            }
+        },
+        {
+            "name": "equip_item",
+            "description": "Attach equipment from Kitbash library",
+            "params": {
+                "category": {"type": "string", "enum": ["helmet", "shoulder", "chest", "gauntlet", "boots", "weapon", "shield"]},
+                "style": {"type": "string", "enum": ["knight", "scifi", "mage", "rogue"]},
+                "color": {"type": "array", "items": "number", "description": "RGB color [0-1, 0-1, 0-1]"}
+            }
+        },
+        {
+            "name": "capture_screenshot",
+            "description": "Capture viewport screenshot for Gemini VLM review (headless-safe)",
+            "params": {
+                "output_path": {"type": "string", "description": "Output PNG file path"},
+                "view": {"type": "string", "enum": ["front", "side", "quarter", "top"], "default": "front"},
+                "resolution": {"type": "integer", "min": 256, "max": 2048, "default": 768},
+                "include_composite": {"type": "boolean", "default": False, "description": "Create front+side 2-up composite"}
+            }
+        },
+        {
+            "name": "get_scene_info",
+            "description": "Get current scene statistics for Gemini context",
+            "params": {}
+        },
+        {
+            "name": "export_glb",
+            "description": "Export scene as GLB file for game engines",
+            "params": {
+                "output_path": {"type": "string", "description": "Output GLB file path"}
+            }
+        },
+        {
+            "name": "generate_character",
+            "description": "Complete character generation pipeline (all steps combined)",
+            "params": {
+                "prompt": {"type": "string", "description": "Character description"},
+                "style": {"type": "string", "enum": ["realistic", "stylized", "chibi", "sd", "mobile", "minifig", "cartoon"]},
+                "poly_level": {"type": "string", "enum": ["ultra_low", "low", "medium", "high"]},
+                "output_path": {"type": "string"},
+                "gender": {"type": "string", "enum": ["male", "female", "neutral"]},
+                "body_type": {"type": "string"},
+                "equipment": {"type": "string", "enum": ["default", "armor", "robe"]}
+            }
+        }
     ]
-    return jsonify({"tools": tools})
+    return jsonify({
+        "version": "4.0.0",
+        "description": "Akku SDK - Low-poly 3D character generation for game engines",
+        "tools": tools
+    })
 
 
 @app.route('/generate', methods=['POST'])
@@ -64,6 +136,9 @@ def generate():
         use_remesh = data.get('useRemesh', False)
         equipment = data.get('equipment', 'default')
         gemini_params_raw = data.get('geminiParams', None)
+        capture_screenshot = data.get('captureScreenshot', False)
+        session_id = data.get('sessionId', '')
+        iteration = data.get('iteration', 1)
         
         # Parse Gemini params from Replit server
         gemini_params = None
@@ -110,7 +185,17 @@ def generate():
             print(f"    Armor Style: {gemini_params.get('equipment', {}).get('armorStyle', 'none')}")
             print(f"    Shader Color: {gemini_params.get('shader', {}).get('baseColor', [0.5, 0.5, 0.5])}")
         print(f"  Output: {output_path}")
+        print(f"  Capture Screenshot: {capture_screenshot}")
+        print(f"  Session ID: {session_id}")
+        print(f"  Iteration: {iteration}")
         print(f"{'='*60}\n")
+        
+        # Build screenshot path if requested
+        screenshot_path = ""
+        if capture_screenshot and session_id:
+            screenshot_dir = f"/tmp/akku/{session_id}"
+            os.makedirs(screenshot_dir, exist_ok=True)
+            screenshot_path = f"{screenshot_dir}/iter{iteration}.png"
         
         # Build Blender command for modular SDK
         # Use safe entry script with arguments passed via command line
@@ -130,7 +215,8 @@ def generate():
             body_type_json,
             "true" if use_remesh else "false",
             equipment,
-            gemini_json  # Pass Gemini params to SDK
+            gemini_json,  # Pass Gemini params to SDK
+            screenshot_path  # 10th arg: screenshot path for autonomous agent
         ]
         
         # Run Blender
@@ -196,9 +282,213 @@ def execute_tool():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route('/generate_iterative', methods=['POST'])
+def generate_iterative():
+    """
+    Autonomous 3D agent endpoint with self-verification loop.
+    
+    Workflow:
+    1. Generate base mesh with initial parameters
+    2. Capture screenshot
+    3. Analyze screenshot (expects Gemini refinement params from Replit)
+    4. Apply refinements
+    5. Repeat steps 2-4 up to max_iterations times
+    6. Export final GLB
+    
+    Request body:
+    {
+        "prompt": "Character description",
+        "initial_params": {...},  // Initial SDK parameters
+        "max_iterations": 3,       // Default 3
+        "refinements": [...]       // Optional: pre-computed refinements per iteration
+    }
+    
+    Response:
+    {
+        "status": "success",
+        "iterations": [
+            {"iteration": 1, "screenshot_path": "/tmp/...", "scene_info": {...}},
+            ...
+        ],
+        "final_glb_path": "/tmp/final.glb",
+        "total_iterations": 3
+    }
+    """
+    try:
+        data = request.get_json()
+        prompt = data.get('prompt', 'humanoid character')
+        initial_params = data.get('initial_params', {})
+        max_iterations = min(data.get('max_iterations', 3), 5)  # Cap at 5
+        refinements = data.get('refinements', [])  # Pre-computed refinements (optional)
+        
+        print(f"\n{'='*60}")
+        print(f"[Akku Iterative] Starting autonomous generation")
+        print(f"  Prompt: {prompt}")
+        print(f"  Max Iterations: {max_iterations}")
+        print(f"  Initial Params: {json.dumps(initial_params, indent=2)}")
+        print(f"{'='*60}\n")
+        
+        # Generate unique session ID
+        session_id = f"iter_{int(time.time())}"
+        output_dir = f"/tmp/akku/{session_id}"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        iterations_log = []
+        current_params = initial_params.copy()
+        
+        for iteration in range(1, max_iterations + 1):
+            print(f"\n[Iteration {iteration}/{max_iterations}]")
+            
+            screenshot_path = f"{output_dir}/iter{iteration}.png"
+            glb_path = f"{output_dir}/iter{iteration}.glb"
+            
+            # Build iteration-specific params
+            iter_params = {
+                "prompt": prompt,
+                "style": current_params.get('style', {}).get('proportionType', 'stylized'),
+                "poly_level": current_params.get('style', {}).get('polyLevel', 'medium'),
+                "gender": current_params.get('style', {}).get('gender', 'male'),
+                "body_type": current_params.get('bodyType', {}).get('preset', 'default'),
+                "equipment": current_params.get('equipment', {}).get('armorStyle', 'default'),
+                "output_path": glb_path,
+                "screenshot_path": screenshot_path,
+                "capture_screenshot": True  # Enable screenshot capture
+            }
+            
+            # Pass full params as JSON for SDK
+            params_json = json.dumps(current_params)
+            
+            # Build Blender command with screenshot capture
+            cmd = [
+                BLENDER_PATH,
+                "--background",
+                "--python", SDK_ENTRY_SCRIPT,
+                "--",
+                prompt,
+                iter_params['style'],
+                iter_params['poly_level'],
+                glb_path,
+                iter_params['gender'],
+                json.dumps(current_params.get('bodyType', {})),
+                "false",  # use_remesh
+                iter_params['equipment'],
+                params_json,
+                screenshot_path  # Additional arg for screenshot capture
+            ]
+            
+            # Run Blender
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            print(f"[Blender] stdout: {result.stdout[:500]}..." if len(result.stdout) > 500 else f"[Blender] stdout: {result.stdout}")
+            
+            # Check results
+            glb_exists = os.path.exists(glb_path)
+            screenshot_exists = os.path.exists(screenshot_path)
+            glb_size = os.path.getsize(glb_path) if glb_exists else 0
+            screenshot_size = os.path.getsize(screenshot_path) if screenshot_exists else 0
+            
+            # Get scene info from Blender output (parse from stdout)
+            scene_info = {
+                "mesh_count": 1,
+                "total_vertices": 0,
+                "total_faces": 0
+            }
+            
+            # Try to extract scene info from stdout
+            for line in result.stdout.split('\n'):
+                if '"mesh_count":' in line or '"total_vertices":' in line:
+                    try:
+                        scene_info = json.loads(line)
+                    except:
+                        pass
+            
+            iteration_result = {
+                "iteration": iteration,
+                "glb_path": glb_path if glb_exists else None,
+                "glb_size_bytes": glb_size,
+                "screenshot_path": screenshot_path if screenshot_exists else None,
+                "screenshot_size_bytes": screenshot_size,
+                "scene_info": scene_info,
+                "params_used": iter_params
+            }
+            iterations_log.append(iteration_result)
+            
+            print(f"[Iteration {iteration}] GLB: {glb_size}B, Screenshot: {screenshot_size}B")
+            
+            # Apply refinements if provided for next iteration
+            if iteration < max_iterations and len(refinements) > iteration - 1:
+                refinement = refinements[iteration - 1]
+                print(f"[Refinement] Applying: {json.dumps(refinement)}")
+                
+                # Merge refinement into current params
+                if 'bodyType' in refinement:
+                    current_params['bodyType'] = {**current_params.get('bodyType', {}), **refinement['bodyType']}
+                if 'style' in refinement:
+                    current_params['style'] = {**current_params.get('style', {}), **refinement['style']}
+                if 'shader' in refinement:
+                    current_params['shader'] = {**current_params.get('shader', {}), **refinement['shader']}
+                if 'equipment' in refinement:
+                    current_params['equipment'] = {**current_params.get('equipment', {}), **refinement['equipment']}
+        
+        # Final result
+        final_glb = iterations_log[-1].get('glb_path') if iterations_log else None
+        
+        response = {
+            "status": "success",
+            "session_id": session_id,
+            "prompt": prompt,
+            "iterations": iterations_log,
+            "final_glb_path": final_glb,
+            "final_glb_size_bytes": iterations_log[-1].get('glb_size_bytes', 0) if iterations_log else 0,
+            "total_iterations": len(iterations_log)
+        }
+        
+        print(f"\n[Akku Iterative] Completed {len(iterations_log)} iterations")
+        print(f"  Final GLB: {final_glb}")
+        
+        return jsonify(response)
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({"status": "error", "error": "Generation timed out (>120s per iteration)"}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@app.route('/screenshot/<session_id>/<filename>', methods=['GET'])
+def get_screenshot(session_id, filename):
+    """Retrieve screenshot from iterative generation session"""
+    try:
+        file_path = f"/tmp/akku/{session_id}/{filename}"
+        if not os.path.exists(file_path):
+            return jsonify({"error": "Screenshot not found"}), 404
+        
+        return send_file(file_path, mimetype='image/png')
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/glb/<session_id>/<filename>', methods=['GET'])
+def get_glb(session_id, filename):
+    """Retrieve GLB from iterative generation session"""
+    try:
+        file_path = f"/tmp/akku/{session_id}/{filename}"
+        if not os.path.exists(file_path):
+            return jsonify({"error": "GLB not found"}), 404
+        
+        return send_file(file_path, mimetype='model/gltf-binary', as_attachment=True, download_name=filename)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     print("=" * 60)
-    print("Akku Engine GCP Worker v3.5")
-    print("Modular SDK Character Generation Server")
+    print("Akku Engine GCP Worker v4.0")
+    print("Autonomous 3D Agent with Self-Verification")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=True)

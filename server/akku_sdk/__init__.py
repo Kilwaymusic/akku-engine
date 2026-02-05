@@ -90,6 +90,7 @@ from .handlers import (
     FBXHandler,
     MeshFreezer,
     GLBHandler,
+    ScreenshotHandler,
 )
 
 from .procedural import (

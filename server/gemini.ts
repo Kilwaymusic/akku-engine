@@ -1155,3 +1155,176 @@ function getDefaultPlan(prompt: string): CharacterGenerationPlan {
     ]
   };
 }
+
+
+// ============================================================
+// AUTONOMOUS AGENT - SCREENSHOT ANALYSIS & REFINEMENT
+// ============================================================
+
+export interface ScreenshotAnalysis {
+  satisfactory: boolean;
+  issues: string[];
+  refinements: Partial<AkkuSDKParameters>;
+  confidence: number;
+  reasoning: string;
+}
+
+export async function analyzeScreenshotForRefinement(
+  screenshotBase64: string,
+  originalPrompt: string,
+  currentParams: Partial<AkkuSDKParameters>,
+  iteration: number
+): Promise<ScreenshotAnalysis> {
+  const systemPrompt = `You are an expert 3D character evaluator for game assets. 
+Analyze the screenshot of a generated 3D character and determine if it matches the user's requirements.
+
+Original prompt: "${originalPrompt}"
+Current iteration: ${iteration}/3
+Current parameters: ${JSON.stringify(currentParams, null, 2)}
+
+EVALUATION CRITERIA:
+1. Body proportions match the archetype (warrior=muscular, mage=thin, etc.)
+2. Style consistency (chibi should look cute with big head, realistic should look proportional)
+3. Equipment presence if requested (armor, weapons, etc.)
+4. Overall visual quality and silhouette readability
+
+RESPOND WITH JSON:
+{
+  "satisfactory": boolean (true if character meets requirements, false if needs refinement),
+  "issues": string[] (list of specific problems found),
+  "refinements": {
+    "bodyType": { ... changes to body params ... },
+    "style": { ... changes to style params ... },
+    "shader": { ... changes to shader params ... },
+    "equipment": { ... changes to equipment params ... }
+  },
+  "confidence": number (0.0-1.0, how confident you are in the assessment),
+  "reasoning": string (brief explanation of your analysis)
+}
+
+REFINEMENT GUIDELINES:
+- Only include params that need changing (partial updates)
+- Use small incremental adjustments (e.g., muscular: 0.6 -> 0.8)
+- bodyType.muscular/fat/height are 0.0-1.0 range
+- bodyType.shoulderWidth/hipWidth are 0.7-1.5 range
+- Valid bodyType.preset values: default, muscular, thin, fat, tall, athletic, heroic, chibi
+- Valid style.proportionType values: stylized, chibi, sd, mobile, minifig, cartoon, realistic
+- Valid style.polyLevel values: ultra_low, low, medium, high
+
+If the character looks good and matches the prompt, set satisfactory=true and leave refinements empty.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: systemPrompt },
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: screenshotBase64
+              }
+            }
+          ]
+        }
+      ],
+      config: {
+        temperature: 0.3,
+        maxOutputTokens: 1024
+      }
+    });
+
+    const text = response.text || "";
+    
+    // Extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as ScreenshotAnalysis;
+      
+      // Validate refinements using existing sanitization logic
+      if (parsed.refinements) {
+        // Apply basic validation to the refinement params
+        const sanitized: Partial<AkkuSDKParameters> = {};
+        
+        if (parsed.refinements.bodyType) {
+          const bt = parsed.refinements.bodyType;
+          sanitized.bodyType = {
+            preset: VALID_BODY_PRESETS.includes(bt.preset as BodyPreset) ? bt.preset as BodyPreset : "default",
+            muscular: Math.min(1.0, Math.max(0.0, bt.muscular ?? 0.3)),
+            fat: Math.min(1.0, Math.max(0.0, bt.fat ?? 0.1)),
+            height: Math.min(1.3, Math.max(0.7, bt.height ?? 1.0)),
+            shoulderWidth: Math.min(1.5, Math.max(0.7, bt.shoulderWidth ?? 1.0)),
+            hipWidth: Math.min(1.3, Math.max(0.7, bt.hipWidth ?? 1.0))
+          };
+        }
+        
+        if (parsed.refinements.style) {
+          const st = parsed.refinements.style;
+          sanitized.style = {
+            proportionType: VALID_PROPORTION_TYPES.includes(st.proportionType as ProportionType) ? st.proportionType as ProportionType : "stylized",
+            polyLevel: VALID_POLY_LEVELS.includes(st.polyLevel as PolyLevel) ? st.polyLevel as PolyLevel : "medium",
+            gender: VALID_GENDERS.includes(st.gender as Gender) ? st.gender as Gender : "male"
+          };
+        }
+        
+        parsed.refinements = sanitized;
+      }
+      
+      console.log(`[Gemini VLM] Screenshot analysis for iteration ${iteration}:`, {
+        satisfactory: parsed.satisfactory,
+        issues: parsed.issues,
+        confidence: parsed.confidence
+      });
+      
+      return parsed;
+    }
+    
+    // Fallback if no JSON found
+    return {
+      satisfactory: true,
+      issues: [],
+      refinements: {},
+      confidence: 0.5,
+      reasoning: "Could not parse analysis, assuming acceptable"
+    };
+    
+  } catch (error) {
+    console.error("[Gemini VLM] Screenshot analysis failed:", error);
+    
+    // Return safe default on error
+    return {
+      satisfactory: true,
+      issues: ["Analysis failed - using current parameters"],
+      refinements: {},
+      confidence: 0.0,
+      reasoning: `Error: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
+export async function runIterativeGeneration(
+  prompt: string,
+  maxIterations: number = 3
+): Promise<{
+  finalParams: AkkuSDKParameters;
+  iterationsRun: number;
+  analyses: ScreenshotAnalysis[];
+}> {
+  // Get initial params from prompt
+  let currentParams = await mapPromptToParameters(prompt);
+  const analyses: ScreenshotAnalysis[] = [];
+  
+  console.log(`[Iterative Generation] Starting with prompt: "${prompt}"`);
+  console.log(`[Iterative Generation] Initial params:`, currentParams);
+  
+  // Note: Actual screenshot capture happens on GCP Worker
+  // This function prepares the refinement loop logic for Replit-side orchestration
+  
+  return {
+    finalParams: currentParams,
+    iterationsRun: 0,
+    analyses
+  };
+}
