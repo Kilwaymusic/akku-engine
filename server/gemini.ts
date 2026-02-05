@@ -1539,12 +1539,12 @@ def add_tapered_cylinder(bm, pos, radius_bottom, radius_top, height, segments=8)
     return r['verts']
 
 def inset_face(bm, face, thickness=0.02, depth=0.05):
-    """Inset a face to create socket/hole - great for eye sockets, joints"""
+    """Inset a face to create cavity/hole - great for eye cavities, joints"""
     r = bmesh.ops.inset_individual(bm, faces=[face], thickness=thickness, depth=depth)
     return r
 
 def inset_and_extrude(bm, face, inset_amt=0.03, extrude_depth=-0.05):
-    """Inset then extrude inward - creates socket holes for eyes, buttons, etc."""
+    """Inset then extrude inward - creates cavity holes for eyes, buttons, etc."""
     # Inset the face
     bmesh.ops.inset_individual(bm, faces=[face], thickness=inset_amt, depth=0)
     bm.faces.ensure_lookup_table()
@@ -1734,10 +1734,10 @@ print("Character created with multiple materials!")
 - Example leg: add_tapered_cylinder(bm, (0.12, 0, 0.4), 0.08, 0.06, 0.4, 8)
 - Example tail: add_tapered_cylinder(bm, (0, -0.2, 0.5), 0.06, 0.02, 0.3, 8)
 
-## SOCKET MODELING (for eyes, joints):
-- inset_face(bm, face, thickness, depth) - Create socket indent
-- inset_and_extrude(bm, face, inset_amt, extrude_depth) - Socket hole for eyes
-- get_face_by_normal(bm, (0, 1, 0)) - Find front-facing face for eye socket
+## CAVITY MODELING (for eyes, joints):
+- inset_face(bm, face, thickness, depth) - Create cavity indent
+- inset_and_extrude(bm, face, inset_amt, extrude_depth) - Cavity hole for eyes
+- get_face_by_normal(bm, (0, 1, 0)) - Find front-facing face for eye cavity
 
 ## EXTRUDE + ROTATE (for curved pipes, tails, tentacles):
 - rotate_verts(bm, verts, angle, axis='Z') - Rotate vertices by angle degrees

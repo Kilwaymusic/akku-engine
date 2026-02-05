@@ -1058,8 +1058,18 @@ echo "Deployment complete!"
       
       // Step 1: Generate initial code
       console.log(`[Iterative Agent] Generating initial code...`);
-      let currentCode = await generateBlenderCode(prompt);
-      console.log(`[Iterative Agent] Initial code: ${currentCode.length} chars`);
+      let currentCode: string;
+      try {
+        currentCode = await generateBlenderCode(prompt);
+        console.log(`[Iterative Agent] Initial code: ${currentCode.length} chars`);
+      } catch (codeGenError: any) {
+        console.error(`[Iterative Agent] Code generation failed:`, codeGenError.message);
+        await storage.updateJob(job.id, { 
+          status: "failed", 
+          error: codeGenError.message || "Code generation failed" 
+        });
+        return res.status(500).json({ error: codeGenError.message || "Code generation failed" });
+      }
       
       let finalGlbFilename = "";
       let finalScreenshotFilename = "";
