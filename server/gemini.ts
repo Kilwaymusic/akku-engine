@@ -1331,19 +1331,42 @@ export async function runIterativeGeneration(
 }
 
 // ============================================================
-// BLENDER CODE GENERATION - Extrude-First Mesh Generation
+// BLENDER CODE GENERATION - Headless-Safe Mesh Generation
 // ============================================================
 
-const BLENDER_CODE_GENERATION_PROMPT = `You are an expert Blender Python developer. Generate code to create a LOW-POLY humanoid character.
+const BLENDER_CODE_GENERATION_PROMPT = `You are an expert Blender Python developer. Generate code for HEADLESS CLI environment (no GUI).
 
-## CRITICAL: EXTRUDE-FIRST METHODOLOGY
+## 절대 원칙 (CRITICAL RULES)
 
-The body MUST be ONE CONNECTED MESH. Start with a torso cube and EXTRUDE all parts from it:
-- Head = extrude TOP face of torso upward
-- Arms = extrude SIDE faces outward
+### ❌ 절대 하지 말 것 (NEVER DO):
+\`\`\`python
+# WRONG: bpy.ops는 GUI 컨텍스트 필요, 헤드리스에서 에러 발생
+bpy.ops.mesh.primitive_cube_add()  # context.area 에러!
+bpy.ops.object.select_all()  # 화면 없으면 실패!
+bpy.ops.transform.translate()  # 컨텍스트 에러!
+\`\`\`
+
+### ✅ 반드시 해야 할 것 (ALWAYS DO):
+\`\`\`python
+# CORRECT: bpy.data + bmesh 직접 조작 (헤드리스 안전)
+mesh = bpy.data.meshes.new("MyMesh")
+obj = bpy.data.objects.new("MyObject", mesh)
+bpy.context.collection.objects.link(obj)
+
+bm = bmesh.new()
+bmesh.ops.create_cube(bm, size=1.0)  # bmesh.ops는 안전!
+bm.to_mesh(mesh)
+bm.free()
+\`\`\`
+
+## EXTRUDE-FIRST 방법론
+
+The body MUST be ONE CONNECTED MESH. Start with a torso and EXTRUDE all parts:
+- Head = extrude TOP face upward
+- Arms = extrude SIDE faces outward  
 - Legs = extrude BOTTOM face downward
 
-NEVER create separate primitives for body parts. Equipment/accessories CAN be separate objects.
+Equipment/accessories CAN be separate objects.
 
 ## COMPLETE WORKING REFERENCE CODE
 
@@ -1535,8 +1558,43 @@ Based on the reference code above, create a character matching the user's prompt
 - Metal/gray: (0.5, 0.5, 0.55, 1.0)
 - Purple/mystical: (0.5, 0.3, 0.6, 1.0)
 
+## 코드 생성 체크리스트 (MUST SATISFY)
+
+Before outputting code, verify:
+1. ✅ bpy.ops.mesh.primitive_* 사용하지 않음 (bmesh.ops 사용)
+2. ✅ 모든 오브젝트를 bpy.context.collection.objects.link()로 씬에 추가
+3. ✅ BMesh 작업 후 bm.to_mesh() 와 bm.free() 호출
+4. ✅ 몸체는 단일 연결 메시 (Extrude-First)
+5. ✅ 정점/면 수를 print()로 출력하여 검증 가능하게 함
+
+## SAFE HELPER FUNCTIONS
+
+Use these patterns for semantic face selection:
+\`\`\`python
+def get_top_face(bm):
+    """가장 위쪽을 향하는 면 찾기"""
+    bm.faces.ensure_lookup_table()
+    return max(bm.faces, key=lambda f: f.calc_center_median().z if f.normal.z > 0.3 else -999)
+
+def get_side_faces(bm, z_min, z_max):
+    """측면 면들 찾기 (X 방향)"""
+    bm.faces.ensure_lookup_table()
+    faces = [f for f in bm.faces if z_min < f.calc_center_median().z < z_max]
+    left = [f for f in faces if f.normal.x < -0.5]
+    right = [f for f in faces if f.normal.x > 0.5]
+    return left, right
+
+def extrude_and_move(bm, face, direction, distance):
+    """면을 뽑아서 이동"""
+    ret = bmesh.ops.extrude_face_region(bm, geom=[face])
+    new_verts = [v for v in ret['geom'] if isinstance(v, bmesh.types.BMVert)]
+    vec = tuple(d * distance for d in direction)
+    bmesh.ops.translate(bm, vec=vec, verts=new_verts)
+    return new_verts
+\`\`\`
+
 ## OUTPUT
-Output ONLY valid Python code. No explanations.`;
+Output ONLY valid Python code. No explanations. Include print() statements for vertex/face counts.`;
 
 /**
  * Generate Blender Python code for a character based on prompt
