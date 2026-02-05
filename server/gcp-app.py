@@ -1,6 +1,6 @@
 """
-Akku Engine - GCP Worker Flask Server v3.5
-Modular SDK architecture with Blender character generation
+Akku Engine - GCP Worker Flask Server v4.0
+Modular SDK with Hard-Surface Kitbash and Vertex Color support
 """
 
 from flask import Flask, request, jsonify, send_file
@@ -62,6 +62,7 @@ def generate():
         gender = data.get('gender', 'male')
         body_type_raw = data.get('bodyType', 'auto')
         use_remesh = data.get('useRemesh', False)
+        equipment = data.get('equipment', 'default')
         
         # Parse bodyType - can be JSON string with detailed params or simple preset name
         body_type_params = None
@@ -81,13 +82,14 @@ def generate():
         output_path = os.path.join(OUTPUT_DIR, output_filename)
         
         print(f"\n{'='*60}")
-        print(f"[Akku Worker v3.6] Starting generation")
+        print(f"[Akku Worker v4.0] Starting generation")
         print(f"{'='*60}")
         print(f"  Job ID: {job_id}")
         print(f"  Prompt: {prompt}")
         print(f"  Style: {style}")
         print(f"  Poly Level: {poly_level}")
         print(f"  Gender: {gender}")
+        print(f"  Equipment: {equipment}")
         print(f"  Body Type Params: {json.dumps(body_type_params)}")
         print(f"  Use Remesh: {use_remesh}")
         print(f"  Output: {output_path}")
@@ -108,7 +110,8 @@ def generate():
             output_path,
             gender,
             body_type_json,
-            "true" if use_remesh else "false"
+            "true" if use_remesh else "false",
+            equipment
         ]
         
         # Run Blender

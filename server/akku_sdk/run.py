@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Akku SDK v3.5 - Blender Entry Script
+Akku SDK v4.0 - Blender Entry Script
 
 This script is designed to be called by Blender's --python flag.
 Arguments are passed after -- separator and parsed safely.
 
 Usage:
-  blender --background --python akku_sdk/run.py -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh]
+  blender --background --python akku_sdk/run.py -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [equipment]
 """
 
 import sys

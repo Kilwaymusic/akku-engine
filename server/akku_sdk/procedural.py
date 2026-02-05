@@ -1,8 +1,8 @@
 """
-Akku SDK Procedural - Procedural Humanoid Mesh Generator
+Akku SDK v4.0 Procedural - Procedural Humanoid Mesh Generator
 
 Generates low-poly humanoid base meshes from scratch using bmesh primitives.
-Replaces Mixamo FBX dependency with fully procedural generation.
+Includes Hard-Surface Kitbash and Vertex Color support.
 """
 
 import bpy
@@ -13,6 +13,13 @@ from dataclasses import dataclass, asdict
 from mathutils import Vector, Matrix
 
 from .core import AkkuLogger
+from .atomic_ops import (
+    AtomicOps,
+    VertexColorOps,
+    ColorPalette,
+    HardSurfaceKitbash,
+    CharacterPainter,
+)
 
 
 @dataclass
@@ -758,7 +765,8 @@ class ProceduralHumanoid:
         cls,
         style: str = "stylized",
         poly_level: str = "medium",
-        gender: str = "male"
+        gender: str = "male",
+        equipment: str = "default"
     ) -> bpy.types.Object:
         """
         Generate a humanoid with separate body parts in a hierarchy.
@@ -776,6 +784,7 @@ class ProceduralHumanoid:
             style: Character style preset
             poly_level: Polygon complexity
             gender: Gender for proportions
+            equipment: Equipment type (armor, robe, default)
             
         Returns:
             Root empty object with all parts as children
@@ -903,6 +912,8 @@ class ProceduralHumanoid:
         hand_l.parent = root
         hand_r.parent = root
         
+        cls._apply_vertex_colors(root, style, equipment)
+        
         total_verts = 0
         total_faces = 0
         for child in root.children:
@@ -919,6 +930,68 @@ class ProceduralHumanoid:
         })
         
         return root
+    
+    @classmethod
+    def _apply_vertex_colors(
+        cls,
+        root: bpy.types.Object,
+        style: str,
+        equipment: Optional[str] = None
+    ):
+        """Apply vertex colors to all mesh parts based on style and equipment"""
+        
+        skin_color = ColorPalette.SKIN_LIGHT
+        if "dark" in style.lower():
+            skin_color = ColorPalette.SKIN_DARK
+        elif "tan" in style.lower() or "medium" in style.lower():
+            skin_color = ColorPalette.SKIN_MEDIUM
+        
+        equipment = equipment or "default"
+        equipment_lower = equipment.lower()
+        
+        for child in root.children:
+            if child.type != 'MESH':
+                continue
+            
+            name_lower = child.name.lower()
+            bm = AtomicOps.get_bmesh(child)
+            
+            if 'head' in name_lower:
+                VertexColorOps.paint_all(bm, skin_color)
+            elif 'hand' in name_lower:
+                VertexColorOps.paint_all(bm, skin_color)
+            elif 'torso' in name_lower:
+                if 'armor' in equipment_lower or 'knight' in equipment_lower:
+                    VertexColorOps.paint_all(bm, ColorPalette.CLOTH_BLACK)
+                    AtomicOps.apply_bmesh(bm, child)
+                    HardSurfaceKitbash.add_chest_armor(child, ColorPalette.ARMOR_BLUE)
+                    continue
+                elif 'robe' in equipment_lower or 'mage' in equipment_lower:
+                    VertexColorOps.paint_all(bm, ColorPalette.ROBE_GREEN)
+                else:
+                    VertexColorOps.paint_all(bm, ColorPalette.CLOTH_WHITE)
+            elif 'arm' in name_lower:
+                if 'armor' in equipment_lower or 'knight' in equipment_lower:
+                    VertexColorOps.paint_all(bm, ColorPalette.ARMOR_BLUE)
+                elif 'robe' in equipment_lower or 'mage' in equipment_lower:
+                    VertexColorOps.paint_gradient_vertical(
+                        bm, ColorPalette.ROBE_GREEN, skin_color
+                    )
+                else:
+                    VertexColorOps.paint_all(bm, ColorPalette.CLOTH_WHITE)
+            elif 'leg' in name_lower:
+                if 'armor' in equipment_lower or 'knight' in equipment_lower:
+                    VertexColorOps.paint_all(bm, ColorPalette.ARMOR_DARK)
+                elif 'robe' in equipment_lower or 'mage' in equipment_lower:
+                    VertexColorOps.paint_all(bm, ColorPalette.ROBE_GREEN)
+                else:
+                    VertexColorOps.paint_all(bm, ColorPalette.LEATHER_BROWN)
+            elif 'foot' in name_lower or 'feet' in name_lower:
+                VertexColorOps.paint_all(bm, ColorPalette.LEATHER_BROWN)
+            else:
+                VertexColorOps.paint_all(bm, ColorPalette.CLOTH_WHITE)
+            
+            AtomicOps.apply_bmesh(bm, child)
     
     @classmethod
     def _create_detailed_torso(

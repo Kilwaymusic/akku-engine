@@ -1,5 +1,5 @@
 """
-Akku SDK v3.7 - Modular Low-Poly Character Generation Toolkit
+Akku SDK v4.0 - Modular Low-Poly Character Generation Toolkit
 
 Modules:
 - core: Configuration, Logging, Error Handling
@@ -13,6 +13,7 @@ Modules:
 - handlers: FBX Import, GLB Export, Mesh Freezing
 - procedural: Procedural Humanoid Generation (no Mixamo dependency)
 - bmesh_tools: Low-level BMesh Direct Manipulation Tools
+- atomic_ops: Atomic Modeling Operations (Face Select, Inset, Extrude, Vertex Color)
 """
 
 import sys
@@ -144,7 +145,17 @@ from .bmesh_tools import (
     optimize_for_game,
 )
 
-__version__ = "3.8.0"
+from .atomic_ops import (
+    FaceSelectionMode,
+    FaceSelector,
+    AtomicOps,
+    VertexColorOps,
+    ColorPalette,
+    HardSurfaceKitbash,
+    CharacterPainter,
+)
+
+__version__ = "4.0.0"
 __all__ = [
     # Core
     "AkkuConfig",
@@ -250,4 +261,12 @@ __all__ = [
     "bevel_sharp_edges",
     "select_and_extrude",
     "optimize_for_game",
+    # Atomic Operations v4.0
+    "FaceSelectionMode",
+    "FaceSelector",
+    "AtomicOps",
+    "VertexColorOps",
+    "ColorPalette",
+    "HardSurfaceKitbash",
+    "CharacterPainter",
 ]

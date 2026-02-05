@@ -1,8 +1,9 @@
 """
-Akku SDK v3.5 - Main Entry Point with Registered Tools
+Akku SDK v4.0 - Main Entry Point with Registered Tools
 
 This module provides the CLI interface and registered tools for character generation.
 Import from akku_sdk package to use individual components.
+Includes Hard-Surface Kitbash and Vertex Color support.
 """
 
 import bpy
@@ -60,7 +61,8 @@ def generate_procedural_base(
     poly_level: str = "medium",
     gender: str = "male",
     create_rig: bool = True,
-    hierarchical: bool = True
+    hierarchical: bool = True,
+    equipment: str = "default"
 ):
     """
     Generate a procedural humanoid base mesh from scratch.
@@ -72,6 +74,7 @@ def generate_procedural_base(
         gender: Gender for proportion adjustments (male, female)
         create_rig: Whether to create basic armature rig
         hierarchical: Use hierarchical generation with separate body parts (default: True)
+        equipment: Equipment type for vertex colors (armor, robe, default)
         
     Returns:
         Dict with mesh info and stats
@@ -84,14 +87,16 @@ def generate_procedural_base(
         "poly_level": poly_level,
         "gender": gender,
         "create_rig": create_rig,
-        "hierarchical": hierarchical
+        "hierarchical": hierarchical,
+        "equipment": equipment
     })
     
     if hierarchical:
         root_obj = ProceduralHumanoid.generate_hierarchical(
             style=style,
             poly_level=poly_level,
-            gender=gender
+            gender=gender,
+            equipment=equipment
         )
         
         total_verts = 0
@@ -433,7 +438,8 @@ def generate_character(
     body_type: str = "auto",
     body_type_params: dict = None,
     use_remesh: bool = False,
-    use_procedural: bool = True
+    use_procedural: bool = True,
+    equipment: str = "default"
 ):
     """Generate a complete low-poly character from prompt.
     
@@ -447,17 +453,25 @@ def generate_character(
         body_type_params: Detailed body type parameters
         use_remesh: Whether to apply voxel remesh
         use_procedural: Use procedural mesh generation (default: True, False = legacy Mixamo)
+        equipment: Equipment type for vertex colors (armor, robe, default)
     """
     
+    if equipment == "default":
+        prompt_lower = prompt.lower()
+        if any(kw in prompt_lower for kw in ["armor", "knight", "warrior", "기사", "전사", "갑옷"]):
+            equipment = "armor"
+        elif any(kw in prompt_lower for kw in ["robe", "mage", "wizard", "마법사", "로브"]):
+            equipment = "robe"
+    
     print(f"\n{'='*60}")
-    print(f"[Akku SDK v3.7] Character Generation")
+    print(f"[Akku SDK v4.0] Character Generation")
     print(f"{'='*60}")
     print(f"Prompt: {prompt}")
     print(f"Style: {style}, Poly Level: {poly_level}")
     print(f"Gender: {gender}, Body Type: {body_type}")
+    print(f"Equipment: {equipment}")
     print(f"Body Type Params: {body_type_params}")
     print(f"Use Remesh: {use_remesh}")
-    print(f"Use Procedural: {use_procedural}")
     print(f"{'='*60}\n")
     
     if use_procedural:
@@ -466,7 +480,8 @@ def generate_character(
             "poly_level": poly_level,
             "gender": gender,
             "create_rig": True,
-            "hierarchical": True
+            "hierarchical": True,
+            "equipment": equipment
         })
     else:
         load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
@@ -597,12 +612,12 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     
     if len(args) < 4:
-        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [use_procedural]")
+        print("Usage: blender --background --python -m akku_sdk.main -- <prompt> <style> <poly_level> <output_path> [gender] [body_type] [use_remesh] [equipment]")
         print("\nStyles: realistic, stylized, chibi, sd, mobile, minifig, cartoon")
         print("Poly Levels: ultra_low, low, medium, high")
         print("Body Types: default, muscular, thin, fat, tall, short, athletic, stocky, slim, heroic, chibi, giant")
-        print("Korean: 근육질, 마른, 뚱뚱한, 키큰, 키작은, 운동선수, 땅딸막한, 날씬한, 영웅, 치비, 거인")
-        print("\nuse_procedural: true (default) = generate from scratch, false = use Mixamo FBX")
+        print("Equipment: default, armor, robe")
+        print("\nEquipment determines Vertex Colors and Hard-Surface details")
         sys.exit(1)
     
     prompt = args[0]
@@ -612,7 +627,7 @@ def main():
     gender = args[4] if len(args) > 4 else "male"
     body_type_raw = args[5] if len(args) > 5 else "auto"
     use_remesh = args[6].lower() == "true" if len(args) > 6 else False
-    use_procedural = args[7].lower() != "false" if len(args) > 7 else True
+    equipment = args[7] if len(args) > 7 else "default"
     
     # Parse body type - can be JSON with detailed params or simple preset name
     body_type_params = None
@@ -632,13 +647,14 @@ def main():
         result = ToolRegistry.execute("generate_character", {
             "prompt": prompt,
             "style": style,
-            "use_procedural": use_procedural,
+            "use_procedural": True,
             "poly_level": poly_level,
             "output_path": output_path,
             "gender": gender,
             "body_type": body_type,
             "body_type_params": body_type_params,
-            "use_remesh": use_remesh
+            "use_remesh": use_remesh,
+            "equipment": equipment
         })
         
         if result["status"] == "success":
