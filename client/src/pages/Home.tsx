@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Download, RotateCcw, Moon, Sun, Monitor, RefreshCw, Loader2 } from "lucide-react";
+import { Download, RotateCcw, Moon, Sun, Monitor, RefreshCw, Loader2, Box } from "lucide-react";
 import type { Job, ProgressStage } from "@shared/schema";
 
 const STAGE_LABELS: Record<ProgressStage, string> = {
@@ -96,6 +96,7 @@ export default function Home() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isDark, setIsDark] = useState(true);
   const [useIterativeAgent, setUseIterativeAgent] = useState(true);
+  const [showWireframe, setShowWireframe] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
@@ -205,7 +206,22 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 mr-2">
+              <Switch
+                id="wireframe-mode"
+                checked={showWireframe}
+                onCheckedChange={setShowWireframe}
+                data-testid="switch-wireframe-mode"
+              />
+              <Label 
+                htmlFor="wireframe-mode" 
+                className="text-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <Box className={`w-4 h-4 ${showWireframe ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className="hidden sm:inline">와이어프레임</span>
+              </Label>
+            </div>
             <div className="flex items-center gap-2">
               <Switch
                 id="iterative-mode"
@@ -244,6 +260,7 @@ export default function Home() {
                 <BabylonViewer
                   modelUrl={selectedJob?.modelUrl || null}
                   isLoading={isGenerating}
+                  wireframe={showWireframe}
                 />
               </ErrorBoundary>
               

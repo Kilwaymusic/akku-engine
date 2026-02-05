@@ -4,6 +4,7 @@ import { Loader2, Monitor, AlertTriangle } from "lucide-react";
 interface BabylonViewerProps {
   modelUrl: string | null;
   isLoading?: boolean;
+  wireframe?: boolean;
 }
 
 function checkWebGLSupport(): boolean {
@@ -16,7 +17,7 @@ function checkWebGLSupport(): boolean {
   }
 }
 
-export function BabylonViewer({ modelUrl, isLoading }: BabylonViewerProps) {
+export function BabylonViewer({ modelUrl, isLoading, wireframe = false }: BabylonViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
   const sceneRef = useRef<any>(null);
@@ -116,7 +117,7 @@ export function BabylonViewer({ modelUrl, isLoading }: BabylonViewerProps) {
 
       try {
         const { SceneLoader } = await import("@babylonjs/core/Loading/sceneLoader");
-        const { Vector3 } = await import("@babylonjs/core");
+        const { Vector3, StandardMaterial } = await import("@babylonjs/core");
         const { ArcRotateCamera } = await import("@babylonjs/core");
 
         scene.meshes.forEach((mesh: any) => {
@@ -127,6 +128,14 @@ export function BabylonViewer({ modelUrl, isLoading }: BabylonViewerProps) {
 
         const result = await SceneLoader.ImportMeshAsync("", modelUrl, "", scene);
         const meshes = result.meshes;
+        
+        // Apply wireframe to all meshes
+        meshes.forEach((mesh: any) => {
+          if (mesh.material) {
+            mesh.material.wireframe = wireframe;
+          }
+        });
+
         if (meshes.length > 0) {
           let minY = Infinity;
           let maxY = -Infinity;
@@ -156,6 +165,15 @@ export function BabylonViewer({ modelUrl, isLoading }: BabylonViewerProps) {
 
     loadModel();
   }, [modelUrl, webglSupported]);
+
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    sceneRef.current.meshes.forEach((mesh: any) => {
+      if (mesh.material) {
+        mesh.material.wireframe = wireframe;
+      }
+    });
+  }, [wireframe]);
 
   // WebGL not supported fallback
   if (webglSupported === false || initError) {
