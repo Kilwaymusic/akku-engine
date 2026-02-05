@@ -668,7 +668,7 @@ class ProceduralHumanoid:
         upper_arm_len = arm_length * 0.5
         lower_arm_len = arm_length * 0.4
         hand_len = arm_length * 0.1
-        arm_thick = limb_thickness * 0.6  # Thinner arms
+        arm_thick = limb_thickness * 0.8  # Slightly thicker arms
         
         # Re-find side faces at shoulder level (faces may have been invalidated)
         # Look for faces with X-facing normals at the shoulder Z level
@@ -704,11 +704,11 @@ class ProceduralHumanoid:
             # Move shoulder outward (smaller distance)
             bmesh.ops.translate(bm, verts=shoulder_verts, vec=direction * (shoulder_width * 0.08))
             
-            # Scale shoulder down significantly (thinner connection)
+            # Scale shoulder for arm attachment
             shoulder_center = sum((v.co for v in shoulder_verts), Vector()) / len(shoulder_verts)
             for v in shoulder_verts:
                 diff = v.co - shoulder_center
-                diff *= 0.35  # Much smaller shoulder
+                diff *= 0.45  # Moderate shoulder size
                 v.co = shoulder_center + diff
             
             bm.faces.ensure_lookup_table()
@@ -736,7 +736,7 @@ class ProceduralHumanoid:
             upper_center = sum((v.co for v in upper_verts), Vector()) / len(upper_verts)
             for v in upper_verts:
                 diff = v.co - upper_center
-                diff *= 0.7  # Thinner
+                diff *= 0.75  # Moderate taper
                 v.co = upper_center + diff
             
             bm.faces.ensure_lookup_table()
@@ -762,7 +762,7 @@ class ProceduralHumanoid:
             lower_center = sum((v.co for v in lower_verts), Vector()) / len(lower_verts)
             for v in lower_verts:
                 diff = v.co - lower_center
-                diff *= 0.6  # Thinner at wrist
+                diff *= 0.65  # Moderate taper at wrist
                 v.co = lower_center + diff
             
             bm.faces.ensure_lookup_table()
