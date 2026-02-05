@@ -14,6 +14,7 @@ Modules:
 - procedural: Procedural Humanoid Generation (no Mixamo dependency)
 - bmesh_tools: Low-level BMesh Direct Manipulation Tools
 - atomic_ops: Atomic Modeling Operations (Face Select, Inset, Extrude, Vertex Color)
+- sculpt_ops: Subdivision, Sculpting, Anatomy, and Topology Building
 """
 
 import sys
@@ -155,6 +156,16 @@ from .atomic_ops import (
     CharacterPainter,
 )
 
+from .sculpt_ops import (
+    SubdivisionOps,
+    SculptBrush,
+    SculptStroke,
+    SculptOps,
+    AnatomyProportions,
+    TopologyBuilder,
+    CharacterAssembler,
+)
+
 __version__ = "4.0.0"
 __all__ = [
     # Core
@@ -269,4 +280,12 @@ __all__ = [
     "ColorPalette",
     "HardSurfaceKitbash",
     "CharacterPainter",
+    # Sculpt Operations v4.0
+    "SubdivisionOps",
+    "SculptBrush",
+    "SculptStroke",
+    "SculptOps",
+    "AnatomyProportions",
+    "TopologyBuilder",
+    "CharacterAssembler",
 ]

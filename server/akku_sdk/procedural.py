@@ -20,6 +20,11 @@ from .atomic_ops import (
     HardSurfaceKitbash,
     CharacterPainter,
 )
+from .sculpt_ops import (
+    SubdivisionOps,
+    SculptOps,
+    AnatomyProportions,
+)
 
 
 @dataclass
@@ -911,6 +916,20 @@ class ProceduralHumanoid:
         hand_r = cls._create_hand("Hand_R", right_wrist, right_elbow, hand_size)
         hand_l.parent = root
         hand_r.parent = root
+        
+        if poly_settings.use_subdivision:
+            AkkuLogger.info("Applying subdivision and smoothing", {
+                "level": poly_settings.subdivision_level
+            })
+            for child in root.children:
+                if child.type == 'MESH':
+                    SubdivisionOps.apply_subdivision(
+                        child, 
+                        levels=poly_settings.subdivision_level,
+                        render_levels=poly_settings.subdivision_level,
+                        apply_modifier=True
+                    )
+                    SculptOps.smooth_all(child, iterations=2, factor=0.3)
         
         cls._apply_vertex_colors(root, style, equipment)
         
