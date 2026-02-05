@@ -532,60 +532,101 @@ class ProceduralHumanoid:
         
         bm = bmesh.new()
         
-        # === PHASE 1: Create base torso box ===
+        # === PHASE 1: Create base torso with waist definition ===
         torso_base_z = leg_height
+        waist_z = leg_height + torso_height * 0.35  # Waist at 35% of torso
+        chest_z = leg_height + torso_height * 0.7   # Chest at 70% of torso
         torso_top_z = leg_height + torso_height
         
-        # Create torso as starting point (8 vertices, 6 faces)
-        hw = shoulder_width / 2  # half width
+        hw = shoulder_width / 2  # half width at shoulders
         hd = torso_depth / 2     # half depth
-        
-        # Bottom vertices (at hip level)
         hip_hw = hip_width / 2
-        v_bot = [
-            bm.verts.new(Vector((-hip_hw, -hd, torso_base_z))),
-            bm.verts.new(Vector((hip_hw, -hd, torso_base_z))),
-            bm.verts.new(Vector((hip_hw, hd, torso_base_z))),
-            bm.verts.new(Vector((-hip_hw, hd, torso_base_z))),
+        waist_hw = min(hip_hw, hw) * 0.75  # Waist is 75% of narrower width
+        chest_hw = hw * 0.95  # Chest slightly narrower than shoulders
+        
+        # Torso with 4 levels: hips, waist, chest, shoulders
+        v_hip = [
+            bm.verts.new(Vector((-hip_hw, -hd * 0.9, torso_base_z))),
+            bm.verts.new(Vector((hip_hw, -hd * 0.9, torso_base_z))),
+            bm.verts.new(Vector((hip_hw, hd * 0.9, torso_base_z))),
+            bm.verts.new(Vector((-hip_hw, hd * 0.9, torso_base_z))),
         ]
-        # Top vertices (at shoulder level)
+        v_waist = [
+            bm.verts.new(Vector((-waist_hw, -hd * 0.7, waist_z))),
+            bm.verts.new(Vector((waist_hw, -hd * 0.7, waist_z))),
+            bm.verts.new(Vector((waist_hw, hd * 0.7, waist_z))),
+            bm.verts.new(Vector((-waist_hw, hd * 0.7, waist_z))),
+        ]
+        v_chest = [
+            bm.verts.new(Vector((-chest_hw, -hd * 0.85, chest_z))),
+            bm.verts.new(Vector((chest_hw, -hd * 0.85, chest_z))),
+            bm.verts.new(Vector((chest_hw, hd * 0.85, chest_z))),
+            bm.verts.new(Vector((-chest_hw, hd * 0.85, chest_z))),
+        ]
         v_top = [
-            bm.verts.new(Vector((-hw, -hd, torso_top_z))),
-            bm.verts.new(Vector((hw, -hd, torso_top_z))),
-            bm.verts.new(Vector((hw, hd, torso_top_z))),
-            bm.verts.new(Vector((-hw, hd, torso_top_z))),
+            bm.verts.new(Vector((-hw, -hd * 0.8, torso_top_z))),
+            bm.verts.new(Vector((hw, -hd * 0.8, torso_top_z))),
+            bm.verts.new(Vector((hw, hd * 0.8, torso_top_z))),
+            bm.verts.new(Vector((-hw, hd * 0.8, torso_top_z))),
         ]
+        
+        # Alias for backwards compatibility
+        v_bot = v_hip
         
         bm.verts.ensure_lookup_table()
         
-        # Create faces
-        # Bottom face
-        f_bottom = bm.faces.new([v_bot[3], v_bot[2], v_bot[1], v_bot[0]])
-        # Top face
+        # Create faces - connect all 4 levels
+        # Vertex layout: 0=front-left, 1=front-right, 2=back-right, 3=back-left
+        # Face winding: CCW from outside = outward normal
+        
+        # Bottom face (hip) - normal pointing down (-Z)
+        f_bottom = bm.faces.new([v_hip[0], v_hip[3], v_hip[2], v_hip[1]])
+        
+        # Helper function to create ring faces between two levels with consistent winding
+        def create_ring_faces(lower, upper):
+            """Create 4 quad faces connecting two vertex rings with outward normals"""
+            faces = []
+            # Front face (normal -Y): CCW from front = lower[0], upper[0], upper[1], lower[1]
+            faces.append(bm.faces.new([lower[0], upper[0], upper[1], lower[1]]))
+            # Right face (normal +X): CCW from right = lower[1], upper[1], upper[2], lower[2]
+            faces.append(bm.faces.new([lower[1], upper[1], upper[2], lower[2]]))
+            # Back face (normal +Y): CCW from back = lower[2], upper[2], upper[3], lower[3]
+            faces.append(bm.faces.new([lower[2], upper[2], upper[3], lower[3]]))
+            # Left face (normal -X): CCW from left = lower[3], upper[3], upper[0], lower[0]
+            faces.append(bm.faces.new([lower[3], upper[3], upper[0], lower[0]]))
+            return faces
+        
+        # Hip to waist
+        create_ring_faces(v_hip, v_waist)
+        
+        # Waist to chest
+        create_ring_faces(v_waist, v_chest)
+        
+        # Chest to shoulders - keep references for arm extrusion
+        shoulder_faces = create_ring_faces(v_chest, v_top)
+        f_right = shoulder_faces[1]  # Right face (normal +X)
+        f_left = shoulder_faces[3]   # Left face (normal -X)
+        
+        # Top face (shoulders) - normal pointing up (+Z)
         f_top = bm.faces.new([v_top[0], v_top[1], v_top[2], v_top[3]])
-        # Side faces
-        bm.faces.new([v_bot[0], v_bot[1], v_top[1], v_top[0]])  # front
-        bm.faces.new([v_bot[2], v_bot[3], v_top[3], v_top[2]])  # back
-        f_left = bm.faces.new([v_bot[3], v_bot[0], v_top[0], v_top[3]])   # left
-        f_right = bm.faces.new([v_bot[1], v_bot[2], v_top[2], v_top[1]])  # right
         
         bm.faces.ensure_lookup_table()
         
         # === PHASE 2: Extrude neck and head from top face ===
-        neck_height = head_height * 0.2
-        head_size = head_height * props.head_scale * 0.8
+        neck_height = head_height * 0.25
+        head_size = head_height * props.head_scale * 0.75
         
         # Extrude neck
         neck_result = bmesh.ops.extrude_face_region(bm, geom=[f_top])
         neck_verts = [v for v in neck_result['geom'] if isinstance(v, bmesh.types.BMVert)]
         bmesh.ops.translate(bm, verts=neck_verts, vec=Vector((0, 0, neck_height)))
         
-        # Scale neck inward
+        # Scale neck inward (thinner neck)
         neck_center = sum((v.co for v in neck_verts), Vector()) / len(neck_verts)
         for v in neck_verts:
             direction = v.co - neck_center
-            direction.x *= 0.4
-            direction.y *= 0.4
+            direction.x *= 0.35
+            direction.y *= 0.35
             v.co = neck_center + direction
         
         bm.faces.ensure_lookup_table()
@@ -599,20 +640,26 @@ class ProceduralHumanoid:
                     neck_top_face = f
                     break
         
-        # Extrude head from neck
+        # Extrude head from neck (better proportions)
         if neck_top_face:
             head_result = bmesh.ops.extrude_face_region(bm, geom=[neck_top_face])
             head_verts = [v for v in head_result['geom'] if isinstance(v, bmesh.types.BMVert)]
             bmesh.ops.translate(bm, verts=head_verts, vec=Vector((0, 0, head_size)))
             
-            # Scale head outward for larger head
+            # Scale head for proper shape
             head_center = sum((v.co for v in head_verts), Vector()) / len(head_verts)
-            head_scale = props.head_scale * 1.5
+            head_scale_x = props.head_scale * 1.6  # Wider
+            head_scale_y = props.head_scale * 1.4  # Slightly less deep
             for v in head_verts:
                 direction = v.co - head_center
-                direction.x *= head_scale
-                direction.y *= head_scale
+                direction.x *= head_scale_x
+                direction.y *= head_scale_y
                 v.co = head_center + direction
+            
+            # Move front vertices forward for face protrusion (chin/nose area)
+            for v in head_verts:
+                if v.co.y < head_center.y:  # Front vertices
+                    v.co.y -= head_size * 0.15  # Slight forward protrusion
         
         bm.faces.ensure_lookup_table()
         bm.verts.ensure_lookup_table()

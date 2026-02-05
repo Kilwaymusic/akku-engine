@@ -77,7 +77,7 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### Core Services
-- **GCP Worker**: Remote Blender server at `http://34.134.82.224:5000` for 3D model generation.
+- **GCP Worker**: Remote Blender server at `http://34.69.185.91:5000` for 3D model generation.
 - **PostgreSQL**: Database backend (configured via `DATABASE_URL`).
 - **Gemini API**: Google AI for prompt analysis and generation planning.
 
