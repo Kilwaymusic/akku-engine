@@ -1,0 +1,434 @@
+composerkil@blender-worker:~/akku-engine$ cd /path/to/akku_sdk
+git pull origin main
+
+# high poly level로 테스트 (subdivision 적용됨)
+blender --background --python akku_sdk/run.py -- \
+  "SF 로봇 전사, 메탈릭 블루 아머" stylized high /tmp/test_high.glb male default false armor
+
+# medium poly level 테스트 (subdivision 없음)
+blender --background --python akku_sdk/run.py -- \
+  "fantasy knight" stylized medium /tmp/test_medium.glb male default false armor
+-bash: cd: /path/to/akku_sdk: No such file or directory
+[4]-  Done                    nohup python3 server/gcp-app.py > flask.log 2>&1
+remote: Enumerating objects: 28, done.
+remote: Counting objects: 100% (28/28), done.
+remote: Compressing objects: 100% (6/6), done.
+remote: Total 18 (delta 12), reused 18 (delta 12), pack-reused 0 (from 0)
+Unpacking objects: 100% (18/18), 120.84 KiB | 1.89 MiB/s, done.
+From https://github.com/Kilwaymusic/akku-engine
+ * branch            main       -> FETCH_HEAD
+   cb1c0f1..019468d  main       -> origin/main
+Updating cb1c0f1..019468d
+Fast-forward
+ attached_assets/image_1770250852994.png                 | Bin 0 -> 78709 bytes
+ public/models/c56808ab-1929-4b13-a433-f7a4dec81042.glb  | Bin 0 -> 223828 bytes
+ public/outputs/c56808ab-1929-4b13-a433-f7a4dec81042.glb | Bin 0 -> 223828 bytes
+ replit.md                                               | 323 +++---------------
+ server/akku_sdk/__init__.py                             |  19 ++
+ server/akku_sdk/procedural.py                           |  19 ++
+ server/akku_sdk/sculpt_ops.py                           | 879 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 957 insertions(+), 283 deletions(-)
+ create mode 100644 attached_assets/image_1770250852994.png
+ create mode 100644 public/models/c56808ab-1929-4b13-a433-f7a4dec81042.glb
+ create mode 100644 public/outputs/c56808ab-1929-4b13-a433-f7a4dec81042.glb
+ create mode 100644 server/akku_sdk/sculpt_ops.py
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+[Akku SDK][INFO] Akku SDK v3.6.0 loaded
+
+============================================================
+[Akku SDK v3.6] Character Generation
+Prompt: SF 로봇 전사, 메탈릭 블루 아머, Style: stylized, Poly: high
+Body params: {'preset': 'auto'}
+============================================================
+
+[DEBUG] Using FBX: /home/composerkil/akku-engine/assets/base_meshes/Y_Bot.fbx
+[DEBUG] File exists: True
+[Akku SDK][INFO] Executing tool: clear_scene
+DEBUG: Starting clear_scene
+[Akku SDK][INFO] Step 'clear_scene': SUCCESS
+  Data: {
+  "duration_ms": 0.240325927734375,
+  "mesh_stats": null
+}
+[Step 1] Clear scene: OK
+[Akku SDK][INFO] Executing tool: import_base_mesh
+DEBUG: Starting import_base_mesh
+FBX version: 7700
+[Akku SDK][INFO] Imported FBX: /home/composerkil/akku-engine/assets/base_meshes/Y_Bot.fbx
+[Akku SDK][INFO] Step 'import_base_mesh': SUCCESS
+  Data: {
+  "duration_ms": 782.6902866363525,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Step 2] Import mesh: success - 
+[Akku SDK][INFO] Executing tool: apply_body_type
+DEBUG: Starting apply_body_type
+[Akku SDK][INFO] Step 'apply_body_type': SUCCESS
+  Data: {
+  "duration_ms": 0.09179115295410156,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Step 3] Body type: success
+[Akku SDK][INFO] Executing tool: apply_shader
+DEBUG: Starting apply_shader
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Joints
+  Data: {
+  "edge_brightness": 0.3,
+  "cavity_darkness": 0.35,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Joints
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Surface
+  Data: {
+  "edge_brightness": 0.3,
+  "cavity_darkness": 0.35,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Surface
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Step 'apply_shader': SUCCESS
+  Data: {
+  "duration_ms": 4.34565544128418,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Step 4] Shader: success
+[Akku SDK][INFO] Executing tool: finalize
+DEBUG: Starting finalize
+[Akku SDK][INFO] Optimized mesh: Alpha_Joints
+  Data: {
+  "doubles_removed": 0,
+  "degenerate_dissolved": 0,
+  "normals_fixed": true
+}
+[Akku SDK][INFO] Decimated Alpha_Joints: 20840 -> 7800 tris
+[Akku SDK][INFO] Optimized mesh: Alpha_Surface
+  Data: {
+  "doubles_removed": 0,
+  "degenerate_dissolved": 0,
+  "normals_fixed": true
+}
+[Akku SDK][INFO] Decimated Alpha_Surface: 34480 -> 5482 tris
+[Akku SDK][INFO] Finalized for pc
+  Data: {
+  "platform": "pc",
+  "objects_processed": 2,
+  "total_tris": 13282
+}
+[Akku SDK][INFO] Step 'finalize': SUCCESS
+  Data: {
+  "duration_ms": 617.5804138183594,
+  "mesh_stats": {
+    "vertex_count": 3994,
+    "face_count": 7800,
+    "triangle_count": 7800,
+    "edge_count": 11700,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9451784491539001,
+      -0.1396787166595459,
+      0.007491232827305794
+    ],
+    "bounds_max": [
+      0.9453052282333374,
+      0.13592477142810822,
+      1.5984050035476685
+    ],
+    "height": 1.5909137707203627
+  }
+}
+[Step 5] Finalize: success
+[Akku SDK][INFO] Executing tool: export_glb
+DEBUG: Starting export_glb
+00:32:19 | ERROR: Draco mesh compression is not available because library could not be found at /usr/bin/3.4/python/lib/python3.11/site-packages/libextern_draco.so
+00:32:20 | INFO: Starting glTF 2.0 export
+00:32:20 | INFO: Extracting primitive: Alpha_Joints.001
+00:32:20 | INFO: Primitives created: 1
+00:32:20 | INFO: Extracting primitive: Alpha_Surface.001
+00:32:20 | INFO: Primitives created: 1
+00:32:20 | INFO: Finished glTF 2.0 export in 0.24026060104370117 s
+
+[Akku SDK][INFO] Exported GLB: /tmp/test_high.glb
+[Akku SDK][INFO] Step 'export_glb': SUCCESS
+  Data: {
+  "duration_ms": 491.6510581970215,
+  "mesh_stats": {
+    "vertex_count": 3994,
+    "face_count": 7800,
+    "triangle_count": 7800,
+    "edge_count": 11700,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9451784491539001,
+      -0.1396787166595459,
+      0.007491232827305794
+    ],
+    "bounds_max": [
+      0.9453052282333374,
+      0.13592477142810822,
+      1.5984050035476685
+    ],
+    "height": 1.5909137707203627
+  }
+}
+[Step 6] Export: success
+
+[SUCCESS] Generated /tmp/test_high.glb (580296 bytes)
+
+Blender quit
+Blender 3.4.1
+/run/user/1000/gvfs/ non-existent directory
+[Akku SDK][INFO] Akku SDK v3.6.0 loaded
+
+============================================================
+[Akku SDK v3.6] Character Generation
+Prompt: fantasy knight, Style: stylized, Poly: medium
+Body params: {'preset': 'auto'}
+============================================================
+
+[DEBUG] Using FBX: /home/composerkil/akku-engine/assets/base_meshes/Y_Bot.fbx
+[DEBUG] File exists: True
+[Akku SDK][INFO] Executing tool: clear_scene
+DEBUG: Starting clear_scene
+[Akku SDK][INFO] Step 'clear_scene': SUCCESS
+  Data: {
+  "duration_ms": 0.28204917907714844,
+  "mesh_stats": null
+}
+[Step 1] Clear scene: OK
+[Akku SDK][INFO] Executing tool: import_base_mesh
+DEBUG: Starting import_base_mesh
+FBX version: 7700
+[Akku SDK][INFO] Imported FBX: /home/composerkil/akku-engine/assets/base_meshes/Y_Bot.fbx
+[Akku SDK][INFO] Step 'import_base_mesh': SUCCESS
+  Data: {
+  "duration_ms": 773.0488777160645,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Step 2] Import mesh: success - 
+[Akku SDK][INFO] Executing tool: apply_body_type
+DEBUG: Starting apply_body_type
+[Akku SDK][INFO] Step 'apply_body_type': SUCCESS
+  Data: {
+  "duration_ms": 0.08177757263183594,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Step 3] Body type: success
+[Akku SDK][INFO] Executing tool: apply_shader
+DEBUG: Starting apply_shader
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Joints
+  Data: {
+  "edge_brightness": 0.3,
+  "cavity_darkness": 0.35,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Joints
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Created stylized material: Akku_Stylized_Alpha_Surface
+  Data: {
+  "edge_brightness": 0.3,
+  "cavity_darkness": 0.35,
+  "use_fresnel": true
+}
+[Akku SDK][INFO] Applied stylized shader to Alpha_Surface
+  Data: {
+  "style": "stylized"
+}
+[Akku SDK][INFO] Step 'apply_shader': SUCCESS
+  Data: {
+  "duration_ms": 4.834651947021484,
+  "mesh_stats": {
+    "vertex_count": 10514,
+    "face_count": 11120,
+    "triangle_count": 20840,
+    "edge_count": 21540,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9452752470970154,
+      -0.1396786868572235,
+      0.007688506506383419
+    ],
+    "bounds_max": [
+      0.9452717304229736,
+      0.1359248012304306,
+      1.598390817642212
+    ],
+    "height": 1.5907023111358285
+  }
+}
+[Step 4] Shader: success
+[Akku SDK][INFO] Executing tool: finalize
+DEBUG: Starting finalize
+[Akku SDK][INFO] Optimized mesh: Alpha_Joints
+  Data: {
+  "doubles_removed": 0,
+  "degenerate_dissolved": 0,
+  "normals_fixed": true
+}
+[Akku SDK][INFO] Decimated Alpha_Joints: 20840 -> 2032 tris
+[Akku SDK][INFO] Optimized mesh: Alpha_Surface
+  Data: {
+  "doubles_removed": 0,
+  "degenerate_dissolved": 0,
+  "normals_fixed": true
+}
+[Akku SDK][INFO] Decimated Alpha_Surface: 34480 -> 2362 tris
+[Akku SDK][INFO] Finalized for mobile
+  Data: {
+  "platform": "mobile",
+  "objects_processed": 2,
+  "total_tris": 4394
+}
+[Akku SDK][INFO] Step 'finalize': SUCCESS
+  Data: {
+  "duration_ms": 635.7264518737793,
+  "mesh_stats": {
+    "vertex_count": 1110,
+    "face_count": 2032,
+    "triangle_count": 2032,
+    "edge_count": 3048,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9456960558891296,
+      -0.1394716054201126,
+      0.007058268878608942
+    ],
+    "bounds_max": [
+      0.9448856115341187,
+      0.135422483086586,
+      1.5979140996932983
+    ],
+    "height": 1.5908558308146894
+  }
+}
+[Step 5] Finalize: success
+[Akku SDK][INFO] Executing tool: export_glb
+DEBUG: Starting export_glb
+00:32:23 | ERROR: Draco mesh compression is not available because library could not be found at /usr/bin/3.4/python/lib/python3.11/site-packages/libextern_draco.so
+00:32:23 | INFO: Starting glTF 2.0 export
+00:32:23 | INFO: Extracting primitive: Alpha_Joints.001
+00:32:23 | INFO: Primitives created: 1
+00:32:23 | INFO: Extracting primitive: Alpha_Surface.001
+00:32:23 | INFO: Primitives created: 1
+00:32:23 | INFO: Finished glTF 2.0 export in 0.15271997451782227 s
+
+[Akku SDK][INFO] Exported GLB: /tmp/test_medium.glb
+[Akku SDK][INFO] Step 'export_glb': SUCCESS
+  Data: {
+  "duration_ms": 397.84812927246094,
+  "mesh_stats": {
+    "vertex_count": 1110,
+    "face_count": 2032,
+    "triangle_count": 2032,
+    "edge_count": 3048,
+    "material_count": 1,
+    "bounds_min": [
+      -0.9456960558891296,
+      -0.1394716054201126,
+      0.007058268878608942
+    ],
+    "bounds_max": [
+      0.9448856115341187,
+      0.135422483086586,
+      1.5979140996932983
+    ],
+    "height": 1.5908558308146894
+  }
+}
+[Step 6] Export: success
+
+[SUCCESS] Generated /tmp/test_medium.glb (265816 bytes)
+
+Blender quit
