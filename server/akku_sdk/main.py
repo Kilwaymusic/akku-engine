@@ -73,7 +73,7 @@ def generate_procedural_base(
         poly_level: Polygon complexity (ultra_low, low, medium, high)
         gender: Gender for proportion adjustments (male, female)
         create_rig: Whether to create basic armature rig
-        hierarchical: Use hierarchical generation with separate body parts (default: True)
+        hierarchical: Use hierarchical generation with separate body parts (default: False for Extrude-First)
         equipment: Equipment type for vertex colors (armor, robe, default)
         
     Returns:
@@ -557,7 +557,7 @@ def generate_character(
             "poly_level": poly_level,
             "gender": gender,
             "create_rig": True,
-            "hierarchical": True,
+            "hierarchical": False,  # Use Extrude-First unified mesh
             "equipment": equipment
         })
     else:
