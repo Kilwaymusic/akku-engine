@@ -40,6 +40,7 @@ class ProportionPreset:
     head_scale: float = 1.0
     limb_thickness: float = 0.04
     torso_thickness: float = 0.12
+    base_color: Tuple[float, float, float] = (0.6, 0.6, 0.65)  # Default gray-blue
 
 
 class StyleProportions:
@@ -478,7 +479,8 @@ class ProceduralHumanoid:
         cls,
         style: str = "stylized",
         poly_level: str = "medium",
-        gender: str = "male"
+        gender: str = "male",
+        base_color: Tuple[float, float, float] = None
     ) -> bpy.types.Object:
         """
         Generate a unified humanoid mesh using Extrude-First approach.
@@ -490,12 +492,17 @@ class ProceduralHumanoid:
             style: Character style preset
             poly_level: Polygon complexity
             gender: Gender for proportion adjustments
+            base_color: RGB color tuple (0.0-1.0) for character material
             
         Returns:
             Generated mesh object (single connected mesh)
         """
         props = StyleProportions.get_preset(style)
         poly_settings = PolyLevelPresets.get_preset(poly_level)
+        
+        # Apply base color if provided
+        if base_color and isinstance(base_color, (list, tuple)) and len(base_color) >= 3:
+            props.base_color = tuple(base_color[:3])
         
         if gender == "female":
             props.shoulder_width_ratio *= 0.9
@@ -538,36 +545,36 @@ class ProceduralHumanoid:
         chest_z = leg_height + torso_height * 0.7   # Chest at 70% of torso
         torso_top_z = leg_height + torso_height
         
-        hw = shoulder_width / 2  # half width at shoulders
+        hw = shoulder_width / 2 * 0.85  # half width at shoulders (reduced from 1.0)
         hd = torso_depth / 2     # half depth
-        hip_hw = hip_width / 2
-        waist_hw = min(hip_hw, hw) * 0.75  # Waist is 75% of narrower width
-        chest_hw = hw * 0.95  # Chest slightly narrower than shoulders
+        hip_hw = hip_width / 2 * 0.9  # Slightly narrower hips
+        waist_hw = min(hip_hw, hw) * 0.8  # Waist is 80% of narrower width (less extreme)
+        chest_hw = hw * 0.92  # Chest narrower than shoulders
         
         # Torso with 4 levels: hips, waist, chest, shoulders
         v_hip = [
-            bm.verts.new(Vector((-hip_hw, -hd * 0.9, torso_base_z))),
-            bm.verts.new(Vector((hip_hw, -hd * 0.9, torso_base_z))),
-            bm.verts.new(Vector((hip_hw, hd * 0.9, torso_base_z))),
-            bm.verts.new(Vector((-hip_hw, hd * 0.9, torso_base_z))),
+            bm.verts.new(Vector((-hip_hw, -hd * 0.85, torso_base_z))),
+            bm.verts.new(Vector((hip_hw, -hd * 0.85, torso_base_z))),
+            bm.verts.new(Vector((hip_hw, hd * 0.85, torso_base_z))),
+            bm.verts.new(Vector((-hip_hw, hd * 0.85, torso_base_z))),
         ]
         v_waist = [
-            bm.verts.new(Vector((-waist_hw, -hd * 0.7, waist_z))),
-            bm.verts.new(Vector((waist_hw, -hd * 0.7, waist_z))),
-            bm.verts.new(Vector((waist_hw, hd * 0.7, waist_z))),
-            bm.verts.new(Vector((-waist_hw, hd * 0.7, waist_z))),
+            bm.verts.new(Vector((-waist_hw, -hd * 0.75, waist_z))),
+            bm.verts.new(Vector((waist_hw, -hd * 0.75, waist_z))),
+            bm.verts.new(Vector((waist_hw, hd * 0.75, waist_z))),
+            bm.verts.new(Vector((-waist_hw, hd * 0.75, waist_z))),
         ]
         v_chest = [
-            bm.verts.new(Vector((-chest_hw, -hd * 0.85, chest_z))),
-            bm.verts.new(Vector((chest_hw, -hd * 0.85, chest_z))),
-            bm.verts.new(Vector((chest_hw, hd * 0.85, chest_z))),
-            bm.verts.new(Vector((-chest_hw, hd * 0.85, chest_z))),
+            bm.verts.new(Vector((-chest_hw, -hd * 0.82, chest_z))),
+            bm.verts.new(Vector((chest_hw, -hd * 0.82, chest_z))),
+            bm.verts.new(Vector((chest_hw, hd * 0.82, chest_z))),
+            bm.verts.new(Vector((-chest_hw, hd * 0.82, chest_z))),
         ]
         v_top = [
-            bm.verts.new(Vector((-hw, -hd * 0.8, torso_top_z))),
-            bm.verts.new(Vector((hw, -hd * 0.8, torso_top_z))),
-            bm.verts.new(Vector((hw, hd * 0.8, torso_top_z))),
-            bm.verts.new(Vector((-hw, hd * 0.8, torso_top_z))),
+            bm.verts.new(Vector((-hw, -hd * 0.78, torso_top_z))),
+            bm.verts.new(Vector((hw, -hd * 0.78, torso_top_z))),
+            bm.verts.new(Vector((hw, hd * 0.78, torso_top_z))),
+            bm.verts.new(Vector((-hw, hd * 0.78, torso_top_z))),
         ]
         
         # Alias for backwards compatibility
@@ -907,6 +914,9 @@ class ProceduralHumanoid:
         bm.free()
         mesh.update()
         
+        # === PHASE 6: Apply material/shader ===
+        cls._apply_stylized_material(obj, props)
+        
         from .tools import MeshAnalyzer
         stats = MeshAnalyzer.get_stats(obj)
         AkkuLogger.info("Unified mesh humanoid generated", {
@@ -918,6 +928,65 @@ class ProceduralHumanoid:
         })
         
         return obj
+    
+    @classmethod
+    def _apply_stylized_material(cls, obj: bpy.types.Object, props: HumanoidProps) -> None:
+        """Apply stylized low-poly shader to the character.
+        
+        Creates a material with:
+        - Base color from props.base_color
+        - Slight metallic for stylized look
+        - Edge highlighting via Fresnel
+        - Flat shading for faceted low-poly appearance
+        """
+        # Get color from props or use default
+        base_color = props.base_color if hasattr(props, 'base_color') else (0.6, 0.6, 0.65)
+        
+        # Create material
+        mat_name = f"AkkuStylized_{obj.name}"
+        mat = bpy.data.materials.new(name=mat_name)
+        mat.use_nodes = True
+        
+        # Clear default nodes
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        nodes.clear()
+        
+        # Create shader nodes
+        output = nodes.new('ShaderNodeOutputMaterial')
+        output.location = (400, 0)
+        
+        bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+        bsdf.location = (0, 0)
+        
+        # Set base color (convert tuple to RGBA)
+        if len(base_color) == 3:
+            bsdf.inputs['Base Color'].default_value = (*base_color, 1.0)
+        else:
+            bsdf.inputs['Base Color'].default_value = base_color
+        
+        # Stylized shader settings
+        bsdf.inputs['Metallic'].default_value = 0.1  # Slight metallic
+        bsdf.inputs['Roughness'].default_value = 0.7  # Slightly rough for matte look
+        bsdf.inputs['Specular IOR Level'].default_value = 0.3  # Reduced specular
+        
+        # Connect to output
+        links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+        
+        # Apply material to object
+        if obj.data.materials:
+            obj.data.materials[0] = mat
+        else:
+            obj.data.materials.append(mat)
+        
+        # Enable flat shading for faceted low-poly look
+        for poly in obj.data.polygons:
+            poly.use_smooth = False
+        
+        AkkuLogger.info("Applied stylized material", {
+            "material": mat_name,
+            "base_color": base_color
+        })
     
     @classmethod
     def generate(

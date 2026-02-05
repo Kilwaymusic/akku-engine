@@ -62,7 +62,8 @@ def generate_procedural_base(
     gender: str = "male",
     create_rig: bool = True,
     hierarchical: bool = False,  # Default to unified mesh (Extrude-First Policy)
-    equipment: str = "default"
+    equipment: str = "default",
+    base_color: list = None
 ):
     """
     Generate a procedural humanoid base mesh from scratch.
@@ -75,6 +76,7 @@ def generate_procedural_base(
         create_rig: Whether to create basic armature rig
         hierarchical: Use hierarchical generation with separate body parts (default: False for Extrude-First)
         equipment: Equipment type for vertex colors (armor, robe, default)
+        base_color: RGB color [r, g, b] from Gemini analysis (0.0-1.0 range)
         
     Returns:
         Dict with mesh info and stats
@@ -129,7 +131,8 @@ def generate_procedural_base(
         mesh_obj = ProceduralHumanoid.generate_unified_mesh(
             style=style,
             poly_level=poly_level,
-            gender=gender
+            gender=gender,
+            base_color=tuple(base_color) if base_color else None
         )
         
         rig_obj = None
@@ -558,7 +561,8 @@ def generate_character(
             "gender": gender,
             "create_rig": True,
             "hierarchical": False,  # Use Extrude-First unified mesh
-            "equipment": equipment
+            "equipment": equipment,
+            "base_color": base_color
         })
     else:
         load_result = ToolRegistry.execute("load_base_mesh", {"gender": gender})
