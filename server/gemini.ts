@@ -1527,6 +1527,120 @@ def get_face_by_normal(bm, direction, threshold=0.8):
             return face
     return None
 
+# === ADVANCED MODELING FUNCTIONS ===
+
+def add_tapered_cylinder(bm, pos, radius_bottom, radius_top, height, segments=8):
+    """Add a cylinder that tapers - perfect for organic limbs, tails, horns"""
+    r = bmesh.ops.create_cone(bm, segments=segments, radius1=radius_bottom, radius2=radius_top, depth=height, cap_ends=True)
+    for v in r['verts']:
+        v.co.x += pos[0]
+        v.co.y += pos[1]
+        v.co.z += pos[2]
+    return r['verts']
+
+def inset_face(bm, face, thickness=0.02, depth=0.05):
+    """Inset a face to create socket/hole - great for eye sockets, joints"""
+    r = bmesh.ops.inset_individual(bm, faces=[face], thickness=thickness, depth=depth)
+    return r
+
+def inset_and_extrude(bm, face, inset_amt=0.03, extrude_depth=-0.05):
+    """Inset then extrude inward - creates socket holes for eyes, buttons, etc."""
+    # Inset the face
+    bmesh.ops.inset_individual(bm, faces=[face], thickness=inset_amt, depth=0)
+    bm.faces.ensure_lookup_table()
+    # The center face after inset - extrude it inward
+    bmesh.ops.extrude_face_region(bm, geom=[face])
+    verts = [v for v in face.verts]
+    normal = face.normal
+    bmesh.ops.translate(bm, verts=verts, vec=normal * extrude_depth)
+    return verts
+
+def smooth_vertices(bm, factor=0.5, repeat=2):
+    """Smooth all vertices for organic look"""
+    for _ in range(repeat):
+        bmesh.ops.smooth_vert(bm, verts=bm.verts[:], factor=factor)
+
+def merge_close_verts(bm, distance=0.001):
+    """Merge vertices that are very close together - cleans up mesh"""
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=distance)
+
+def apply_smooth_modifier(obj, iterations=2, factor=0.5):
+    """Apply smooth modifier to object for organic curves"""
+    mod = obj.modifiers.new(name="Smooth", type='SMOOTH')
+    mod.iterations = iterations
+    mod.factor = factor
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.modifier_apply(modifier="Smooth")
+
+def apply_remesh(obj, voxel_size=0.03, smooth=True):
+    """Remesh object into smooth voxel mesh - unifies disconnected parts"""
+    mod = obj.modifiers.new(name="Remesh", type='REMESH')
+    mod.mode = 'VOXEL'
+    mod.voxel_size = voxel_size
+    mod.use_smooth_shade = smooth
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.modifier_apply(modifier="Remesh")
+
+def boolean_union(target_obj, tool_obj):
+    """Merge two objects using boolean union - creates single connected mesh"""
+    mod = target_obj.modifiers.new(name="Boolean", type='BOOLEAN')
+    mod.operation = 'UNION'
+    mod.object = tool_obj
+    bpy.context.view_layer.objects.active = target_obj
+    bpy.ops.object.modifier_apply(modifier="Boolean")
+    bpy.data.objects.remove(tool_obj, do_unlink=True)
+
+def merge_all_objects_to_one(base_name="Character"):
+    """Merge all mesh objects into one unified mesh"""
+    meshes = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+    if len(meshes) < 2:
+        return meshes[0] if meshes else None
+    
+    # Select all meshes
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in meshes:
+        obj.select_set(True)
+    
+    bpy.context.view_layer.objects.active = meshes[0]
+    bpy.ops.object.join()
+    
+    result = bpy.context.active_object
+    result.name = base_name
+    return result
+
+def finalize_organic_mesh(obj, remesh_size=0.025, smooth_iterations=1):
+    """Final pass: merge verts, remesh to unify, smooth for organic look"""
+    # First merge close vertices
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    merge_close_verts(bm, 0.005)
+    bm.to_mesh(obj.data)
+    bm.free()
+    
+    # Apply remesh for unified mesh
+    apply_remesh(obj, remesh_size, smooth=True)
+    
+    # Light smoothing pass
+    if smooth_iterations > 0:
+        apply_smooth_modifier(obj, smooth_iterations, 0.3)
+
+def add_icosphere(bm, pos, radius, subdivisions=2):
+    """Add icosphere - better topology than UV sphere for organic shapes"""
+    r = bmesh.ops.create_icosphere(bm, subdivisions=subdivisions, radius=radius)
+    for v in r['verts']:
+        v.co.x += pos[0]
+        v.co.y += pos[1]
+        v.co.z += pos[2]
+    return r['verts']
+
+def scale_along_axis(bm, verts, scale, axis='Z'):
+    """Scale vertices along one axis - for squashing/stretching"""
+    center = sum((v.co for v in verts), Vector()) / len(verts)
+    axis_idx = {'X': 0, 'Y': 1, 'Z': 2}[axis]
+    for v in verts:
+        diff = v.co[axis_idx] - center[axis_idx]
+        v.co[axis_idx] = center[axis_idx] + diff * scale
+
 # === CREATE MATERIALS FOR EACH PART ===
 # Examples - modify colors based on character description:
 mat_skin = create_material("Skin", (0.85, 0.65, 0.55))           # Human skin
@@ -1540,34 +1654,35 @@ obj_body, bm, mesh = create_part("Body", mat_skin)
 
 # Torso - use tapered shapes for organic look
 add_tapered_box(bm, (0, 0, 1.0), (0.42, 0.24, 0.52), taper=0.85)  # chest tapers up
-add_cylinder(bm, (0, 0, 0.68), radius=0.18, height=0.2, segments=10)  # waist
-add_cylinder(bm, (0, 0, 1.32), radius=0.06, height=0.12, segments=8)  # neck
+add_tapered_cylinder(bm, (0, 0, 0.68), 0.2, 0.18, 0.2, 10)  # waist (tapered)
+add_tapered_cylinder(bm, (0, 0, 1.32), 0.07, 0.06, 0.12, 8)  # neck (tapered)
 
-# Head - sphere for round head
-add_sphere(bm, (0, 0, 1.58), 0.18, segments=12, rings=8)
+# Head - icosphere for better topology
+add_icosphere(bm, (0, 0, 1.58), 0.18, subdivisions=2)
 
-# Arms - use cylinders for organic limbs
-add_cylinder(bm, (-0.32, 0, 1.1), radius=0.06, height=0.35, segments=8)  # left upper arm
-add_cylinder(bm, (-0.32, 0, 0.72), radius=0.05, height=0.35, segments=8) # left forearm
-add_cylinder(bm, (0.32, 0, 1.1), radius=0.06, height=0.35, segments=8)   # right upper arm
-add_cylinder(bm, (0.32, 0, 0.72), radius=0.05, height=0.35, segments=8)  # right forearm
+# Arms - TAPERED cylinders for organic limbs
+add_tapered_cylinder(bm, (-0.32, 0, 1.1), 0.07, 0.05, 0.35, 10)  # left upper arm
+add_tapered_cylinder(bm, (-0.32, 0, 0.72), 0.05, 0.04, 0.35, 10) # left forearm
+add_tapered_cylinder(bm, (0.32, 0, 1.1), 0.07, 0.05, 0.35, 10)   # right upper arm
+add_tapered_cylinder(bm, (0.32, 0, 0.72), 0.05, 0.04, 0.35, 10)  # right forearm
 
 # Hands - small spheres
 add_sphere(bm, (-0.32, 0, 0.52), 0.05, segments=8, rings=6)
 add_sphere(bm, (0.32, 0, 0.52), 0.05, segments=8, rings=6)
 
-# Legs - cylinders for natural limbs
-add_cylinder(bm, (-0.12, 0, 0.42), radius=0.06, height=0.32, segments=8)  # left thigh
-add_cylinder(bm, (-0.12, 0, 0.1), radius=0.05, height=0.32, segments=8)   # left shin
-add_cylinder(bm, (0.12, 0, 0.42), radius=0.06, height=0.32, segments=8)   # right thigh
-add_cylinder(bm, (0.12, 0, 0.1), radius=0.05, height=0.32, segments=8)    # right shin
+# Legs - TAPERED cylinders for natural limbs
+add_tapered_cylinder(bm, (-0.12, 0, 0.42), 0.08, 0.06, 0.32, 10)  # left thigh
+add_tapered_cylinder(bm, (-0.12, 0, 0.1), 0.06, 0.05, 0.32, 10)   # left shin
+add_tapered_cylinder(bm, (0.12, 0, 0.42), 0.08, 0.06, 0.32, 10)   # right thigh
+add_tapered_cylinder(bm, (0.12, 0, 0.1), 0.06, 0.05, 0.32, 10)    # right shin
 
 # Feet - tapered boxes
 add_tapered_box(bm, (-0.12, 0.04, -0.04), (0.1, 0.16, 0.08), taper=0.7)
 add_tapered_box(bm, (0.12, 0.04, -0.04), (0.1, 0.16, 0.08), taper=0.7)
 
-# Optional: bevel edges for smoother look
-# bevel_object(bm, 0.01, 2)
+# Smooth the mesh for organic curves
+smooth_vertices(bm, 0.3, 2)
+merge_close_verts(bm, 0.003)
 
 finish_part(bm, mesh)
 
@@ -1608,31 +1723,48 @@ print("Character created with multiple materials!")
 
 ## ADVANCED SHAPE TECHNIQUES:
 - TORSO: Use add_tapered_box() with taper=0.85 for natural chest shape
-- LIMBS: Use add_cylinder() with 8+ segments, not boxes
-- HEAD: Use add_sphere() with segments=12, rings=8 for smooth head
-- FINGERS: Small cylinders with 6 segments
-- After building body: Call bevel_object(bm, 0.015, 2) for smooth edges
+- LIMBS: Use add_tapered_cylinder() for organic limbs that thin at ends
+- HEAD: Use add_icosphere() with subdivisions=2 for better topology
+- FINGERS: Small tapered cylinders with 6 segments
+- After building body: Call smooth_vertices(bm, 0.3, 2) for organic smoothing
+
+## TAPERED CYLINDERS (essential for organic limbs):
+- add_tapered_cylinder(bm, pos, radius_bottom, radius_top, height, segments)
+- Example arm: add_tapered_cylinder(bm, (0.32, 0, 1.1), 0.07, 0.05, 0.35, 8)
+- Example leg: add_tapered_cylinder(bm, (0.12, 0, 0.4), 0.08, 0.06, 0.4, 8)
+- Example tail: add_tapered_cylinder(bm, (0, -0.2, 0.5), 0.06, 0.02, 0.3, 8)
+
+## SOCKET MODELING (for eyes, joints):
+- inset_face(bm, face, thickness, depth) - Create socket indent
+- inset_and_extrude(bm, face, inset_amt, extrude_depth) - Socket hole for eyes
+- get_face_by_normal(bm, (0, 1, 0)) - Find front-facing face for eye socket
 
 ## EXTRUDE + ROTATE (for curved pipes, tails, tentacles):
 - rotate_verts(bm, verts, angle, axis='Z') - Rotate vertices by angle degrees
 - extrude_and_rotate(bm, face, length, angle, axis) - Extrude face then rotate
 - extrude_chain(bm, face, segments, length, angle, axis, taper) - Chain of curved extrusions
-- get_face_by_normal(bm, (0,0,1)) - Find face pointing up (+Z), down (-Z), etc.
 
-## EXAMPLE - CURVED TAIL:
-# Create base cylinder for tail
-add_cylinder(bm, (0, -0.2, 0.5), radius=0.06, height=0.1, segments=8)
+## FINALIZATION (apply at end for unified organic mesh):
+- smooth_vertices(bm, 0.3, 2) - Smooth vertices in bmesh before finish_part
+- merge_close_verts(bm, 0.005) - Remove duplicate vertices
+- After all objects created:
+  - merge_all_objects_to_one("CharacterName") - Join all objects
+  - finalize_organic_mesh(obj, remesh_size=0.02) - Unify into smooth mesh
+
+## EXAMPLE - ORGANIC ARM WITH TAPER:
+# Upper arm: thick at shoulder, thinner at elbow
+add_tapered_cylinder(bm, (-0.35, 0, 1.1), 0.08, 0.06, 0.35, 10)
+# Forearm: thick at elbow, thinner at wrist
+add_tapered_cylinder(bm, (-0.35, 0, 0.72), 0.06, 0.04, 0.35, 10)
+# Hand: sphere for palm
+add_sphere(bm, (-0.35, 0, 0.52), 0.05, segments=8, rings=6)
+
+## EXAMPLE - CURVED TAIL WITH TAPER:
+add_tapered_cylinder(bm, (0, -0.2, 0.5), 0.06, 0.04, 0.15, 8)
 bm.faces.ensure_lookup_table()
-# Find the back-facing face
 back_face = get_face_by_normal(bm, (0, -1, 0))
 if back_face:
-    # Create curved tail with 5 segments, each 0.08 long, rotating 15 degrees down
-    extrude_chain(bm, back_face, segments=5, length_per_seg=0.08, angle_per_seg=-15, axis='X', taper=0.85)
-
-## EXAMPLE - ORGANIC BODY:
-# Instead of: add_box(bm, (0, 0, 1.0), (0.4, 0.25, 0.5))
-# Use: add_tapered_box(bm, (0, 0, 1.0), (0.4, 0.25, 0.5), taper=0.85)
-# Or: add_cylinder(bm, (0, 0, 1.0), radius=0.2, height=0.5, segments=12)
+    extrude_chain(bm, back_face, segments=4, length_per_seg=0.08, angle_per_seg=-20, axis='X', taper=0.8)
 
 ## COLOR PALETTE EXAMPLES:
 - Elf skin: (0.9, 0.8, 0.7) or pale green (0.75, 0.85, 0.7)
@@ -1642,7 +1774,12 @@ if back_face:
 - Wood staff: (0.4, 0.25, 0.15)
 - Magic glow: (0.5, 0.3, 0.9)
 
-IMPORTANT: Avoid blocky Minecraft-style characters. Use cylinders, spheres, tapered boxes, and bevels for organic game-ready models (~500-2000 triangles).`;
+## PROFESSIONAL MODELING WORKFLOW:
+1. Create body parts using add_tapered_cylinder() and add_icosphere() - NOT boxes!
+2. Apply smooth_vertices(bm, 0.3, 2) before finish_part() for organic curves
+3. For final unified mesh (optional): merge_all_objects_to_one() then finalize_organic_mesh()
+
+CRITICAL: Create characters like a professional 3D modeler - use TAPERED shapes, SMOOTH vertices, and ORGANIC proportions. Avoid blocky LEGO/Minecraft style. Target 500-2000 triangles.`;
 
 
 
