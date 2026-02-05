@@ -1425,6 +1425,49 @@ def add_cylinder(bm, pos, radius, height, segments=8):
         v.co.z += pos[2]
     return r['verts']
 
+def add_tapered_box(bm, pos, size, taper=0.8):
+    """Add a box that tapers toward top - good for torsos, limbs"""
+    r = bmesh.ops.create_cube(bm, size=1.0)
+    for v in r['verts']:
+        # Taper upper vertices
+        if v.co.z > 0:
+            v.co.x *= taper
+            v.co.y *= taper
+        v.co.x = v.co.x * size[0] + pos[0]
+        v.co.y = v.co.y * size[1] + pos[1]
+        v.co.z = v.co.z * size[2] + pos[2]
+    return r['verts']
+
+def bevel_object(bm, amount=0.02, segments=2):
+    """Bevel all edges for smoother look"""
+    edges = [e for e in bm.edges]
+    bmesh.ops.bevel(bm, geom=edges, offset=amount, segments=segments, affect='EDGES')
+
+def subdivide_mesh(bm, cuts=1):
+    """Subdivide all faces for more geometry"""
+    edges = [e for e in bm.edges]
+    bmesh.ops.subdivide_edges(bm, edges=edges, cuts=cuts, use_grid_fill=True)
+
+def add_rounded_box(bm, pos, size, bevel_amt=0.02):
+    """Add a box with beveled edges for rounded corners"""
+    verts = add_box(bm, pos, size)
+    # Bevel the new geometry
+    new_edges = [e for e in bm.edges if any(v in verts for v in e.verts)]
+    if new_edges:
+        bmesh.ops.bevel(bm, geom=new_edges, offset=bevel_amt, segments=2, affect='EDGES')
+    return verts
+
+def extrude_face(bm, face, offset, scale=1.0):
+    """Extrude a face and optionally scale it"""
+    r = bmesh.ops.extrude_face_region(bm, geom=[face])
+    verts = [v for v in r['geom'] if isinstance(v, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, verts=verts, vec=offset)
+    if scale != 1.0:
+        center = sum((v.co for v in verts), Vector()) / len(verts)
+        for v in verts:
+            v.co = center + (v.co - center) * scale
+    return verts
+
 # === CREATE MATERIALS FOR EACH PART ===
 # Examples - modify colors based on character description:
 mat_skin = create_material("Skin", (0.85, 0.65, 0.55))           # Human skin
@@ -1436,33 +1479,36 @@ mat_accent = create_material("Accent", (0.8, 0.2, 0.2))          # Red accent
 # === BODY (skin material) ===
 obj_body, bm, mesh = create_part("Body", mat_skin)
 
-# Torso - use beveled/tapered shapes for more organic look
-add_box(bm, (0, 0, 1.0), (0.42, 0.24, 0.52))     # chest
-add_box(bm, (0, 0, 0.68), (0.38, 0.22, 0.16))    # waist
-add_box(bm, (0, 0, 1.32), (0.12, 0.1, 0.12))     # neck
+# Torso - use tapered shapes for organic look
+add_tapered_box(bm, (0, 0, 1.0), (0.42, 0.24, 0.52), taper=0.85)  # chest tapers up
+add_cylinder(bm, (0, 0, 0.68), radius=0.18, height=0.2, segments=10)  # waist
+add_cylinder(bm, (0, 0, 1.32), radius=0.06, height=0.12, segments=8)  # neck
 
-# Head - can use sphere for rounder look
+# Head - sphere for round head
 add_sphere(bm, (0, 0, 1.58), 0.18, segments=12, rings=8)
 
-# Arms
-add_box(bm, (-0.32, 0, 1.1), (0.12, 0.1, 0.35))  # left upper arm
-add_box(bm, (-0.32, 0, 0.72), (0.1, 0.08, 0.35)) # left forearm
-add_box(bm, (0.32, 0, 1.1), (0.12, 0.1, 0.35))   # right upper arm
-add_box(bm, (0.32, 0, 0.72), (0.1, 0.08, 0.35))  # right forearm
+# Arms - use cylinders for organic limbs
+add_cylinder(bm, (-0.32, 0, 1.1), radius=0.06, height=0.35, segments=8)  # left upper arm
+add_cylinder(bm, (-0.32, 0, 0.72), radius=0.05, height=0.35, segments=8) # left forearm
+add_cylinder(bm, (0.32, 0, 1.1), radius=0.06, height=0.35, segments=8)   # right upper arm
+add_cylinder(bm, (0.32, 0, 0.72), radius=0.05, height=0.35, segments=8)  # right forearm
 
-# Hands
-add_box(bm, (-0.32, 0, 0.52), (0.08, 0.06, 0.1))
-add_box(bm, (0.32, 0, 0.52), (0.08, 0.06, 0.1))
+# Hands - small spheres
+add_sphere(bm, (-0.32, 0, 0.52), 0.05, segments=8, rings=6)
+add_sphere(bm, (0.32, 0, 0.52), 0.05, segments=8, rings=6)
 
-# Legs
-add_box(bm, (-0.12, 0, 0.42), (0.12, 0.1, 0.32))  # left thigh
-add_box(bm, (-0.12, 0, 0.1), (0.1, 0.09, 0.32))   # left shin
-add_box(bm, (0.12, 0, 0.42), (0.12, 0.1, 0.32))   # right thigh
-add_box(bm, (0.12, 0, 0.1), (0.1, 0.09, 0.32))    # right shin
+# Legs - cylinders for natural limbs
+add_cylinder(bm, (-0.12, 0, 0.42), radius=0.06, height=0.32, segments=8)  # left thigh
+add_cylinder(bm, (-0.12, 0, 0.1), radius=0.05, height=0.32, segments=8)   # left shin
+add_cylinder(bm, (0.12, 0, 0.42), radius=0.06, height=0.32, segments=8)   # right thigh
+add_cylinder(bm, (0.12, 0, 0.1), radius=0.05, height=0.32, segments=8)    # right shin
 
-# Feet
-add_box(bm, (-0.12, 0.04, -0.04), (0.1, 0.14, 0.08))
-add_box(bm, (0.12, 0.04, -0.04), (0.1, 0.14, 0.08))
+# Feet - tapered boxes
+add_tapered_box(bm, (-0.12, 0.04, -0.04), (0.1, 0.16, 0.08), taper=0.7)
+add_tapered_box(bm, (0.12, 0.04, -0.04), (0.1, 0.16, 0.08), taper=0.7)
+
+# Optional: bevel edges for smoother look
+# bevel_object(bm, 0.01, 2)
 
 finish_part(bm, mesh)
 
@@ -1488,17 +1534,30 @@ print("Character created with multiple materials!")
 ## CRITICAL INSTRUCTIONS:
 1. CREATE SEPARATE OBJECTS for different colored parts (body, hair, clothing, accessories)
 2. EACH OBJECT gets its OWN MATERIAL with appropriate color
-3. Use add_sphere() for heads/round parts, add_cone() for hats/horns, add_cylinder() for weapons
+3. AVOID PURE BOXES - Use these techniques for organic shapes:
+   - add_sphere() for heads, joints, round features
+   - add_tapered_box() for limbs, torsos (taper parameter 0.7-0.9)
+   - add_cylinder() for arms, legs, necks, weapons
+   - add_cone() for hats, horns, pointed ears
+   - bevel_object(bm, 0.02, 2) after adding geometry to round edges
+   - subdivide_mesh(bm, 1) for smoother surfaces
 4. Match proportions to character type:
    - Chibi: big head (0.25 radius), small body (0.5x height)
    - Realistic: normal proportions (head ~1/7 of height)
    - Stylized: slightly large head, expressive proportions
-5. Add DISTINCTIVE FEATURES based on the prompt:
-   - Elf: pointed ears using add_cone()
-   - Cat: triangular ears, tail using multiple boxes
-   - Robot: angular shapes, antenna, visor
-   - Knight: armor plates, helmet, sword
-   - Mage: flowing robe, staff, hat
+5. Add DISTINCTIVE FEATURES based on the prompt
+
+## ADVANCED SHAPE TECHNIQUES:
+- TORSO: Use add_tapered_box() with taper=0.85 for natural chest shape
+- LIMBS: Use add_cylinder() with 8+ segments, not boxes
+- HEAD: Use add_sphere() with segments=12, rings=8 for smooth head
+- FINGERS: Small cylinders with 6 segments
+- After building body: Call bevel_object(bm, 0.015, 2) for smooth edges
+
+## EXAMPLE - ORGANIC BODY:
+# Instead of: add_box(bm, (0, 0, 1.0), (0.4, 0.25, 0.5))
+# Use: add_tapered_box(bm, (0, 0, 1.0), (0.4, 0.25, 0.5), taper=0.85)
+# Or: add_cylinder(bm, (0, 0, 1.0), radius=0.2, height=0.5, segments=12)
 
 ## COLOR PALETTE EXAMPLES:
 - Elf skin: (0.9, 0.8, 0.7) or pale green (0.75, 0.85, 0.7)
@@ -1508,7 +1567,7 @@ print("Character created with multiple materials!")
 - Wood staff: (0.4, 0.25, 0.15)
 - Magic glow: (0.5, 0.3, 0.9)
 
-BE CREATIVE but stay within the low-poly game character style (~500-2000 triangles).`;
+IMPORTANT: Avoid blocky Minecraft-style characters. Use cylinders, spheres, tapered boxes, and bevels for organic game-ready models (~500-2000 triangles).`;
 
 
 
