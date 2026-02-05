@@ -23,6 +23,7 @@ export class MemStorage implements IStorage {
       style: insertJob.style || "stylized",
       polyLevel: insertJob.polyLevel || "medium",
       status: "pending",
+      progressStage: null,
       modelUrl: null,
       error: null,
       createdAt: new Date(),

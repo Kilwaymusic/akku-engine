@@ -861,7 +861,7 @@ echo "Deployment complete!"
         style: "stylized", 
         polyLevel: "medium" 
       });
-      await storage.updateJob(job.id, { status: "processing" });
+      await storage.updateJob(job.id, { status: "processing", progressStage: "analyzing_prompt" });
       
       console.log(`[Agent] Job created: ${job.id}`);
       
@@ -896,6 +896,7 @@ echo "Deployment complete!"
       
       // Step 3: Generate Blender code with Gemini
       console.log(`[Agent] Generating Blender code with Gemini...`);
+      await storage.updateJob(job.id, { progressStage: "generating_code" });
       let blenderCode: string;
       
       try {
@@ -904,7 +905,8 @@ echo "Deployment complete!"
       } catch (codeError) {
         console.error(`[Agent] Code generation failed:`, codeError);
         await storage.updateJob(job.id, { 
-          status: "failed" 
+          status: "failed",
+          progressStage: null
         });
         return res.status(500).json({ 
           error: "Failed to generate Blender code",
@@ -914,6 +916,7 @@ echo "Deployment complete!"
       
       // Step 4: Send code to GCP Worker for execution
       console.log(`[Agent] Sending code to GCP Worker...`);
+      await storage.updateJob(job.id, { progressStage: "sending_to_blender" });
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), GCP_WORKER_TIMEOUT);
@@ -937,7 +940,7 @@ echo "Deployment complete!"
         if (!contentType || !contentType.includes("application/json")) {
           const text = await gcpResponse.text();
           console.error(`[Agent] GCP Worker returned non-JSON response:`, text.substring(0, 200));
-          await storage.updateJob(job.id, { status: "failed" });
+          await storage.updateJob(job.id, { status: "failed", progressStage: null });
           return res.status(500).json({
             error: "GCP Worker returned invalid response",
             details: gcpResponse.status === 404 
@@ -957,7 +960,7 @@ echo "Deployment complete!"
         
         if (!result.success) {
           console.error(`[Agent] Execution failed:`, result.error);
-          await storage.updateJob(job.id, { status: "failed" });
+          await storage.updateJob(job.id, { status: "failed", progressStage: null });
           return res.status(500).json({ 
             error: "Blender execution failed",
             details: result.error
@@ -967,6 +970,7 @@ echo "Deployment complete!"
         console.log(`[Agent] GLB created: ${result.glb_filename} (${result.file_size} bytes)`);
         
         // Step 5: Fetch GLB from GCP Worker
+        await storage.updateJob(job.id, { progressStage: "finalizing" });
         const glbResponse = await fetch(`${GCP_WORKER_URL}/download/${result.glb_filename}`);
         
         if (!glbResponse.ok) {
@@ -986,6 +990,7 @@ echo "Deployment complete!"
         const modelUrl = `/models/${job.id}.glb`;
         await storage.updateJob(job.id, { 
           status: "completed", 
+          progressStage: null,
           modelUrl 
         });
         
@@ -1005,7 +1010,7 @@ echo "Deployment complete!"
         
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           console.error(`[Agent] Request timed out`);
-          await storage.updateJob(job.id, { status: "failed" });
+          await storage.updateJob(job.id, { status: "failed", progressStage: null });
           return res.status(504).json({ error: "Request timed out" });
         }
         
@@ -1044,7 +1049,7 @@ echo "Deployment complete!"
         polyLevel: "medium"
       });
       
-      await storage.updateJob(job.id, { status: "processing" });
+      await storage.updateJob(job.id, { status: "processing", progressStage: "analyzing_prompt" });
       
       // Verify GCP Worker is available
       try {
@@ -1052,12 +1057,13 @@ echo "Deployment complete!"
         const healthData = await healthResponse.json() as { version?: string };
         console.log(`[Iterative Agent] GCP Worker v${healthData.version} is healthy`);
       } catch (error) {
-        await storage.updateJob(job.id, { status: "failed" });
+        await storage.updateJob(job.id, { status: "failed", progressStage: null });
         return res.status(503).json({ error: "GCP Worker unavailable" });
       }
       
       // Step 1: Generate initial code
       console.log(`[Iterative Agent] Generating initial code...`);
+      await storage.updateJob(job.id, { progressStage: "generating_code" });
       let currentCode: string;
       try {
         currentCode = await generateBlenderCode(prompt);
@@ -1066,6 +1072,7 @@ echo "Deployment complete!"
         console.error(`[Iterative Agent] Code generation failed:`, codeGenError.message);
         await storage.updateJob(job.id, { 
           status: "failed", 
+          progressStage: null,
           error: codeGenError.message || "Code generation failed" 
         });
         return res.status(500).json({ error: codeGenError.message || "Code generation failed" });
@@ -1083,6 +1090,9 @@ echo "Deployment complete!"
       // Iterative loop
       for (let iteration = 1; iteration <= maxIterations; iteration++) {
         console.log(`\n[Iterative Agent] === Iteration ${iteration}/${maxIterations} ===`);
+        
+        // Update progress stage
+        await storage.updateJob(job.id, { progressStage: "sending_to_blender" });
         
         // Execute code with screenshot capture
         const controller = new AbortController();
@@ -1130,12 +1140,15 @@ echo "Deployment complete!"
           console.log(`[Iterative Agent] GLB: ${result.glb_filename}`);
           console.log(`[Iterative Agent] Screenshot: ${result.screenshot_filename}`);
           
+          await storage.updateJob(job.id, { progressStage: "rendering" });
+          
           finalGlbFilename = result.glb_filename || "";
           finalScreenshotFilename = result.screenshot_filename || "";
           
           // If this is the last iteration, skip analysis
           if (iteration === maxIterations) {
             console.log(`[Iterative Agent] Final iteration reached, using result`);
+            await storage.updateJob(job.id, { progressStage: "finalizing" });
             iterationResults.push({ iteration, success: true, satisfactory: true });
             break;
           }
@@ -1144,6 +1157,7 @@ echo "Deployment complete!"
           let screenshotBase64 = "";
           if (result.screenshot_filename) {
             console.log(`[Iterative Agent] Fetching screenshot for analysis...`);
+            await storage.updateJob(job.id, { progressStage: "analyzing_screenshot" });
             
             try {
               const screenshotResponse = await fetch(
@@ -1198,6 +1212,7 @@ echo "Deployment complete!"
           
           // Refine code based on feedback
           console.log(`[Iterative Agent] Refining code based on ${analysis.issues.length} issues...`);
+          await storage.updateJob(job.id, { progressStage: "refining_code" });
           try {
             currentCode = await refineBlenderCode(
               currentCode,
@@ -1252,6 +1267,7 @@ echo "Deployment complete!"
       const modelUrl = `/models/${localFilename}`;
       await storage.updateJob(job.id, {
         status: "completed",
+        progressStage: null,
         modelUrl
       });
       

@@ -9,8 +9,62 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Download, RotateCcw, Moon, Sun, Monitor, RefreshCw } from "lucide-react";
-import type { Job } from "@shared/schema";
+import { Download, RotateCcw, Moon, Sun, Monitor, RefreshCw, Loader2 } from "lucide-react";
+import type { Job, ProgressStage } from "@shared/schema";
+
+const STAGE_LABELS: Record<ProgressStage, string> = {
+  analyzing_prompt: "프롬프트 분석 중...",
+  generating_code: "코드 생성 중...",
+  sending_to_blender: "Blender로 전송 중...",
+  rendering: "렌더링 중...",
+  analyzing_screenshot: "스크린샷 분석 중...",
+  refining_code: "코드 개선 중...",
+  finalizing: "최종화 중...",
+};
+
+const STAGE_ORDER: ProgressStage[] = [
+  "analyzing_prompt",
+  "generating_code", 
+  "sending_to_blender",
+  "rendering",
+  "analyzing_screenshot",
+  "refining_code",
+  "finalizing",
+];
+
+function ProgressIndicator({ stage }: { stage: ProgressStage | null }) {
+  if (!stage) return null;
+  
+  const currentIndex = STAGE_ORDER.indexOf(stage);
+  const label = STAGE_LABELS[stage] || stage;
+  
+  return (
+    <div className="absolute top-4 left-4 right-4 z-10" data-testid="progress-indicator">
+      <div className="bg-background/90 backdrop-blur rounded-lg p-3 border border-border shadow-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <span className="text-sm font-medium text-foreground">{label}</span>
+        </div>
+        <div className="flex gap-1">
+          {STAGE_ORDER.map((s, i) => (
+            <div
+              key={s}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${
+                i <= currentIndex 
+                  ? "bg-primary" 
+                  : "bg-muted"
+              }`}
+            />
+          ))}
+        </div>
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-muted-foreground">시작</span>
+          <span className="text-[10px] text-muted-foreground">완료</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ViewerFallback({ modelUrl }: { modelUrl?: string | null }) {
   return (
@@ -86,19 +140,28 @@ export default function Home() {
   useEffect(() => {
     if (selectedJob && jobs.length > 0) {
       const updatedJob = jobs.find((j) => j.id === selectedJob.id);
-      if (updatedJob && updatedJob.status !== selectedJob.status) {
-        setSelectedJob(updatedJob);
-        if (updatedJob.status === "completed") {
-          toast({
-            title: "생성 완료",
-            description: "3D 캐릭터가 성공적으로 생성되었습니다!",
-          });
-        } else if (updatedJob.status === "failed") {
-          toast({
-            title: "생성 실패",
-            description: updatedJob.error || "알 수 없는 오류가 발생했습니다.",
-            variant: "destructive",
-          });
+      if (updatedJob) {
+        // Update when status OR progressStage changes
+        const statusChanged = updatedJob.status !== selectedJob.status;
+        const stageChanged = updatedJob.progressStage !== selectedJob.progressStage;
+        
+        if (statusChanged || stageChanged) {
+          setSelectedJob(updatedJob);
+          
+          if (statusChanged) {
+            if (updatedJob.status === "completed") {
+              toast({
+                title: "생성 완료",
+                description: "3D 캐릭터가 성공적으로 생성되었습니다!",
+              });
+            } else if (updatedJob.status === "failed") {
+              toast({
+                title: "생성 실패",
+                description: updatedJob.error || "알 수 없는 오류가 발생했습니다.",
+                variant: "destructive",
+              });
+            }
+          }
         }
       }
     }
@@ -173,6 +236,9 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <div className="relative aspect-[4/3] lg:aspect-[16/10] rounded-xl overflow-hidden border border-border">
+              {isGenerating && (
+                <ProgressIndicator stage={selectedJob?.progressStage as ProgressStage | null} />
+              )}
               <ErrorBoundary fallback={<ViewerFallback modelUrl={selectedJob?.modelUrl} />}>
                 <BabylonViewer
                   modelUrl={selectedJob?.modelUrl || null}
